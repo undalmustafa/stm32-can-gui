@@ -68,10 +68,14 @@ manual repair and no duplicate IWDG initialization.
 - [x] Expose the previous watchdog failure through diagnostics or event logging
 - [x] Distinguish a health-gate rejection from a hard superloop stall
 - [x] Add host tests for retained-record validation and stale-record rejection
-- [ ] Verify the complete retained-evidence path after an on-target IWDG reset
+- [x] Verify the complete retained-evidence path after an on-target IWDG reset
 
 Exit criterion: after an injected watchdog reset, the next boot reports the reset
 source and any trustworthy pre-reset health evidence.
+
+Target result (2026-07-21): on NUCLEO-H7A3ZI-Q Debug firmware, suppressing the
+RTC heartbeat reset the MCU and the next boot reported valid retained evidence
+with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 
 ### 3. Timing Characterization
 
