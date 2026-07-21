@@ -424,6 +424,17 @@ telemetry only from standard IDs `0x551`, `0x556`, `0x557`, and `0x558`.
 5. Flash the NUCLEO-H7A3ZI-Q through ST-LINK.
 6. Connect a CAN transceiver and correctly terminated 500 kbit/s bus.
 
+For a command-line release build, install GNU Arm Embedded Toolchain and GNU
+Make, then run:
+
+```powershell
+make CONFIG=release --jobs=2
+```
+
+The ELF, Intel HEX, raw binary, map, and disassembly outputs are written under
+`build/release/`. Use `CONFIG=debug` for an unoptimized build with `DEBUG`
+defined.
+
 ### GUI
 
 ```powershell
@@ -433,6 +444,18 @@ python .\python\can_gui.py
 
 A PEAK PCAN adapter and its platform driver are required for the configured
 `interface="pcan"` backend.
+
+## Continuous Integration and Delivery
+
+GitHub Actions runs two independent CI jobs on pushes and pull requests:
+
+- a release firmware build using GNU Arm Embedded Toolchain
+- Python syntax validation and all GUI regression scripts
+
+Firmware artifacts are retained with each CI run. Pushing a tag whose name
+starts with `v` runs the same verification, builds the firmware, packages the
+Python application, generates SHA-256 checksums, and publishes a GitHub
+release. GitHub Actions dependencies are monitored monthly by Dependabot.
 
 ## Engineering Constraints and Next Steps
 

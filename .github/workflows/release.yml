@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install GNU Arm toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi
+
+      - name: Run GUI regression scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q python/can_gui.py python/can_gui_app python/tests
+          for test_file in python/tests/test_gui_*.py; do
+            python "$test_file"
+          done
+
+      - name: Build release firmware
+        run: make CONFIG=release --jobs=2
+
+      - name: Package release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive \
+            --format=zip \
+            --prefix=can_gui-python/ \
+            --output=build/release/can_gui-python.zip \
+            HEAD:python
+          cd build/release
+          sha256sum \
+            can_gui.elf \
+            can_gui.hex \
+            can_gui.bin \
+            can_gui-python.zip > SHA256SUMS
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ github.ref_name }}
+          path: |
+            build/release/can_gui.elf
+            build/release/can_gui.hex
+            build/release/can_gui.bin
+            build/release/can_gui.map
+            build/release/can_gui-python.zip
+            build/release/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            build/release/can_gui.elf \
+            build/release/can_gui.hex \
+            build/release/can_gui.bin \
+            build/release/can_gui.map \
+            build/release/can_gui-python.zip \
+            build/release/SHA256SUMS \
+            --generate-notes \
+            --title "${GITHUB_REF_NAME}"

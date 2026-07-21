@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    name: Firmware
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install GNU Arm toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            gcc-arm-none-eabi \
+            libnewlib-arm-none-eabi
+
+      - name: Build release firmware
+        run: make CONFIG=release --jobs=2
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-${{ github.sha }}
+          path: |
+            build/release/can_gui.elf
+            build/release/can_gui.hex
+            build/release/can_gui.bin
+            build/release/can_gui.map
+          if-no-files-found: error
+          retention-days: 14
+
+  gui:
+    name: GUI
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Check Python syntax
+        run: python -m compileall -q python/can_gui.py python/can_gui_app python/tests
+
+      - name: Run GUI regression scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test_file in python/tests/test_gui_*.py; do
+            python "$test_file"
+          done
