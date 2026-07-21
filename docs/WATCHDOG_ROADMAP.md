@@ -89,6 +89,11 @@ with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 Exit criterion: the minimum measured watchdog timeout remains safely above the
 maximum valid service interval, with an agreed engineering margin.
 
+Baseline target result (2026-07-21): after `153359 ms` of normal Debug runtime,
+the maximum observed main-loop, CAN-application, and RTC-service heartbeat
+intervals were all `2 ms`. Loaded traffic and fault scenarios remain to be
+measured.
+
 ### 4. Target Fault Injection
 
 - [x] Suppress each required heartbeat independently
