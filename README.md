@@ -25,6 +25,8 @@ and debugger-friendly diagnostics.
 - Multi-phase bus-off recovery with exponential retry backoff
 - Recovery verification using an actual TX-complete interrupt
 - Periodic runtime diagnostic snapshots with sticky issue flags
+- Health-gated independent watchdog with main-loop, CAN, and RTC check-ins
+- Boot-time reset-cause capture including independent watchdog resets
 - 64-entry binary RAM event log with sequence numbers and CRC-16
 - PySide6 GUI using `python-can` and PEAK PCAN
 
@@ -87,6 +89,8 @@ Core/Inc|Src/pca2131.*      PCA2131 register driver
 Core/Inc|Src/rtc_app.*      RTC and alarm state machines
 Core/Inc|Src/app_log.*      Binary RAM event log
 Core/Inc|Src/app_diagnostics.* Aggregated runtime diagnostics
+Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
+Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
 python/can_gui.py           Desktop control and monitoring GUI
@@ -107,7 +111,8 @@ runtime, `main()` performs:
 7. CAN application, transport, filter, notification, and diagnostics setup
 8. Non-blocking PCA2131 initialization scheduling
 9. Initial system-status publication
-10. Entry into the cooperative superloop
+10. Independent watchdog initialization
+11. Entry into the cooperative superloop
 
 The main loop repeatedly calls `CAN_App_Process()`:
 
@@ -125,6 +130,12 @@ App_Diagnostics_Process()
 There is no RTOS. Services use `HAL_GetTick()` deadlines and return without
 deliberate blocking. I2C HAL calls are synchronous with a 10 ms timeout, so they
 remain the principal bounded blocking operations in the superloop.
+
+The watchdog evaluates progress every 250 ms and refreshes IWDG1 only after the
+main loop, CAN application, and RTC service have all checked in. Its nominal
+timeout is 4 seconds; target timing characterization remains required before
+production sign-off. See `docs/WATCHDOG_ROADMAP.md` for the tracked validation
+plan.
 
 Unsigned elapsed-time comparisons are used for periodic work. Absolute
 deadlines use signed subtraction where required so comparisons remain valid
@@ -447,8 +458,9 @@ A PEAK PCAN adapter and its platform driver are required for the configured
 
 ## Continuous Integration and Delivery
 
-GitHub Actions runs two independent CI jobs on pushes and pull requests:
+GitHub Actions runs independent CI jobs on pushes and pull requests:
 
+- host-side watchdog policy tests
 - a release firmware build using GNU Arm Embedded Toolchain
 - Python syntax validation and all GUI regression scripts
 
@@ -464,8 +476,8 @@ release. GitHub Actions dependencies are monitored monthly by Dependabot.
   ring-buffer wrap, CRC vectors, and tick wraparound.
 - Add hardware-in-loop tests for I2C NACK, alarm mismatch, missing CAN ACK,
   error-passive, bus-off, repeated recovery failure, and TX verification.
-- Measure worst-case superloop time, including 10 ms I2C timeouts.
-- Add watchdog policy based on measured execution guarantees.
+- Complete the timing and target fault-injection work in
+  `docs/WATCHDOG_ROADMAP.md`.
 - Extend diagnostics with recovery, RTC, alarm, and log health.
 - Connect the remaining RTC/alarm/queue event codes to transition-based log
   producers.
