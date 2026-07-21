@@ -1,5 +1,6 @@
 #include "watchdog_fake_hal.h"
 #include "app_watchdog.h"
+#include "app_watchdog_evidence.h"
 
 #include <stdio.h>
 
@@ -48,6 +49,8 @@ static void ResetFixture(void)
         },
     };
     fake_refresh_handle = (IWDG_HandleTypeDef *)0;
+    App_Watchdog_Evidence_TestResetStorage();
+    App_Watchdog_Evidence_CaptureBoot(0U);
 }
 
 static void CheckInAll(void)
@@ -213,6 +216,74 @@ static int TestTickWraparound(void)
     return 0;
 }
 
+static int TestRetainedHealthGateEvidence(void)
+{
+    App_Watchdog_ResetEvidence_t evidence;
+
+    ResetFixture();
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_CAN_APP);
+    fake_tick = APP_WATCHDOG_REFRESH_PERIOD_MS;
+    App_Watchdog_Process();
+
+    App_Watchdog_Evidence_CaptureBoot(1U);
+    App_Watchdog_Evidence_Get(&evidence);
+    EXPECT(evidence.valid == 1U);
+    EXPECT(evidence.storage_ready == 1U);
+    EXPECT(evidence.cause ==
+           APP_WATCHDOG_EVIDENCE_HEALTH_GATE_REJECTED);
+    EXPECT(evidence.observed_heartbeat_mask ==
+           (APP_WATCHDOG_HEARTBEAT_MAIN_LOOP |
+            APP_WATCHDOG_HEARTBEAT_CAN_APP));
+    EXPECT(evidence.missing_heartbeat_mask ==
+           APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
+    EXPECT(evidence.health_check_tick ==
+           APP_WATCHDOG_REFRESH_PERIOD_MS);
+
+    return 0;
+}
+
+static int TestRetainedHardStallEvidence(void)
+{
+    App_Watchdog_ResetEvidence_t evidence;
+
+    ResetFixture();
+    fake_tick = 37U;
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
+
+    App_Watchdog_Evidence_CaptureBoot(1U);
+    App_Watchdog_Evidence_Get(&evidence);
+    EXPECT(evidence.valid == 1U);
+    EXPECT(evidence.cause == APP_WATCHDOG_EVIDENCE_HARD_STALL);
+    EXPECT(evidence.missing_heartbeat_mask == 0U);
+    EXPECT(evidence.refresh_tick == 37U);
+
+    return 0;
+}
+
+static int TestRetainedRecordRejection(void)
+{
+    App_Watchdog_ResetEvidence_t evidence;
+
+    ResetFixture();
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
+    App_Watchdog_Evidence_CaptureBoot(0U);
+    App_Watchdog_Evidence_Get(&evidence);
+    EXPECT(evidence.valid == 0U);
+    EXPECT(evidence.stale_record_count == 1U);
+
+    ResetFixture();
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
+    App_Watchdog_Evidence_TestCorruptChecksum();
+    App_Watchdog_Evidence_CaptureBoot(1U);
+    App_Watchdog_Evidence_Get(&evidence);
+    EXPECT(evidence.valid == 0U);
+    EXPECT(evidence.validation_error_count == 1U);
+
+    return 0;
+}
+
 int main(void)
 {
     EXPECT(TestInitialization() == 0);
@@ -223,7 +294,10 @@ int main(void)
     EXPECT(TestFaultInjectionControls() == 0);
     EXPECT(TestRefreshFailure() == 0);
     EXPECT(TestTickWraparound() == 0);
+    EXPECT(TestRetainedHealthGateEvidence() == 0);
+    EXPECT(TestRetainedHardStallEvidence() == 0);
+    EXPECT(TestRetainedRecordRejection() == 0);
 
-    printf("PASS: watchdog initialization, health gate and tick wraparound\n");
+    printf("PASS: watchdog health gate, retained evidence and tick wraparound\n");
     return 0;
 }

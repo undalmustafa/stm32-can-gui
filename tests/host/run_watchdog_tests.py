@@ -14,6 +14,7 @@ BUILD_DIR = ROOT / "build" / "host-tests"
 FAKE_HAL = ROOT / "tests" / "host" / "watchdog_fake_hal.h"
 TEST_SOURCE = ROOT / "tests" / "host" / "test_app_watchdog.c"
 WATCHDOG_SOURCE = ROOT / "Core" / "Src" / "app_watchdog.c"
+EVIDENCE_SOURCE = ROOT / "Core" / "Src" / "app_watchdog_evidence.c"
 WATCHDOG_INCLUDE = ROOT / "Core" / "Inc"
 HAL_INCLUDE = ROOT / "Drivers" / "STM32H7xx_HAL_Driver" / "Inc"
 
@@ -63,10 +64,12 @@ def compile_test() -> Path:
             "/W4",
             "/WX",
             "/DAPP_WATCHDOG_TEST_HOOKS",
+            "/DAPP_WATCHDOG_HOST_TEST",
             f"/FI{FAKE_HAL}",
             f"/I{WATCHDOG_INCLUDE}",
             f"/I{HAL_INCLUDE}",
             str(WATCHDOG_SOURCE),
+            str(EVIDENCE_SOURCE),
             str(TEST_SOURCE),
             f"/Fe:{executable}",
         ]
@@ -87,6 +90,7 @@ def compile_test() -> Path:
             "-Wextra",
             "-Werror",
             "-DAPP_WATCHDOG_TEST_HOOKS",
+            "-DAPP_WATCHDOG_HOST_TEST",
             "-include",
             str(FAKE_HAL),
             "-I",
@@ -94,6 +98,7 @@ def compile_test() -> Path:
             "-I",
             str(HAL_INCLUDE),
             str(WATCHDOG_SOURCE),
+            str(EVIDENCE_SOURCE),
             str(TEST_SOURCE),
             "-o",
             str(executable),

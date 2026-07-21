@@ -49,6 +49,7 @@ MEMORY
   DTCMRAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 128K
   ITCMRAM    (xrw)    : ORIGIN = 0x00000000,   LENGTH = 64K
   RAM    (xrw)    : ORIGIN = 0x24000000,   LENGTH = 1024K
+  BKPSRAM    (xrw)    : ORIGIN = 0x38800000,   LENGTH = 4K
   FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 2048K
 }
 
@@ -169,6 +170,14 @@ SECTIONS
     __bss_end__ = _ebss;
   } >RAM
 
+  /* Preserved across system resets; never initialized by startup code. */
+  .watchdog_retained (NOLOAD) :
+  {
+    . = ALIGN(8);
+    KEEP(*(.watchdog_retained))
+    . = ALIGN(8);
+  } >BKPSRAM
+
   /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */
   ._user_heap_stack :
   {
@@ -189,4 +198,7 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  ASSERT(SIZEOF(.watchdog_retained) <= LENGTH(BKPSRAM),
+         "watchdog retained record exceeds backup SRAM")
 }

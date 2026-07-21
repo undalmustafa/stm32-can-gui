@@ -1,4 +1,5 @@
 #include "app_watchdog.h"
+#include "app_watchdog_evidence.h"
 
 static IWDG_HandleTypeDef *app_iwdg;
 
@@ -52,6 +53,14 @@ HAL_StatusTypeDef App_Watchdog_Init(IWDG_HandleTypeDef *watchdog)
     g_appWatchdogDiagnostics.last_refresh_tick = HAL_GetTick();
     g_appWatchdogDiagnostics.last_health_check_tick =
         g_appWatchdogDiagnostics.last_refresh_tick;
+
+    App_Watchdog_Evidence_Record(
+        APP_WATCHDOG_EVIDENCE_HARD_STALL,
+        APP_WATCHDOG_REQUIRED_HEARTBEATS,
+        0U,
+        0U,
+        g_appWatchdogDiagnostics.last_health_check_tick,
+        g_appWatchdogDiagnostics.last_refresh_tick);
 
     return HAL_OK;
 }
@@ -141,6 +150,13 @@ void App_Watchdog_Process(void)
     if (missing_mask != 0U)
     {
         g_appWatchdogDiagnostics.health_gate_reject_count++;
+        App_Watchdog_Evidence_Record(
+            APP_WATCHDOG_EVIDENCE_HEALTH_GATE_REJECTED,
+            APP_WATCHDOG_REQUIRED_HEARTBEATS,
+            observed_mask,
+            missing_mask,
+            now,
+            g_appWatchdogDiagnostics.last_refresh_tick);
         return;
     }
 
@@ -148,10 +164,24 @@ void App_Watchdog_Process(void)
     {
         g_appWatchdogDiagnostics.refresh_count++;
         g_appWatchdogDiagnostics.last_refresh_tick = now;
+        App_Watchdog_Evidence_Record(
+            APP_WATCHDOG_EVIDENCE_HARD_STALL,
+            APP_WATCHDOG_REQUIRED_HEARTBEATS,
+            observed_mask,
+            0U,
+            now,
+            now);
     }
     else
     {
         g_appWatchdogDiagnostics.refresh_error_count++;
+        App_Watchdog_Evidence_Record(
+            APP_WATCHDOG_EVIDENCE_REFRESH_ERROR,
+            APP_WATCHDOG_REQUIRED_HEARTBEATS,
+            observed_mask,
+            0U,
+            now,
+            g_appWatchdogDiagnostics.last_refresh_tick);
     }
 }
 

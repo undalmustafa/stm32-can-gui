@@ -18,6 +18,8 @@ worst-case CAN, I2C, RTC, and logging activity.
 - Release behavior: fault-injection setters are not compiled
 - Hardware ownership: CubeMX-generated `hiwdg1` configuration in `main.c`
 - Policy ownership: `app_watchdog` binds to `hiwdg1` and controls refreshes
+- Reset evidence: a CRC-protected, commit-marked record in backup SRAM is
+  accepted only when RCC independently reports an IWDG reset
 
 The timeout uses a prescaler of 128 and reload value of 999. Its real duration
 depends on the physical LSI frequency and must be measured on target hardware.
@@ -62,10 +64,11 @@ manual repair and no duplicate IWDG initialization.
 
 ### 2. Reset Evidence and Telemetry
 
-- [ ] Preserve the last rejected heartbeat mask across an IWDG reset
-- [ ] Expose the previous watchdog failure through diagnostics or event logging
-- [ ] Distinguish a health-gate rejection from a hard superloop stall
-- [ ] Add host tests for retained-record validation and stale-record rejection
+- [x] Preserve the last rejected heartbeat mask across an IWDG reset
+- [x] Expose the previous watchdog failure through diagnostics or event logging
+- [x] Distinguish a health-gate rejection from a hard superloop stall
+- [x] Add host tests for retained-record validation and stale-record rejection
+- [ ] Verify the complete retained-evidence path after an on-target IWDG reset
 
 Exit criterion: after an injected watchdog reset, the next boot reports the reset
 source and any trustworthy pre-reset health evidence.

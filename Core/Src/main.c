@@ -26,6 +26,7 @@
 #include "app_log.h"
 #include "app_reset_reason.h"
 #include "app_watchdog.h"
+#include "app_watchdog_evidence.h"
 
 /* USER CODE END Includes */
 
@@ -93,6 +94,7 @@ int main(void)
   /* USER CODE BEGIN Init */
 
   App_ResetReason_Capture();
+  App_Watchdog_Evidence_CaptureBoot(App_ResetReason_WasIwdgReset());
 
   /* USER CODE END Init */
 
@@ -117,6 +119,17 @@ int main(void)
                      APP_LOG_EVENT_SYSTEM_BOOT,
                      reset_reason.decoded_flags,
                      reset_reason.raw_rsr);
+
+  App_Watchdog_ResetEvidence_t watchdog_evidence;
+  App_Watchdog_Evidence_Get(&watchdog_evidence);
+  if (watchdog_evidence.valid != 0U)
+  {
+    (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,
+                       APP_LOG_SEVERITY_FAULT,
+                       APP_LOG_EVENT_WATCHDOG_RESET_EVIDENCE,
+                       watchdog_evidence.cause,
+                       watchdog_evidence.missing_heartbeat_mask);
+  }
 
   CAN_App_Init();
   PCA2131_Init_Check();

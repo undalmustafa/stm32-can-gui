@@ -27,6 +27,7 @@ and debugger-friendly diagnostics.
 - Periodic runtime diagnostic snapshots with sticky issue flags
 - Health-gated independent watchdog with main-loop, CAN, and RTC check-ins
 - Boot-time reset-cause capture including independent watchdog resets
+- CRC-protected watchdog failure evidence retained across system resets
 - 64-entry binary RAM event log with sequence numbers and CRC-16
 - PySide6 GUI using `python-can` and PEAK PCAN
 
@@ -90,6 +91,7 @@ Core/Inc|Src/rtc_app.*      RTC and alarm state machines
 Core/Inc|Src/app_log.*      Binary RAM event log
 Core/Inc|Src/app_diagnostics.* Aggregated runtime diagnostics
 Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
+Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
@@ -104,15 +106,16 @@ runtime, `main()` performs:
 
 1. MPU configuration
 2. HAL and SysTick initialization
-3. 64 MHz clock-tree configuration
-4. GPIO, FDCAN1, I2C1, and IWDG1 hardware initialization
-5. RAM event-log initialization and `SYSTEM_BOOT` record creation
-6. CAN application, transport, filter, notification, and diagnostics setup
-7. Non-blocking PCA2131 initialization scheduling
-8. Initial system-status publication
-9. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
-10. Board LED, push-button, and COM initialization
-11. Entry into the cooperative superloop
+3. RCC reset-cause and retained watchdog-evidence capture
+4. 64 MHz clock-tree configuration
+5. GPIO, FDCAN1, I2C1, and IWDG1 hardware initialization
+6. RAM event-log initialization and `SYSTEM_BOOT` record creation
+7. CAN application, transport, filter, notification, and diagnostics setup
+8. Non-blocking PCA2131 initialization scheduling
+9. Initial system-status publication
+10. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
+11. Board LED, push-button, and COM initialization
+12. Entry into the cooperative superloop
 
 The main loop repeatedly calls `CAN_App_Process()`:
 
@@ -137,6 +140,15 @@ timeout is 4 seconds; target timing characterization remains required before
 production sign-off. CubeMX owns the `hiwdg1` handle and peripheral setup;
 `app_watchdog` owns only the health gate and refresh policy. See
 `docs/WATCHDOG_ROADMAP.md` for the tracked validation plan.
+
+Before each refresh decision, the watchdog stores its latest health state in
+backup SRAM. The record uses a CRC-32 and last-written commit marker. On boot it
+is trusted only when RCC also identifies IWDG1 as the reset source, and it is
+consumed once to prevent stale evidence from being reported after later resets.
+Evidence distinguishes a rejected health gate, a refresh error, and an apparent
+hard superloop stall. A valid record creates a
+`WATCHDOG_RESET_EVIDENCE` fault event whose `data_0` is the evidence cause and
+whose `data_1` is the missing-heartbeat mask.
 
 Unsigned elapsed-time comparisons are used for periodic work. Absolute
 deadlines use signed subtraction where required so comparisons remain valid
@@ -402,10 +414,10 @@ The current backend is RAM and is cleared at every boot. The 32-byte format,
 magic, CRC, and commit marker prepare for a future Flash implementation but do
 not currently provide persistence.
 
-Currently generated log events include system boot, rejected CAN frames,
-error-passive, bus-off, recovery success, and distinct recovery failures. Event
-codes for RTC, alarm, queue, and timestamp logging are defined but are not all
-wired to producers yet.
+Currently generated log events include system boot, retained watchdog reset
+evidence, rejected CAN frames, error-passive, bus-off, recovery success, and
+distinct recovery failures. Event codes for RTC, alarm, queue, and timestamp
+logging are defined but are not all wired to producers yet.
 
 ## Desktop GUI
 
