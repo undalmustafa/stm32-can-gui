@@ -93,7 +93,7 @@ maximum valid service interval, with an agreed engineering margin.
 
 - [x] Suppress each required heartbeat independently
 - [x] Inhibit refresh and confirm hard-stall retained evidence
-- [ ] Measure watchdog reset latency
+- [x] Measure watchdog reset latency
 - [ ] Stall the main loop inside representative services
 - [ ] Verify the IWDG reset flag and system boot event after each reset
 - [x] Verify debugger freeze while the core is halted
@@ -109,6 +109,9 @@ Each reset produced valid health-gate evidence with the corresponding missing
 mask. Inhibiting refresh produced valid hard-stall evidence with cause `1` and
 no missing heartbeat. Halting the core for more than 10 seconds did not reset
 the MCU, and watchdog refresh resumed after the debugger continued execution.
+Three manual inhibit-to-reset measurements were `4.17 s`, `3.80 s`, and
+`4.18 s` (mean `4.05 s`). These stopwatch results are preliminary; instrumented
+LSI and timeout measurements remain part of timing characterization.
 
 ### 5. Production Sign-Off
 
