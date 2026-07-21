@@ -4,6 +4,26 @@ static IWDG_HandleTypeDef app_iwdg;
 
 volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
 
+static void App_Watchdog_RecordHeartbeat(
+    uint32_t now,
+    volatile uint32_t *count,
+    volatile uint32_t *last_tick,
+    volatile uint32_t *max_interval_ms)
+{
+    if (*count != 0U)
+    {
+        uint32_t interval_ms = (uint32_t)(now - *last_tick);
+
+        if (interval_ms > *max_interval_ms)
+        {
+            *max_interval_ms = interval_ms;
+        }
+    }
+
+    (*count)++;
+    *last_tick = now;
+}
+
 HAL_StatusTypeDef App_Watchdog_Init(void)
 {
     HAL_StatusTypeDef status;
@@ -26,8 +46,10 @@ HAL_StatusTypeDef App_Watchdog_Init(void)
     }
 
     g_appWatchdogDiagnostics.initialized = 1U;
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
     g_appWatchdogDiagnostics.test_inhibit_refresh = 0U;
     g_appWatchdogDiagnostics.test_suppress_heartbeat_mask = 0U;
+#endif
     g_appWatchdogDiagnostics.required_heartbeat_mask =
         APP_WATCHDOG_REQUIRED_HEARTBEATS;
     g_appWatchdogDiagnostics.reported_heartbeat_mask = 0U;
@@ -44,7 +66,6 @@ HAL_StatusTypeDef App_Watchdog_Init(void)
 void App_Watchdog_CheckIn(App_Watchdog_Heartbeat_t heartbeat)
 {
     uint32_t heartbeat_mask = (uint32_t)heartbeat;
-    uint32_t new_heartbeat_mask;
     uint32_t now = HAL_GetTick();
 
     if (g_appWatchdogDiagnostics.initialized == 0U)
@@ -53,30 +74,39 @@ void App_Watchdog_CheckIn(App_Watchdog_Heartbeat_t heartbeat)
     }
 
     heartbeat_mask &= APP_WATCHDOG_REQUIRED_HEARTBEATS;
-    new_heartbeat_mask = heartbeat_mask &
-        ~g_appWatchdogDiagnostics.reported_heartbeat_mask;
     g_appWatchdogDiagnostics.reported_heartbeat_mask |= heartbeat_mask;
 
-    if ((new_heartbeat_mask & APP_WATCHDOG_HEARTBEAT_MAIN_LOOP) != 0U)
+    if ((heartbeat_mask & APP_WATCHDOG_HEARTBEAT_MAIN_LOOP) != 0U)
     {
-        g_appWatchdogDiagnostics.main_loop_heartbeat_count++;
-        g_appWatchdogDiagnostics.main_loop_last_heartbeat_tick = now;
+        App_Watchdog_RecordHeartbeat(
+            now,
+            &g_appWatchdogDiagnostics.main_loop_heartbeat_count,
+            &g_appWatchdogDiagnostics.main_loop_last_heartbeat_tick,
+            &g_appWatchdogDiagnostics.main_loop_max_heartbeat_interval_ms);
     }
 
-    if ((new_heartbeat_mask & APP_WATCHDOG_HEARTBEAT_CAN_APP) != 0U)
+    if ((heartbeat_mask & APP_WATCHDOG_HEARTBEAT_CAN_APP) != 0U)
     {
-        g_appWatchdogDiagnostics.can_app_heartbeat_count++;
-        g_appWatchdogDiagnostics.can_app_last_heartbeat_tick = now;
+        App_Watchdog_RecordHeartbeat(
+            now,
+            &g_appWatchdogDiagnostics.can_app_heartbeat_count,
+            &g_appWatchdogDiagnostics.can_app_last_heartbeat_tick,
+            &g_appWatchdogDiagnostics.can_app_max_heartbeat_interval_ms);
     }
 
-    if ((new_heartbeat_mask & APP_WATCHDOG_HEARTBEAT_RTC_SERVICE) != 0U)
+    if ((heartbeat_mask & APP_WATCHDOG_HEARTBEAT_RTC_SERVICE) != 0U)
     {
-        g_appWatchdogDiagnostics.rtc_service_heartbeat_count++;
-        g_appWatchdogDiagnostics.rtc_service_last_heartbeat_tick = now;
+        App_Watchdog_RecordHeartbeat(
+            now,
+            &g_appWatchdogDiagnostics.rtc_service_heartbeat_count,
+            &g_appWatchdogDiagnostics.rtc_service_last_heartbeat_tick,
+            &g_appWatchdogDiagnostics.rtc_service_max_heartbeat_interval_ms);
     }
 
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
     heartbeat_mask &=
         ~g_appWatchdogDiagnostics.test_suppress_heartbeat_mask;
+#endif
     g_appWatchdogDiagnostics.observed_heartbeat_mask |= heartbeat_mask;
 }
 
@@ -86,11 +116,17 @@ void App_Watchdog_Process(void)
     uint32_t observed_mask;
     uint32_t missing_mask;
 
-    if ((g_appWatchdogDiagnostics.initialized == 0U) ||
-        (g_appWatchdogDiagnostics.test_inhibit_refresh != 0U))
+    if (g_appWatchdogDiagnostics.initialized == 0U)
     {
         return;
     }
+
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
+    if (g_appWatchdogDiagnostics.test_inhibit_refresh != 0U)
+    {
+        return;
+    }
+#endif
 
     now = HAL_GetTick();
     if ((uint32_t)(now -
@@ -126,6 +162,7 @@ void App_Watchdog_Process(void)
     }
 }
 
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
 void App_Watchdog_SetTestInhibit(uint8_t inhibit)
 {
     g_appWatchdogDiagnostics.test_inhibit_refresh =
@@ -137,3 +174,4 @@ void App_Watchdog_SetTestSuppressHeartbeatMask(uint32_t heartbeat_mask)
     g_appWatchdogDiagnostics.test_suppress_heartbeat_mask =
         heartbeat_mask & APP_WATCHDOG_REQUIRED_HEARTBEATS;
 }
+#endif

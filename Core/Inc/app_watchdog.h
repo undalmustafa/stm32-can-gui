@@ -23,6 +23,12 @@
 #define APP_WATCHDOG_TIMEOUT_NOMINAL_MS   4000UL
 #define APP_WATCHDOG_REFRESH_PERIOD_MS    250UL
 
+#if defined(DEBUG) || defined(APP_WATCHDOG_TEST_HOOKS)
+#define APP_WATCHDOG_TEST_HOOKS_ENABLED   1U
+#else
+#define APP_WATCHDOG_TEST_HOOKS_ENABLED   0U
+#endif
+
 typedef enum
 {
     APP_WATCHDOG_HEARTBEAT_MAIN_LOOP = (1UL << 0),
@@ -54,9 +60,16 @@ typedef struct
     uint32_t main_loop_last_heartbeat_tick;
     uint32_t can_app_last_heartbeat_tick;
     uint32_t rtc_service_last_heartbeat_tick;
+    uint32_t main_loop_max_heartbeat_interval_ms;
+    uint32_t can_app_max_heartbeat_interval_ms;
+    uint32_t rtc_service_max_heartbeat_interval_ms;
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
     uint32_t test_suppress_heartbeat_mask;
+#endif
     uint8_t initialized;
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
     uint8_t test_inhibit_refresh;
+#endif
 } App_Watchdog_Diagnostics_t;
 
 /* Exposed for debugger inspection. Application code must use the API. */
@@ -65,7 +78,9 @@ extern volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
 HAL_StatusTypeDef App_Watchdog_Init(void);
 void App_Watchdog_CheckIn(App_Watchdog_Heartbeat_t heartbeat);
 void App_Watchdog_Process(void);
+#if APP_WATCHDOG_TEST_HOOKS_ENABLED
 void App_Watchdog_SetTestInhibit(uint8_t inhibit);
 void App_Watchdog_SetTestSuppressHeartbeatMask(uint32_t heartbeat_mask);
+#endif
 
 #endif /* APP_WATCHDOG_H */

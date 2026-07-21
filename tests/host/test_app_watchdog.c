@@ -113,6 +113,27 @@ static int TestHealthyRefreshGate(void)
     return 0;
 }
 
+static int TestHeartbeatDiagnostics(void)
+{
+    ResetFixture();
+    fake_tick = 100U;
+    EXPECT(App_Watchdog_Init() == HAL_OK);
+
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
+    fake_tick = 107U;
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
+    fake_tick = 110U;
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
+
+    EXPECT(g_appWatchdogDiagnostics.main_loop_heartbeat_count == 3U);
+    EXPECT(g_appWatchdogDiagnostics.main_loop_last_heartbeat_tick == 110U);
+    EXPECT(g_appWatchdogDiagnostics.main_loop_max_heartbeat_interval_ms == 7U);
+    EXPECT(g_appWatchdogDiagnostics.can_app_heartbeat_count == 0U);
+    EXPECT(g_appWatchdogDiagnostics.rtc_service_heartbeat_count == 0U);
+
+    return 0;
+}
+
 static int TestMissingHeartbeatAndRecovery(void)
 {
     ResetFixture();
@@ -197,6 +218,7 @@ int main(void)
     EXPECT(TestInitialization() == 0);
     EXPECT(TestInitializationFailure() == 0);
     EXPECT(TestHealthyRefreshGate() == 0);
+    EXPECT(TestHeartbeatDiagnostics() == 0);
     EXPECT(TestMissingHeartbeatAndRecovery() == 0);
     EXPECT(TestFaultInjectionControls() == 0);
     EXPECT(TestRefreshFailure() == 0);
