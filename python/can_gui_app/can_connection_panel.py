@@ -1,5 +1,7 @@
 """CAN connection controls and CAN-health status view."""
 
+import re
+
 from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -7,7 +9,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QSpinBox,
-    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -17,48 +19,110 @@ class CanConnectionPanel:
     def __init__(self, connect_requested):
         self._connect_requested = connect_requested
         self.configuration_group = self._build_configuration_group()
-        self.health_label = self._build_health_label()
+        self.health_widget = self._build_health_widget()
 
     def _build_configuration_group(self):
         self.channel_input = QLineEdit()
         self.channel_input.setText("PCAN_USBBUS1")
+        self.channel_input.setMinimumWidth(150)
 
         self.bitrate_input = QSpinBox()
         self.bitrate_input.setRange(10000, 1000000)
         self.bitrate_input.setValue(500000)
+        self.bitrate_input.setSuffix(" bit/s")
+        self.bitrate_input.setMinimumWidth(150)
 
         self.connect_button = QPushButton("Connect")
+        self.connect_button.setObjectName("primaryButton")
+        self.connect_button.setMinimumWidth(100)
         self.connection_status_label = QLabel("Disconnected")
+        self.connection_status_label.setObjectName("connectionState")
+        self.connection_status_label.setMinimumWidth(210)
 
         group = QGroupBox("CAN Connection")
-        layout = QVBoxLayout()
-
-        channel_row = QHBoxLayout()
-        channel_row.addWidget(QLabel("Channel:"))
-        channel_row.addWidget(self.channel_input)
-
-        bitrate_row = QHBoxLayout()
-        bitrate_row.addWidget(QLabel("Bitrate:"))
-        bitrate_row.addWidget(self.bitrate_input)
-
-        layout.addLayout(channel_row)
-        layout.addLayout(bitrate_row)
+        layout = QHBoxLayout()
+        layout.addWidget(QLabel("Channel"))
+        layout.addWidget(self.channel_input, 2)
+        layout.addSpacing(8)
+        layout.addWidget(QLabel("Bitrate"))
+        layout.addWidget(self.bitrate_input, 1)
+        layout.addSpacing(8)
         layout.addWidget(self.connect_button)
+        layout.addSpacing(8)
         layout.addWidget(self.connection_status_label)
         group.setLayout(layout)
 
         self.connect_button.clicked.connect(self.request_connect)
         return group
 
-    @staticmethod
-    def _build_health_label():
-        label = QLabel("CAN  DISCONNECTED | Adapter is not initialized")
-        label.setWordWrap(True)
-        label.setStyleSheet(
-            "font-family: Consolas; font-weight: bold; "
-            "color: #555555; padding: 4px;"
+    def _build_health_widget(self):
+        widget = QWidget()
+        widget.setObjectName("canHealthBar")
+
+        self.health_badge = QLabel("Offline")
+        self.health_badge.setObjectName("statusBadge")
+        self.health_badge.setMinimumWidth(82)
+
+        self.health_label = QLabel("Connect a CAN adapter to begin")
+        self.health_label.setObjectName("healthSummary")
+        self.health_label.setWordWrap(True)
+
+        self.health_metrics_label = QLabel("No frames received")
+        self.health_metrics_label.setObjectName("statusMeta")
+
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(12)
+        layout.addWidget(self.health_badge)
+        layout.addWidget(self.health_label, 2)
+        layout.addStretch()
+        layout.addWidget(self.health_metrics_label)
+
+        self.health_widget = widget
+        self._style_health("DISCONNECTED")
+        return widget
+
+    def _style_health(self, severity):
+        colors = {
+            "OK": ("#ECFDF3", "#75C78C", "#166534"),
+            "WARN": ("#FFFAEB", "#E6B94A", "#8A5A00"),
+            "FAULT": ("#FEF3F2", "#E59A94", "#B42318"),
+            "DISCONNECTED": ("#F2F4F7", "#B8C0CC", "#475467"),
+        }
+        background, border, foreground = colors.get(
+            severity, colors["DISCONNECTED"]
         )
-        return label
+        self.health_widget.setStyleSheet(
+            "QWidget#canHealthBar {"
+            f"background: {background}; border: 1px solid {border}; "
+            "border-radius: 5px;"
+            "}"
+        )
+        self.health_badge.setStyleSheet(
+            f"background: {foreground}; color: white; border-radius: 4px; "
+            "font-weight: 700; padding: 4px 8px;"
+        )
+        self.health_label.setStyleSheet(
+            f"color: {foreground}; font-weight: 700;"
+        )
+
+    @staticmethod
+    def _health_summary(code):
+        summaries = {
+            "ACTIVE": "Receiving data from STM32",
+            "RECOVERED_BUS_OFF": "CAN bus recovered",
+            "WAIT_RX": "Waiting for STM32 data",
+            "STM32_RX_TIMEOUT": "STM32 stopped sending data",
+            "BUS_OFF": "CAN bus is offline",
+            "ERROR_PASSIVE": "CAN error rate is high",
+            "BUS_HEAVY": "CAN bus has communication errors",
+            "ERROR_WARNING": "CAN communication is becoming unstable",
+            "DRIVER_WARNING": "PCAN adapter reports a warning",
+            "STATUS_EXCEPTION": "Could not read PCAN adapter status",
+            "CONNECT_FAILED": "Could not connect to the CAN adapter",
+            "DISCONNECTED": "CAN adapter is not connected",
+        }
+        return summaries.get(code, code.replace("_", " ").title())
 
     def get_connection_request(self):
         return {
@@ -86,23 +150,37 @@ class CanConnectionPanel:
     def render_health(self, severity, code, detail, tooltip, rx_count,
                       error_event_count, rx_budget_hit_count,
                       error_frame_count):
-        color = {
-            "OK": "#168018",
-            "WARN": "#8A6D00",
-            "FAULT": "#C62828",
-            "DISCONNECTED": "#555555",
-        }.get(severity, "#555555")
+        badge_text = {
+            "OK": "Healthy",
+            "WARN": "Attention",
+            "FAULT": "Problem",
+            "DISCONNECTED": "Offline",
+        }.get(severity, "Unknown")
+        age_match = re.search(r"STM32_RX_AGE=([0-9]+) ms", detail)
+        if age_match is not None:
+            age_text = f"Last frame {age_match.group(1)} ms ago"
+        elif code == "WAIT_RX":
+            age_text = "No STM32 frames yet"
+        elif code == "STM32_RX_TIMEOUT":
+            age_text = "Frame timeout"
+        else:
+            age_text = "Link status updated"
 
-        self.health_label.setText(
-            f"CAN  {severity} | {code} | {detail} | "
-            f"RX={rx_count} | EVENTS={error_event_count}"
+        change_word = "change" if error_event_count == 1 else "changes"
+        self.health_badge.setText(badge_text)
+        self.health_label.setText(self._health_summary(code))
+        self.health_metrics_label.setText(
+            f"{age_text}   |   {rx_count:,} frames   |   "
+            f"{error_event_count} status {change_word}"
         )
-        self.health_label.setToolTip(
+        technical_tooltip = (
+            f"State: {severity} / {code}\n"
+            f"Detail: {detail}\n"
             f"{tooltip}\n"
             f"RX poll budget hits: {rx_budget_hit_count}\n"
             f"PCAN error frames: {error_frame_count}"
         )
-        self.health_label.setStyleSheet(
-            "font-family: Consolas; font-weight: bold; "
-            f"color: {color}; padding: 4px;"
-        )
+        self.health_widget.setToolTip(technical_tooltip)
+        self.health_label.setToolTip(technical_tooltip)
+        self.health_metrics_label.setToolTip(technical_tooltip)
+        self._style_health(severity)

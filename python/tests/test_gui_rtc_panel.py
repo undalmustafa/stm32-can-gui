@@ -51,6 +51,9 @@ class FakeWidget:
     def text(self):
         return self._text
 
+    def setObjectName(self, name):
+        self.object_name = name
+
 
 class FakeSpinBox(FakeWidget):
     def __init__(self):
@@ -112,7 +115,7 @@ class FakeLayout:
     def __init__(self, *_args):
         self.items = []
 
-    def addWidget(self, widget):
+    def addWidget(self, widget, *_args):
         self.items.append(widget)
 
     def addLayout(self, layout):
@@ -215,15 +218,19 @@ def main():
             "description": "RTC read failed",
         },
     )
-    expect("HEALTH  OK" in panel.health_label.text(),
-           "RTC health rendering remains in the panel")
-    expect("READ_FAILED" in panel.event_label.text(),
-           "engineering RTC event mnemonic remains visible")
+    expect(panel.health_label.text() == "RTC is healthy and ready",
+           "RTC health uses a plain-language summary")
+    expect(panel.link_status_label.text() == "I2C connection\nConnected",
+           "RTC I2C state is labeled for non-specialists")
+    expect(panel.event_label.text() == "RTC read failed",
+           "latest RTC event uses its human-readable description")
+    expect("READ_FAILED" in panel.event_label.tooltip,
+           "engineering RTC event details remain in the tooltip")
 
     panel.render_alarm("TRIGGERED", "17/07/2026 09:55:30", "#8A6D00",
                        "RX 0x558")
-    expect("ALARM  TRIGGERED" in panel.alarm_status_label.text(),
-           "alarm state rendering remains in the panel")
+    expect(panel.alarm_badge.text() == "Triggered",
+           "alarm state is presented as a clear badge")
 
     print("PASS: GUI RTC panel form state, callbacks and rendering")
 

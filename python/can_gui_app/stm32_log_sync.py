@@ -59,11 +59,13 @@ class Stm32LogSync:
                  bus_provider,
                  enabled_provider,
                  directory_provider,
-                 status_changed=None):
+                 status_changed=None,
+                 record_observer=None):
         self._bus_provider = bus_provider
         self._enabled_provider = enabled_provider
         self._directory_provider = directory_provider
         self._status_changed = status_changed
+        self._record_observer = record_observer
 
         self.file_path = None
         self.info_fragments = {}
@@ -201,6 +203,8 @@ class Stm32LogSync:
             if event_code == STM32_LOG_EVENT_SYSTEM_BOOT:
                 self.last_reset_summary = event_detail
             self.last_error = None
+            if self._record_observer is not None:
+                self._record_observer(dict(row))
             self._notify()
             return True
         except (OSError, csv.Error) as error:

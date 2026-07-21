@@ -19,6 +19,7 @@ from can_gui_app.protocol import (
 )
 from can_gui_app.rtc_controller import RtcController
 from can_gui_app.rtc_panel import RtcPanel
+from can_gui_app.theme import apply_application_theme
 
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox
 
@@ -255,9 +256,11 @@ class CanGui(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    apply_application_theme(app)
 
     window = CanGui()
-    window.resize(650, 650)
+    window.setMinimumSize(920, 620)
+    window.resize(1080, 780)
     window.show()
 
     sys.exit(app.exec())

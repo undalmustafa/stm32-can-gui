@@ -53,6 +53,15 @@ class FakeWidget:
     def setReadOnly(self, read_only):
         self.read_only = read_only
 
+    def setObjectName(self, name):
+        self.object_name = name
+
+    def setMinimumWidth(self, width):
+        self.minimum_width = width
+
+    def setMinimumHeight(self, height):
+        self.minimum_height = height
+
 
 class FakeCheckBox(FakeWidget):
     def __init__(self, text=""):
@@ -74,17 +83,133 @@ class FakeButton(FakeWidget):
         self.clicked = FakeSignal()
 
 
+class FakeComboBox(FakeWidget):
+    def __init__(self):
+        super().__init__()
+        self.items = []
+        self.index = 0
+        self.currentIndexChanged = FakeSignal()
+
+    def addItems(self, items):
+        self.items.extend(items)
+
+    def currentIndex(self):
+        return self.index
+
+    def setCurrentIndex(self, index):
+        self.index = index
+        self.currentIndexChanged.emit(index)
+
+
+class FakeHeader:
+    def __init__(self):
+        self.visible = True
+
+    def setVisible(self, visible):
+        self.visible = visible
+
+    def setSectionResizeMode(self, *_args):
+        pass
+
+
+class FakeTableWidget(FakeWidget):
+    class EditTrigger:
+        NoEditTriggers = 0
+
+    class SelectionBehavior:
+        SelectRows = 1
+
+    def __init__(self, rows, columns):
+        super().__init__()
+        self.row_count = rows
+        self.column_count = columns
+        self.table_items = {}
+        self._horizontal_header = FakeHeader()
+        self._vertical_header = FakeHeader()
+
+    def setHorizontalHeaderLabels(self, labels):
+        self.headers = labels
+
+    def setAlternatingRowColors(self, _enabled):
+        pass
+
+    def setEditTriggers(self, _triggers):
+        pass
+
+    def setSelectionBehavior(self, _behavior):
+        pass
+
+    def setShowGrid(self, _show):
+        pass
+
+    def setHorizontalScrollBarPolicy(self, _policy):
+        pass
+
+    def setTextElideMode(self, _mode):
+        pass
+
+    def verticalHeader(self):
+        return self._vertical_header
+
+    def horizontalHeader(self):
+        return self._horizontal_header
+
+    def setRowCount(self, count):
+        self.row_count = count
+        self.table_items = {
+            position: item for position, item in self.table_items.items()
+            if position[0] < count
+        }
+
+    def setItem(self, row, column, item):
+        self.table_items[(row, column)] = item
+
+    def setColumnWidth(self, column, width):
+        self.column_widths = getattr(self, "column_widths", {})
+        self.column_widths[column] = width
+
+
+class FakeTableItem:
+    def __init__(self, text):
+        self.text = text
+        self.item_flags = 1
+        self.foreground = None
+
+    def flags(self):
+        return self.item_flags
+
+    def setFlags(self, flags):
+        self.item_flags = flags
+
+    def setForeground(self, color):
+        self.foreground = color
+
+    def setToolTip(self, tooltip):
+        self.tooltip = tooltip
+
+
+class FakeColor:
+    def __init__(self, value):
+        self.value = value
+
+
 class FakeLayout:
     def __init__(self, *_args):
         self.items = []
 
-    def addWidget(self, widget):
+    def addWidget(self, widget, *_args):
         self.items.append(widget)
 
     def addLayout(self, layout):
         self.items.append(layout)
 
+    def addStretch(self):
+        self.items.append("stretch")
+
     def setContentsMargins(self, *_args):
+        pass
+
+    def setSpacing(self, _spacing):
         pass
 
 
@@ -96,15 +221,39 @@ class FakeFileDialog:
 
 qtwidgets = types.ModuleType("PySide6.QtWidgets")
 qtwidgets.QCheckBox = FakeCheckBox
+qtwidgets.QComboBox = FakeComboBox
 qtwidgets.QFileDialog = FakeFileDialog
 qtwidgets.QGroupBox = FakeWidget
+qtwidgets.QHeaderView = type(
+    "FakeHeaderView",
+    (), {"ResizeMode": type(
+        "ResizeMode", (), {
+            "ResizeToContents": 0,
+            "Stretch": 1,
+            "Interactive": 2,
+        }
+    )},
+)
 qtwidgets.QHBoxLayout = FakeLayout
 qtwidgets.QLabel = FakeWidget
 qtwidgets.QLineEdit = FakeWidget
 qtwidgets.QPushButton = FakeButton
+qtwidgets.QTableWidget = FakeTableWidget
+qtwidgets.QTableWidgetItem = FakeTableItem
 qtwidgets.QVBoxLayout = FakeLayout
 
+qtcore = types.ModuleType("PySide6.QtCore")
+qtcore.Qt = types.SimpleNamespace(
+    ItemFlag=types.SimpleNamespace(ItemIsEditable=1),
+    ScrollBarPolicy=types.SimpleNamespace(ScrollBarAlwaysOff=1),
+    TextElideMode=types.SimpleNamespace(ElideRight=1),
+)
+qtgui = types.ModuleType("PySide6.QtGui")
+qtgui.QColor = FakeColor
+
 pyside = types.ModuleType("PySide6")
+sys.modules.setdefault("PySide6.QtCore", qtcore)
+sys.modules.setdefault("PySide6.QtGui", qtgui)
 pyside.QtWidgets = qtwidgets
 sys.modules.setdefault("PySide6", pyside)
 sys.modules.setdefault("PySide6.QtWidgets", qtwidgets)
@@ -140,10 +289,16 @@ def main():
             directory_selector=lambda _current: str(selected_directory),
         )
 
-        expect("LOG  ENABLED" in panel.event_status_label.text(),
-               "CSV logger starts enabled as before")
-        expect("STM32_LOG  WAIT_CAN" in panel.stm32_status_label.text(),
-               "STM32 sync waits for an active CAN connection")
+        expect(
+            panel.event_status_label.text()
+            == "Application events are being saved",
+            "CSV logger starts with a plain-language recording state",
+        )
+        expect(
+            panel.stm32_status_label.text()
+            == "Connect CAN to synchronize device logs",
+            "STM32 sync explains what it is waiting for",
+        )
 
         expect(panel.write_event(
             source="RTC",
@@ -157,11 +312,31 @@ def main():
                "RTC timestamp provider remains attached to CSV rows")
         expect(rows[-1]["event_code"] == "RTC_WRITE_OK",
                "event code remains unchanged")
+        expect(panel.activity_table.row_count == 1,
+               "recent event view receives successful writes")
+        expect(
+            panel.activity_table.table_items[(0, 3)].text == "RTC_WRITE_OK",
+            "recent event view exposes the newest event code",
+        )
+
+        panel.write_event(
+            source="CAN",
+            severity="FAULT",
+            event_code="BUS_OFF",
+            detail="controller entered bus-off",
+        )
+        panel.activity_filter.setCurrentIndex(2)
+        expect(panel.activity_table.row_count == 1,
+               "error filter hides informational events")
+        expect(panel.activity_table.table_items[(0, 3)].text == "BUS_OFF",
+               "error filter retains fault events")
+        panel.activity_filter.setCurrentIndex(0)
 
         panel.enable_checkbox.setChecked(False)
         expect(not panel.enabled, "checkbox disables event logging")
-        expect("LOG  DISABLED" in panel.event_status_label.text(),
-               "disabled state is rendered")
+        expect(panel.event_status_label.text()
+               == "Application event recording is off",
+               "disabled state is explained")
         rows = read_rows(initial_file)
         expect(rows[-1]["event_code"] == "LOG_DISABLED",
                "disable transition is logged before writes stop")
@@ -185,15 +360,21 @@ def main():
         panel.stm32_sync.heartbeat_rx_count = 1
         panel.stm32_sync.heartbeat_ready = True
         panel.update_stm32_status()
-        expect("STM32_LOG  ACTIVE" in panel.stm32_status_label.text(),
+        expect(panel.stm32_status_label.text()
+               == "STM32 event log is synchronized",
                "connected CAN with no sync error is rendered active")
 
         panel.stm32_sync.last_error = "record timeout"
         panel.update_stm32_status()
-        expect("STM32_LOG  WARNING" in panel.stm32_status_label.text(),
-               "sync errors remain visible as warnings")
+        expect(panel.stm32_status_label.text()
+               == "Device log synchronization needs attention",
+               "sync errors are explained as warnings")
         expect("record timeout" in panel.stm32_status_label.tooltip,
                "latest sync warning remains available in the tooltip")
+
+        panel.clear_activity_button.clicked.emit()
+        expect(panel.activity_table.row_count == 0,
+               "clear view removes only the visible recent-event history")
 
     print("PASS: GUI event-log panel controls, CSV writes and sync status")
 

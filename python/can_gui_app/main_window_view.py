@@ -1,6 +1,9 @@
 """Top-level tab and layout composition for the STM32 CAN GUI."""
 
 from PySide6.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -18,48 +21,105 @@ class MainWindowView:
         self.can_app_panel = can_app_panel
         self.rtc_panel = rtc_panel
 
+        self.header = self._build_header()
         self.tabs = QTabWidget()
-        self.config_page = self._build_config_page()
+        self.tabs.setDocumentMode(True)
+        self.control_page = self._build_control_page()
         self.values_page = self._build_values_page()
-        self.tabs.addTab(self.config_page, "Config")
-        self.tabs.addTab(self.values_page, "Values")
+        self.logs_page = self._build_logs_page()
+        self.config_page = self.control_page
+        self.tabs.addTab(self.control_page, "Control")
+        self.tabs.addTab(self.values_page, "Live Data")
+        self.tabs.addTab(self.logs_page, "Logs & Errors")
 
         self.root_layout = QVBoxLayout()
+        self.root_layout.setContentsMargins(16, 14, 16, 12)
+        self.root_layout.setSpacing(10)
+        self.root_layout.addWidget(self.header)
+        self.root_layout.addWidget(
+            self.can_connection_panel.configuration_group
+        )
+        self.root_layout.addWidget(self.can_connection_panel.health_widget)
         self.root_layout.addWidget(self.tabs)
-        self.root_layout.addWidget(self.can_connection_panel.health_label)
 
-    def _build_config_page(self):
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.addWidget(self.can_connection_panel.configuration_group)
-        layout.addWidget(self.event_log_panel.configuration_group)
-        layout.addWidget(self.can_app_panel.slot1)
-        layout.addWidget(self.can_app_panel.slot2)
-        layout.addWidget(self.can_app_panel.led_control_group)
-        layout.addWidget(self.rtc_panel.calendar_group)
-        layout.addWidget(self.rtc_panel.alarm_configuration_group)
+    @staticmethod
+    def _build_header():
+        header = QWidget()
+        layout = QHBoxLayout(header)
+        layout.setContentsMargins(2, 0, 2, 0)
+
+        title = QLabel("STM32 CAN Console")
+        title.setObjectName("appTitle")
+        context = QLabel("STM32H7A3 | CAN / RTC")
+        context.setObjectName("appContext")
+
+        layout.addWidget(title)
         layout.addStretch()
+        layout.addWidget(context)
+        return header
 
+    @staticmethod
+    def _scroll_page(content):
         scroll = QScrollArea()
+        scroll.setObjectName("pageScroll")
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
 
         page = QWidget()
-        page_layout = QVBoxLayout()
+        page_layout = QVBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 0)
         page_layout.addWidget(scroll)
-        page.setLayout(page_layout)
         return page
 
+    def _build_control_page(self):
+        content = QWidget()
+        layout = QGridLayout(content)
+        layout.setContentsMargins(4, 8, 4, 8)
+        layout.setHorizontalSpacing(10)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
+
+        layout.addWidget(self.can_app_panel.slot1, 0, 0)
+        layout.addWidget(self.can_app_panel.slot2, 0, 1)
+        layout.addWidget(self.can_app_panel.led_control_group, 1, 0, 1, 2)
+        layout.addWidget(self.rtc_panel.calendar_group, 2, 0, 1, 2)
+        layout.addWidget(
+            self.rtc_panel.alarm_configuration_group, 3, 0, 1, 2
+        )
+        layout.setRowStretch(4, 1)
+        return self._scroll_page(content)
+
     def _build_values_page(self):
-        page = QWidget()
-        layout = QVBoxLayout()
-        layout.addWidget(self.rtc_panel.values_group)
-        layout.addWidget(self.event_log_panel.event_status_group)
-        layout.addWidget(self.event_log_panel.stm32_status_group)
-        layout.addWidget(self.can_app_panel.slot1_status_group)
-        layout.addWidget(self.can_app_panel.slot2_status_group)
-        layout.addWidget(self.can_app_panel.led_status_group)
-        layout.addStretch()
-        page.setLayout(layout)
-        return page
+        content = QWidget()
+        layout = QGridLayout(content)
+        layout.setContentsMargins(4, 8, 4, 8)
+        layout.setHorizontalSpacing(10)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
+
+        layout.addWidget(self.rtc_panel.values_group, 0, 0, 1, 2)
+        layout.addWidget(self.can_app_panel.slot1_status_group, 1, 0)
+        layout.addWidget(self.can_app_panel.slot2_status_group, 1, 1)
+        layout.addWidget(self.can_app_panel.led_status_group, 2, 0, 1, 2)
+        layout.setRowStretch(3, 1)
+        return self._scroll_page(content)
+
+    def _build_logs_page(self):
+        content = QWidget()
+        layout = QGridLayout(content)
+        layout.setContentsMargins(4, 8, 4, 8)
+        layout.setHorizontalSpacing(10)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnStretch(1, 1)
+
+        layout.addWidget(
+            self.event_log_panel.configuration_group, 0, 0, 1, 2
+        )
+        layout.addWidget(self.event_log_panel.event_status_group, 1, 0)
+        layout.addWidget(self.event_log_panel.stm32_status_group, 1, 1)
+        layout.addWidget(self.event_log_panel.activity_group, 2, 0, 1, 2)
+        layout.setRowStretch(2, 1)
+        return self._scroll_page(content)

@@ -197,35 +197,61 @@ class RtcPanel:
         self.raw_label.setStyleSheet("font-family: Consolas; color: #555555;")
 
         self.health_label = QLabel(
-            "HEALTH  UNKNOWN | I2C=UNKNOWN | CLOCK=UNKNOWN | "
-            "CALENDAR=UNKNOWN"
+            "Waiting for RTC status"
         )
-        self.event_label = QLabel(
-            "EVENT   -- | RTC status frame (0x551) pending"
-        )
-        for label in (self.health_label, self.event_label):
-            label.setWordWrap(True)
-            label.setStyleSheet("font-family: Consolas; color: #555555;")
+        self.health_label.setObjectName("statusSummary")
+        self.health_label.setWordWrap(True)
+        self.rtc_health_badge = QLabel("Waiting")
 
-        diagnostics_group = QGroupBox("RTC Diagnostics")
+        health_row = QHBoxLayout()
+        health_row.addWidget(self.rtc_health_badge)
+        health_row.addWidget(self.health_label, 1)
+
+        self.link_status_label = QLabel()
+        self.clock_status_label = QLabel()
+        self.calendar_status_label = QLabel()
+        components_row = QHBoxLayout()
+        components_row.addWidget(self.link_status_label, 1)
+        components_row.addWidget(self.clock_status_label, 1)
+        components_row.addWidget(self.calendar_status_label, 1)
+
+        self.event_badge = QLabel("No event")
+        self.event_label = QLabel("No RTC status event received yet")
+        self.event_label.setWordWrap(True)
+        event_row = QHBoxLayout()
+        event_row.addWidget(self.event_badge)
+        event_row.addWidget(self.event_label, 1)
+
+        diagnostics_group = QGroupBox("RTC Health")
         diagnostics_layout = QVBoxLayout()
-        diagnostics_layout.setContentsMargins(8, 6, 8, 6)
-        diagnostics_layout.setSpacing(2)
-        diagnostics_layout.addWidget(self.health_label)
-        diagnostics_layout.addWidget(self.event_label)
+        diagnostics_layout.setContentsMargins(10, 8, 10, 10)
+        diagnostics_layout.setSpacing(8)
+        diagnostics_layout.addLayout(health_row)
+        diagnostics_layout.addLayout(components_row)
+        diagnostics_layout.addLayout(event_row)
         diagnostics_group.setLayout(diagnostics_layout)
 
-        self.alarm_status_label = QLabel(
-            "ALARM  UNKNOWN | Configuration/event frame pending"
+        self._set_badge(self.rtc_health_badge, "Waiting", "UNKNOWN")
+        self._set_component(
+            self.link_status_label, "I2C connection", "Waiting", "UNKNOWN"
         )
+        self._set_component(
+            self.clock_status_label, "Clock integrity", "Waiting", "UNKNOWN"
+        )
+        self._set_component(
+            self.calendar_status_label, "Calendar data", "Waiting", "UNKNOWN"
+        )
+        self._set_badge(self.event_badge, "No event", "UNKNOWN")
+
+        self.alarm_badge = QLabel("Waiting")
+        self.alarm_status_label = QLabel("Waiting for alarm status")
         self.alarm_status_label.setWordWrap(True)
-        self.alarm_status_label.setStyleSheet(
-            "font-family: Consolas; color: #555555;"
-        )
+        self._set_badge(self.alarm_badge, "Waiting", "UNKNOWN")
         alarm_status_group = QGroupBox("RTC Alarm Status")
-        alarm_status_layout = QVBoxLayout()
-        alarm_status_layout.setContentsMargins(8, 6, 8, 6)
-        alarm_status_layout.addWidget(self.alarm_status_label)
+        alarm_status_layout = QHBoxLayout()
+        alarm_status_layout.setContentsMargins(10, 8, 10, 10)
+        alarm_status_layout.addWidget(self.alarm_badge)
+        alarm_status_layout.addWidget(self.alarm_status_label, 1)
         alarm_status_group.setLayout(alarm_status_layout)
 
         group = QGroupBox("PCA2131 RTC Values")
@@ -240,6 +266,33 @@ class RtcPanel:
         layout.addWidget(alarm_status_group)
         group.setLayout(layout)
         return group
+
+    @staticmethod
+    def _status_colors(state):
+        return {
+            "OK": ("#ECFDF3", "#166534"),
+            "WARN": ("#FFFAEB", "#8A5A00"),
+            "FAULT": ("#FEF3F2", "#B42318"),
+            "UNKNOWN": ("#F2F4F7", "#475467"),
+        }.get(state, ("#F2F4F7", "#475467"))
+
+    @classmethod
+    def _set_badge(cls, label, text, state):
+        background, foreground = cls._status_colors(state)
+        label.setText(text)
+        label.setStyleSheet(
+            f"background: {foreground}; color: white; border-radius: 4px; "
+            "font-weight: 700; padding: 4px 8px;"
+        )
+
+    @classmethod
+    def _set_component(cls, label, title, value, state):
+        background, foreground = cls._status_colors(state)
+        label.setText(f"{title}\n{value}")
+        label.setStyleSheet(
+            f"background: {background}; color: {foreground}; "
+            "border-radius: 4px; padding: 7px; font-weight: 600;"
+        )
 
     def get_datetime_request(self):
         return {
@@ -313,31 +366,92 @@ class RtcPanel:
 
     def render_diagnostics(self, health_text, health_color, link_text,
                            clock_text, calendar_state, event):
-        self.health_label.setText(
-            f"HEALTH  {health_text} | {link_text} | {clock_text} | "
-            f"CALENDAR={calendar_state}"
-        )
+        health_state = health_text if health_text in {"OK", "FAULT"} else "UNKNOWN"
+        health_summary = {
+            "OK": "RTC is healthy and ready",
+            "FAULT": "RTC needs attention",
+            "UNKNOWN": "Waiting for complete RTC status",
+        }[health_state]
+        health_badge = {
+            "OK": "Healthy",
+            "FAULT": "Problem",
+            "UNKNOWN": "Waiting",
+        }[health_state]
+        self.health_label.setText(health_summary)
         self.health_label.setStyleSheet(
-            "font-family: Consolas; font-weight: bold; "
-            f"color: {health_color};"
+            f"color: {health_color}; font-weight: 700;"
         )
+        self._set_badge(self.rtc_health_badge, health_badge, health_state)
+
+        link_state = "OK" if link_text.endswith("=OK") else (
+            "FAULT" if link_text.endswith("=FAULT") else "UNKNOWN"
+        )
+        link_value = {
+            "OK": "Connected",
+            "FAULT": "Not responding",
+            "UNKNOWN": "Waiting",
+        }[link_state]
+        if "INVALID" in clock_text:
+            clock_state, clock_value = "FAULT", "Invalid (OSF set)"
+        elif "VALID" in clock_text:
+            clock_state, clock_value = "OK", "Valid"
+        else:
+            clock_state, clock_value = "UNKNOWN", "Waiting"
+        calendar_map = {
+            "VALID": ("OK", "Valid"),
+            "INVALID": ("FAULT", "Invalid"),
+            "STALE": ("WARN", "Last value is stale"),
+        }
+        calendar_status, calendar_value = calendar_map.get(
+            calendar_state, ("UNKNOWN", "Waiting")
+        )
+        self._set_component(
+            self.link_status_label, "I2C connection", link_value, link_state
+        )
+        self._set_component(
+            self.clock_status_label,
+            "Clock integrity",
+            clock_value,
+            clock_state,
+        )
+        self._set_component(
+            self.calendar_status_label,
+            "Calendar data",
+            calendar_value,
+            calendar_status,
+        )
+        technical_tooltip = (
+            f"Health: {health_text}\n{link_text}\n{clock_text}\n"
+            f"Calendar: {calendar_state}"
+        )
+        for label in (
+            self.rtc_health_badge,
+            self.health_label,
+            self.link_status_label,
+            self.clock_status_label,
+            self.calendar_status_label,
+        ):
+            label.setToolTip(technical_tooltip)
         if event is None:
             return
 
-        event_color = {
-            "INFO": "#168018",
-            "WARN": "#8A6D00",
-            "FAULT": "#C62828",
-        }.get(event["severity"], "#555555")
-        self.event_label.setText(
-            f"EVENT   {event['severity']} | {event['code']} "
-            f"{event['mnemonic']} | {event['hal']} | "
-            f"I2C={event['i2c']} | ERR={event['error_mask']}"
-        )
-        self.event_label.setToolTip(event["description"])
-        self.event_label.setStyleSheet(
-            "font-family: Consolas; font-weight: bold; "
-            f"color: {event_color};"
+        event_state = {
+            "INFO": "OK",
+            "WARN": "WARN",
+            "FAULT": "FAULT",
+        }.get(event["severity"], "UNKNOWN")
+        event_badge = {
+            "OK": "Information",
+            "WARN": "Warning",
+            "FAULT": "Error",
+            "UNKNOWN": "Event",
+        }[event_state]
+        self._set_badge(self.event_badge, event_badge, event_state)
+        self.event_label.setText(event["description"])
+        self.event_label.setToolTip(
+            f"Code: {event['code']} {event['mnemonic']}\n"
+            f"HAL: {event['hal']}\nI2C: {event['i2c']}\n"
+            f"Error mask: {event['error_mask']}"
         )
 
     def render_time(self, time_text, date_text, weekday_text, raw_text):
@@ -347,10 +461,26 @@ class RtcPanel:
         self.raw_label.setText(raw_text)
 
     def render_alarm(self, state, detail, color, tooltip=None):
-        self.alarm_status_label.setText(f"ALARM  {state} | {detail}")
+        visual_state = {
+            "ARMED": "OK",
+            "DISABLED": "UNKNOWN",
+            "PENDING": "WARN",
+            "TRIGGERED": "WARN",
+            "WARN": "WARN",
+            "FAULT": "FAULT",
+        }.get(state, "UNKNOWN")
+        badge_text = {
+            "ARMED": "Armed",
+            "DISABLED": "Disabled",
+            "PENDING": "Updating",
+            "TRIGGERED": "Triggered",
+            "WARN": "Warning",
+            "FAULT": "Problem",
+        }.get(state, "Waiting")
+        self._set_badge(self.alarm_badge, badge_text, visual_state)
+        self.alarm_status_label.setText(detail)
         self.alarm_status_label.setStyleSheet(
-            "font-family: Consolas; font-weight: bold; "
-            f"color: {color};"
+            f"color: {color}; font-weight: 600;"
         )
         if tooltip is not None:
             self.alarm_status_label.setToolTip(tooltip)

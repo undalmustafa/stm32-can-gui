@@ -432,6 +432,10 @@ The GUI in `python/can_gui.py` provides:
 - Alarm comparison-field configuration and disable command
 - Alarm write-status and event display
 - System slot and LED status
+- Task-oriented Control, Live Data, and Logs & Errors pages
+- Filterable recent GUI event and error history
+- Persistent CAN connection and health status across every page
+- Plain-language CAN, RTC, and log health summaries with technical tooltips
 
 The GUI defaults to `PCAN_USBBUS1` at `500000` bit/s. It accepts application
 telemetry only from standard IDs `0x551`, `0x556`, `0x557`, and `0x558`.

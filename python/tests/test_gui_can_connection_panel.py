@@ -47,6 +47,12 @@ class FakeWidget:
     def setWordWrap(self, _enabled):
         pass
 
+    def setObjectName(self, name):
+        self.object_name = name
+
+    def setMinimumWidth(self, width):
+        self.minimum_width = width
+
 
 class FakeButton(FakeWidget):
     def __init__(self, text=""):
@@ -71,16 +77,31 @@ class FakeSpinBox(FakeWidget):
     def value(self):
         return self._value
 
+    def setSuffix(self, suffix):
+        self.suffix = suffix
+
 
 class FakeLayout:
     def __init__(self, *_args):
         self.items = []
 
-    def addWidget(self, widget):
+    def addWidget(self, widget, *_args):
         self.items.append(widget)
 
     def addLayout(self, layout):
         self.items.append(layout)
+
+    def addSpacing(self, spacing):
+        self.items.append(("spacing", spacing))
+
+    def addStretch(self):
+        self.items.append("stretch")
+
+    def setContentsMargins(self, *_args):
+        pass
+
+    def setSpacing(self, _spacing):
+        pass
 
 
 qtwidgets = types.ModuleType("PySide6.QtWidgets")
@@ -91,6 +112,7 @@ qtwidgets.QLineEdit = FakeWidget
 qtwidgets.QPushButton = FakeButton
 qtwidgets.QSpinBox = FakeSpinBox
 qtwidgets.QVBoxLayout = FakeLayout
+qtwidgets.QWidget = FakeWidget
 
 pyside = types.ModuleType("PySide6")
 pyside.QtWidgets = qtwidgets
@@ -152,14 +174,15 @@ def main():
         error_frame_count=4,
     )
     expect(
-        panel.health_label.text()
-        == "CAN  WARN | BUS_HEAVY | Driver=0x00000008 | RX=351 | EVENTS=2",
-        "CAN health engineering status remains unchanged",
+        panel.health_label.text() == "CAN bus has communication errors",
+        "CAN warning is presented in plain language",
     )
-    expect("#8A6D00" in panel.health_label.stylesheet,
-           "warning health state is rendered amber")
+    expect(panel.health_badge.text() == "Attention",
+           "warning state has a recognizable badge")
+    expect("351 frames" in panel.health_metrics_label.text(),
+           "CAN counters are formatted as readable metrics")
     expect("RX poll budget hits: 3" in panel.health_label.tooltip,
-           "poll-budget diagnostics remain in the tooltip")
+           "engineering diagnostics remain available in the tooltip")
     expect("PCAN error frames: 4" in panel.health_label.tooltip,
            "PCAN error-frame diagnostics remain in the tooltip")
 
@@ -173,8 +196,10 @@ def main():
         rx_budget_hit_count=3,
         error_frame_count=4,
     )
-    expect("#168018" in panel.health_label.stylesheet,
-           "healthy CAN state is rendered green")
+    expect(panel.health_badge.text() == "Healthy",
+           "healthy CAN state is immediately recognizable")
+    expect(panel.health_label.text() == "Receiving data from STM32",
+           "healthy CAN summary is user-facing")
 
     print("PASS: GUI CAN connection inputs and health rendering")
 

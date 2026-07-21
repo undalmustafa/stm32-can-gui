@@ -29,6 +29,9 @@ class FakeWidget:
     def setLayout(self, layout):
         self.layout = layout
 
+    def setObjectName(self, name):
+        self.object_name = name
+
 
 class FakeLayout:
     def __init__(self, parent=None):
@@ -37,7 +40,7 @@ class FakeLayout:
         if parent is not None:
             parent.setLayout(self)
 
-    def addWidget(self, widget):
+    def addWidget(self, widget, *_args):
         self.items.append(widget)
 
     def addStretch(self):
@@ -45,6 +48,21 @@ class FakeLayout:
 
     def setContentsMargins(self, *margins):
         self.margins = margins
+
+    def setSpacing(self, _spacing):
+        pass
+
+    def setHorizontalSpacing(self, _spacing):
+        pass
+
+    def setVerticalSpacing(self, _spacing):
+        pass
+
+    def setColumnStretch(self, *_args):
+        pass
+
+    def setRowStretch(self, *_args):
+        pass
 
 
 class FakeScrollArea(FakeWidget):
@@ -67,6 +85,9 @@ class FakeTabWidget(FakeWidget):
 
     def addTab(self, page, title):
         self.tabs.append((page, title))
+
+    def setDocumentMode(self, _enabled):
+        pass
 
 
 class FakeTimer:
@@ -91,6 +112,9 @@ qtcore.Qt = types.SimpleNamespace(
 )
 qtcore.QTimer = FakeTimer
 qtwidgets = types.ModuleType("PySide6.QtWidgets")
+qtwidgets.QGridLayout = FakeLayout
+qtwidgets.QHBoxLayout = FakeLayout
+qtwidgets.QLabel = FakeWidget
 qtwidgets.QScrollArea = FakeScrollArea
 qtwidgets.QTabWidget = FakeTabWidget
 qtwidgets.QVBoxLayout = FakeLayout
@@ -126,11 +150,13 @@ def main():
     connection = Panel()
     connection.configuration_group = widget("connection_config")
     connection.health_label = widget("can_health")
+    connection.health_widget = widget("can_health_bar")
 
     event_log = Panel()
     event_log.configuration_group = widget("log_config")
     event_log.event_status_group = widget("event_status")
     event_log.stm32_status_group = widget("stm32_status")
+    event_log.activity_group = widget("recent_events")
 
     can_app = Panel()
     can_app.slot1 = widget("slot1_config")
@@ -147,10 +173,14 @@ def main():
 
     view = MainWindowView(connection, event_log, can_app, rtc)
     expect([title for _page, title in view.tabs.tabs] == [
-        "Config", "Values"
-    ], "Config and Values tab order remains unchanged")
-    expect(view.root_layout.items == [view.tabs, connection.health_label],
-           "CAN health remains below the tab widget")
+        "Control", "Live Data", "Logs & Errors"
+    ], "task-oriented tab order remains stable")
+    expect(view.root_layout.items == [
+        view.header,
+        connection.configuration_group,
+        connection.health_widget,
+        view.tabs,
+    ], "connection and CAN health remain visible above every page")
 
     config_scroll = view.config_page.layout.items[0]
     config_names = [
@@ -158,31 +188,38 @@ def main():
         for item in config_scroll.widget.layout.items
     ]
     expect(config_names == [
-        "connection_config",
-        "log_config",
         "slot1_config",
         "slot2_config",
         "led_config",
         "rtc_calendar",
         "rtc_alarm_config",
-        "stretch",
-    ], "Config panel order remains unchanged")
+    ], "Control page contains only operational controls")
     expect(config_scroll.resizable,
            "Config page remains vertically scrollable")
 
+    values_scroll = view.values_page.layout.items[0]
     value_names = [
         getattr(item, "name", item)
-        for item in view.values_page.layout.items
+        for item in values_scroll.widget.layout.items
     ]
     expect(value_names == [
         "rtc_values",
-        "event_status",
-        "stm32_status",
         "slot1_status",
         "slot2_status",
         "led_status",
-        "stretch",
-    ], "Values panel order remains unchanged")
+    ], "Live Data page contains current device state")
+
+    logs_scroll = view.logs_page.layout.items[0]
+    log_names = [
+        getattr(item, "name", item)
+        for item in logs_scroll.widget.layout.items
+    ]
+    expect(log_names == [
+        "log_config",
+        "event_status",
+        "stm32_status",
+        "recent_events",
+    ], "Logs & Errors owns logging controls, status and recent events")
 
     timer_calls = []
     timers = ApplicationTimers(

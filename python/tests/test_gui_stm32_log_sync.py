@@ -92,14 +92,16 @@ def load_gui_module():
 def create_sync(gui_module, directory):
     bus = FakeBus()
     status_changes = []
+    observed_records = []
     sync = gui_module.Stm32LogSync(
         bus_provider=lambda: bus,
         enabled_provider=lambda: True,
         directory_provider=lambda: Path(directory),
         status_changed=lambda: status_changes.append(True),
+        record_observer=lambda record: observed_records.append(record),
     )
     sync.reset()
-    return sync, bus, status_changes
+    return sync, bus, status_changes, observed_records
 
 
 def make_fragments(base, payload, fragment_count):
@@ -122,7 +124,9 @@ def main():
     module = load_gui_module()
 
     with tempfile.TemporaryDirectory() as temp_directory:
-        sync, bus, status_changes = create_sync(module, temp_directory)
+        sync, bus, status_changes, observed_records = create_sync(
+            module, temp_directory
+        )
 
         sync.process()
         expect(len(bus.sent) == 1, "GUI sends log-info request")
@@ -174,6 +178,10 @@ def main():
                "sync advances to next sequence")
         expect(len(status_changes) > 0,
                "service reports state changes to the UI")
+        expect(len(observed_records) == 1,
+               "validated records are published to the recent-event view")
+        expect(observed_records[0]["event_name"] == "SYSTEM_BOOT",
+               "published records include the decoded event name")
 
         log_files = list(Path(temp_directory).glob("stm32_events_*.csv"))
         expect(len(log_files) == 1, "separate STM32 CSV file is created")
