@@ -6,11 +6,10 @@
 uint32_t g_fakeIwdgInstance;
 
 static uint32_t fake_tick;
-static HAL_StatusTypeDef fake_init_status;
 static HAL_StatusTypeDef fake_refresh_status;
-static uint32_t fake_init_calls;
 static uint32_t fake_refresh_calls;
-static IWDG_HandleTypeDef fake_initialized_handle;
+static IWDG_HandleTypeDef fake_watchdog;
+static IWDG_HandleTypeDef *fake_refresh_handle;
 
 #define EXPECT(condition)                                                   \
     do                                                                      \
@@ -27,17 +26,10 @@ uint32_t HAL_GetTick(void)
     return fake_tick;
 }
 
-HAL_StatusTypeDef HAL_IWDG_Init(IWDG_HandleTypeDef *handle)
-{
-    fake_init_calls++;
-    fake_initialized_handle = *handle;
-    return fake_init_status;
-}
-
 HAL_StatusTypeDef HAL_IWDG_Refresh(IWDG_HandleTypeDef *handle)
 {
-    (void)handle;
     fake_refresh_calls++;
+    fake_refresh_handle = handle;
     return fake_refresh_status;
 }
 
@@ -45,11 +37,17 @@ static void ResetFixture(void)
 {
     g_appWatchdogDiagnostics = (App_Watchdog_Diagnostics_t){0};
     fake_tick = 0U;
-    fake_init_status = HAL_OK;
     fake_refresh_status = HAL_OK;
-    fake_init_calls = 0U;
     fake_refresh_calls = 0U;
-    fake_initialized_handle = (IWDG_HandleTypeDef){0};
+    fake_watchdog = (IWDG_HandleTypeDef){
+        IWDG1,
+        {
+            IWDG_PRESCALER_128,
+            APP_WATCHDOG_RELOAD_VALUE,
+            IWDG_WINDOW_DISABLE,
+        },
+    };
+    fake_refresh_handle = (IWDG_HandleTypeDef *)0;
 }
 
 static void CheckInAll(void)
@@ -64,12 +62,7 @@ static int TestInitialization(void)
     ResetFixture();
     fake_tick = 17U;
 
-    EXPECT(App_Watchdog_Init() == HAL_OK);
-    EXPECT(fake_init_calls == 1U);
-    EXPECT(fake_initialized_handle.Instance == IWDG1);
-    EXPECT(fake_initialized_handle.Init.Prescaler == IWDG_PRESCALER_128);
-    EXPECT(fake_initialized_handle.Init.Reload == APP_WATCHDOG_RELOAD_VALUE);
-    EXPECT(fake_initialized_handle.Init.Window == IWDG_WINDOW_DISABLE);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
     EXPECT(g_appWatchdogDiagnostics.initialized == 1U);
     EXPECT(g_appWatchdogDiagnostics.init_count == 1U);
     EXPECT(g_appWatchdogDiagnostics.last_refresh_tick == 17U);
@@ -82,12 +75,18 @@ static int TestInitialization(void)
 static int TestInitializationFailure(void)
 {
     ResetFixture();
-    fake_init_status = HAL_ERROR;
-
-    EXPECT(App_Watchdog_Init() == HAL_ERROR);
-    EXPECT(fake_init_calls == 1U);
+    EXPECT(App_Watchdog_Init((IWDG_HandleTypeDef *)0) == HAL_ERROR);
     EXPECT(g_appWatchdogDiagnostics.initialized == 0U);
     EXPECT(g_appWatchdogDiagnostics.init_error_count == 1U);
+
+    fake_watchdog.Instance = (void *)0;
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_ERROR);
+    EXPECT(g_appWatchdogDiagnostics.init_error_count == 2U);
+
+    fake_watchdog.Instance = IWDG1;
+    fake_watchdog.Init.Reload++;
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_ERROR);
+    EXPECT(g_appWatchdogDiagnostics.init_error_count == 3U);
 
     return 0;
 }
@@ -96,7 +95,7 @@ static int TestHealthyRefreshGate(void)
 {
     ResetFixture();
     fake_tick = 10U;
-    EXPECT(App_Watchdog_Init() == HAL_OK);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
 
     CheckInAll();
     fake_tick = 259U;
@@ -106,6 +105,7 @@ static int TestHealthyRefreshGate(void)
     fake_tick = 260U;
     App_Watchdog_Process();
     EXPECT(fake_refresh_calls == 1U);
+    EXPECT(fake_refresh_handle == &fake_watchdog);
     EXPECT(g_appWatchdogDiagnostics.refresh_count == 1U);
     EXPECT(g_appWatchdogDiagnostics.last_missing_heartbeat_mask == 0U);
     EXPECT(g_appWatchdogDiagnostics.observed_heartbeat_mask == 0U);
@@ -117,7 +117,7 @@ static int TestHeartbeatDiagnostics(void)
 {
     ResetFixture();
     fake_tick = 100U;
-    EXPECT(App_Watchdog_Init() == HAL_OK);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
 
     App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
     fake_tick = 107U;
@@ -137,7 +137,7 @@ static int TestHeartbeatDiagnostics(void)
 static int TestMissingHeartbeatAndRecovery(void)
 {
     ResetFixture();
-    EXPECT(App_Watchdog_Init() == HAL_OK);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
 
     App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
     App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_CAN_APP);
@@ -162,7 +162,7 @@ static int TestMissingHeartbeatAndRecovery(void)
 static int TestFaultInjectionControls(void)
 {
     ResetFixture();
-    EXPECT(App_Watchdog_Init() == HAL_OK);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
 
     App_Watchdog_SetTestSuppressHeartbeatMask(
         APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
@@ -185,7 +185,7 @@ static int TestFaultInjectionControls(void)
 static int TestRefreshFailure(void)
 {
     ResetFixture();
-    EXPECT(App_Watchdog_Init() == HAL_OK);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
     fake_refresh_status = HAL_ERROR;
 
     CheckInAll();
@@ -203,7 +203,7 @@ static int TestTickWraparound(void)
 {
     ResetFixture();
     fake_tick = UINT32_MAX - 99U;
-    EXPECT(App_Watchdog_Init() == HAL_OK);
+    EXPECT(App_Watchdog_Init(&fake_watchdog) == HAL_OK);
     CheckInAll();
 
     fake_tick = 200U;

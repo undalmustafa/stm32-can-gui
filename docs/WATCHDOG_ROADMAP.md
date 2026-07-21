@@ -16,6 +16,8 @@ worst-case CAN, I2C, RTC, and logging activity.
   window
 - Debug behavior: IWDG1 is frozen while the core is halted by a debugger
 - Release behavior: fault-injection setters are not compiled
+- Hardware ownership: CubeMX-generated `hiwdg1` configuration in `main.c`
+- Policy ownership: `app_watchdog` binds to `hiwdg1` and controls refreshes
 
 The timeout uses a prescaler of 128 and reload value of 999. Its real duration
 depends on the physical LSI frequency and must be measured on target hardware.
@@ -49,10 +51,11 @@ depends on the physical LSI frequency and must be measured on target hardware.
 
 ### 1. CubeMX Ownership
 
-- [ ] Represent the IWDG peripheral and its parameters in `can_gui.ioc`
-- [ ] Choose one owner for peripheral initialization to prevent duplicate handles
-- [ ] Regenerate code in a temporary tree and review the generated delta
-- [ ] Confirm that repeated CubeMX generation preserves watchdog integration
+- [x] Represent the IWDG peripheral and its parameters in `can_gui.ioc`
+- [x] Make CubeMX the sole owner of peripheral initialization and `hiwdg1`
+- [x] Bind the application health policy to the generated handle
+- [x] Regenerate code in a temporary tree and review the generated delta
+- [x] Confirm that repeated CubeMX generation preserves watchdog integration
 
 Exit criterion: CubeMX regeneration followed by both firmware builds produces no
 manual repair and no duplicate IWDG initialization.

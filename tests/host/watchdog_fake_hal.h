@@ -33,7 +33,6 @@ extern uint32_t g_fakeIwdgInstance;
 #define IWDG_WINDOW_DISABLE 0x0FFFU
 
 uint32_t HAL_GetTick(void);
-HAL_StatusTypeDef HAL_IWDG_Init(IWDG_HandleTypeDef *handle);
 HAL_StatusTypeDef HAL_IWDG_Refresh(IWDG_HandleTypeDef *handle);
 
 #endif /* WATCHDOG_FAKE_HAL_H */

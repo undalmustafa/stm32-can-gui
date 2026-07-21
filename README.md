@@ -105,13 +105,13 @@ runtime, `main()` performs:
 1. MPU configuration
 2. HAL and SysTick initialization
 3. 64 MHz clock-tree configuration
-4. GPIO, FDCAN1, and I2C1 initialization
-5. Board LED initialization
-6. RAM event-log initialization and `SYSTEM_BOOT` record creation
-7. CAN application, transport, filter, notification, and diagnostics setup
-8. Non-blocking PCA2131 initialization scheduling
-9. Initial system-status publication
-10. Independent watchdog initialization
+4. GPIO, FDCAN1, I2C1, and IWDG1 hardware initialization
+5. RAM event-log initialization and `SYSTEM_BOOT` record creation
+6. CAN application, transport, filter, notification, and diagnostics setup
+7. Non-blocking PCA2131 initialization scheduling
+8. Initial system-status publication
+9. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
+10. Board LED, push-button, and COM initialization
 11. Entry into the cooperative superloop
 
 The main loop repeatedly calls `CAN_App_Process()`:
@@ -134,8 +134,9 @@ remain the principal bounded blocking operations in the superloop.
 The watchdog evaluates progress every 250 ms and refreshes IWDG1 only after the
 main loop, CAN application, and RTC service have all checked in. Its nominal
 timeout is 4 seconds; target timing characterization remains required before
-production sign-off. See `docs/WATCHDOG_ROADMAP.md` for the tracked validation
-plan.
+production sign-off. CubeMX owns the `hiwdg1` handle and peripheral setup;
+`app_watchdog` owns only the health gate and refresh policy. See
+`docs/WATCHDOG_ROADMAP.md` for the tracked validation plan.
 
 Unsigned elapsed-time comparisons are used for periodic work. Absolute
 deadlines use signed subtraction where required so comparisons remain valid

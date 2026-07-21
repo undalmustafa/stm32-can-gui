@@ -1,6 +1,6 @@
 #include "app_watchdog.h"
 
-static IWDG_HandleTypeDef app_iwdg;
+static IWDG_HandleTypeDef *app_iwdg;
 
 volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
 
@@ -24,26 +24,19 @@ static void App_Watchdog_RecordHeartbeat(
     *last_tick = now;
 }
 
-HAL_StatusTypeDef App_Watchdog_Init(void)
+HAL_StatusTypeDef App_Watchdog_Init(IWDG_HandleTypeDef *watchdog)
 {
-    HAL_StatusTypeDef status;
-
-#if defined(DEBUG) && defined(__HAL_DBGMCU_FREEZE_IWDG1)
-    /* Keep source-level debugging practical. Production builds do not freeze. */
-    __HAL_DBGMCU_FREEZE_IWDG1();
-#endif
-
-    app_iwdg.Instance = IWDG1;
-    app_iwdg.Init.Prescaler = IWDG_PRESCALER_128;
-    app_iwdg.Init.Window = IWDG_WINDOW_DISABLE;
-    app_iwdg.Init.Reload = APP_WATCHDOG_RELOAD_VALUE;
-
-    status = HAL_IWDG_Init(&app_iwdg);
-    if (status != HAL_OK)
+    if ((watchdog == (IWDG_HandleTypeDef *)0) ||
+        (watchdog->Instance != IWDG1) ||
+        (watchdog->Init.Prescaler != IWDG_PRESCALER_128) ||
+        (watchdog->Init.Window != IWDG_WINDOW_DISABLE) ||
+        (watchdog->Init.Reload != APP_WATCHDOG_RELOAD_VALUE))
     {
         g_appWatchdogDiagnostics.init_error_count++;
-        return status;
+        return HAL_ERROR;
     }
+
+    app_iwdg = watchdog;
 
     g_appWatchdogDiagnostics.initialized = 1U;
 #if APP_WATCHDOG_TEST_HOOKS_ENABLED
@@ -151,7 +144,7 @@ void App_Watchdog_Process(void)
         return;
     }
 
-    if (HAL_IWDG_Refresh(&app_iwdg) == HAL_OK)
+    if (HAL_IWDG_Refresh(app_iwdg) == HAL_OK)
     {
         g_appWatchdogDiagnostics.refresh_count++;
         g_appWatchdogDiagnostics.last_refresh_tick = now;
