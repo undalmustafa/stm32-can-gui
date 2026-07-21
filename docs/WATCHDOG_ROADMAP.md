@@ -81,7 +81,8 @@ with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 
 - [x] Capture maximum main-loop, CAN, and RTC check-in intervals under load
 - [x] Exercise sustained RX command traffic with TX congestion
-- [ ] Exercise RTC I2C timeouts under load
+- [x] Exercise RTC disconnection and I2C NACK handling under load
+- [ ] Exercise a stuck-bus I2C timeout under load
 - [ ] Exercise CAN bus-off recovery under load
 - [ ] Measure the actual IWDG timeout on representative boards
 - [ ] Repeat measurements across the required voltage and temperature range
@@ -106,6 +107,12 @@ were active, the PCAN stress runner sent `117911` valid commands in `120.210 s`
 missed `2090` scheduling periods. Target diagnostics at `190520 ms` showed one
 initialization, `762` successful refreshes, no refresh errors or health-gate
 rejections, and `2 ms` maximum intervals for all three heartbeats.
+
+RTC-fault target result (2026-07-21): with the PCA2131 disconnected during CAN
+load, the RTC reported not ready, `PCA2131_RESULT_READ_FAILED`, `HAL_ERROR`, and
+I2C error `4` (acknowledge failure). At `81770 ms`, the watchdog showed one
+initialization, `327` successful refreshes, no refresh errors or health-gate
+rejections, and `1 ms` maximum intervals for all three heartbeats.
 
 ### 4. Target Fault Injection
 
