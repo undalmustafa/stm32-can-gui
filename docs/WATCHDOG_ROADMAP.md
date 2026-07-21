@@ -83,6 +83,7 @@ with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 - [x] Exercise sustained RX command traffic with TX congestion
 - [x] Exercise RTC disconnection and I2C NACK handling under load
 - [ ] Exercise a stuck-bus I2C timeout under load
+- [x] Exercise open-bus ACK loss and error-passive recovery under load
 - [x] Exercise CAN bus-off recovery under load
 - [ ] Measure the actual IWDG timeout on representative boards
 - [ ] Repeat measurements across the required voltage and temperature range
@@ -113,6 +114,13 @@ load, the RTC reported not ready, `PCA2131_RESULT_READ_FAILED`, `HAL_ERROR`, and
 I2C error `4` (acknowledge failure). At `81770 ms`, the watchdog showed one
 initialization, `327` successful refreshes, no refresh errors or health-gate
 rejections, and `1 ms` maximum intervals for all three heartbeats.
+
+Open-bus target result (2026-07-21): four PCAN-side CANH/CANL disconnect and
+reconnect cycles produced four error-passive events and no bus-off event. The
+target continued running, as required by CAN fault-confinement behavior for a
+lone transmitter with ACK errors. After reconnection, the TX-complete count
+reached `2471`; the last captured error-state transition had raw ECR `97794`
+(`0x00017E02`).
 
 Bus-off target result (2026-07-21): an injected physical CAN-bus fault during
 cyclic traffic produced `60` bus-off events and `32` recovery attempts. There
