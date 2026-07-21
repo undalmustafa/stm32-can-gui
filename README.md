@@ -469,6 +469,20 @@ python .\python\can_gui.py
 A PEAK PCAN adapter and its platform driver are required for the configured
 `interface="pcan"` backend.
 
+### Watchdog CAN Stress
+
+For target watchdog timing tests, close the GUI and run the controlled PCAN
+command generator. It sends valid alternating LED commands and drains STM32
+responses so sustained receive processing can be measured without manual input.
+
+```powershell
+.\python\.venv\Scripts\python.exe .\python\watchdog_can_stress.py `
+  --duration 120 --period-ms 1
+```
+
+The defaults are `PCAN_USBBUS1`, `500000` bit/s, and LED 1. The final summary
+reports achieved transmit/receive rates and missed host scheduling periods.
+
 ## Continuous Integration and Delivery
 
 GitHub Actions runs independent CI jobs on pushes and pull requests:
