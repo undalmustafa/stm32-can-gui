@@ -83,7 +83,7 @@ with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 - [x] Exercise sustained RX command traffic with TX congestion
 - [x] Exercise RTC disconnection and I2C NACK handling under load
 - [ ] Exercise a stuck-bus I2C timeout under load
-- [ ] Exercise CAN bus-off recovery under load
+- [x] Exercise CAN bus-off recovery under load
 - [ ] Measure the actual IWDG timeout on representative boards
 - [ ] Repeat measurements across the required voltage and temperature range
 - [ ] Set timeout and refresh constants from measured bounds and documented margin
@@ -113,6 +113,14 @@ load, the RTC reported not ready, `PCA2131_RESULT_READ_FAILED`, `HAL_ERROR`, and
 I2C error `4` (acknowledge failure). At `81770 ms`, the watchdog showed one
 initialization, `327` successful refreshes, no refresh errors or health-gate
 rejections, and `1 ms` maximum intervals for all three heartbeats.
+
+Bus-off target result (2026-07-21): disconnecting CANH/CANL during cyclic
+traffic produced `60` bus-off events and `32` recovery attempts. There were no
+HAL recovery failures; `30` verification attempts were invalidated by another
+bus-off while the cable remained disconnected. After reconnection, two
+recoveries were confirmed by TX-complete events and verification was no longer
+pending. The watchdog retained one initialization with no health-gate rejection
+or refresh error.
 
 ### 4. Target Fault Injection
 
