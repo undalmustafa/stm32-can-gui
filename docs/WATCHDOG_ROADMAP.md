@@ -148,10 +148,14 @@ LSI and timeout measurements remain part of timing characterization.
 
 ### 5. Production Sign-Off
 
-- [ ] Confirm Release builds contain no fault-injection symbols
+- [x] Confirm Release builds contain no fault-injection symbols
 - [ ] Review IWDG option bytes and Stop/Standby behavior
 - [ ] Document flashing, fault-injection, and acceptance procedures
 - [ ] Record tested toolchain, board revision, firmware tag, and measurements
 
 Exit criterion: the signed test record links a tagged firmware artifact to the
 hardware and environmental evidence used to approve the watchdog policy.
+
+Build result (2026-07-21): linked Debug firmware retains the debugger-only
+watchdog fault-injection hooks, while linked Release firmware contains none.
+The CI firmware job audits both symbol sets after linking.
