@@ -1,0 +1,28 @@
+# STM32CubeIDE build output
+Debug/
+Release/
+
+# Compiler and linker artifacts
+*.o
+*.d
+*.su
+*.cyclo
+*.elf
+*.hex
+*.bin
+*.map
+*.list
+
+# Python environments and runtime output
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+logs/
+
+# Local agent state
+.agents/
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
