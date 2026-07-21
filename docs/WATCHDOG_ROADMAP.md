@@ -120,9 +120,11 @@ were no HAL recovery failures; `30` verification attempts were invalidated by
 another bus-off while the fault remained active. After the fault was removed,
 two recoveries were confirmed by TX-complete events and verification was no
 longer pending. The watchdog retained one initialization with no health-gate
-rejection or refresh error. Future repetitions must remove the sole ACK-capable
-node while cyclic transmission is confirmed active; CANH/CANL must not be
-shorted as a fault-injection method.
+rejection or refresh error. Removing the sole ACK-capable node is suitable for
+testing the error-passive path, but CAN fault-confinement rules prevent repeated
+ACK errors alone from driving a lone transmitter to bus-off. Future bus-off
+tests require controlled fault-injection hardware that creates bit, stuff, or
+form errors; CANH/CANL must not be manually shorted.
 
 ### 4. Target Fault Injection
 
