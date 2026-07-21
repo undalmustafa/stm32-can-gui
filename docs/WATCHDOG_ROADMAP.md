@@ -79,7 +79,7 @@ with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 
 ### 3. Timing Characterization
 
-- [ ] Capture maximum main-loop, CAN, and RTC check-in intervals under load
+- [x] Capture maximum main-loop, CAN, and RTC check-in intervals under load
 - [ ] Exercise maximum RX FIFO traffic, TX congestion, RTC I2C timeouts, and bus-off
   recovery
 - [ ] Measure the actual IWDG timeout on representative boards
@@ -93,6 +93,11 @@ Baseline target result (2026-07-21): after `153359 ms` of normal Debug runtime,
 the maximum observed main-loop, CAN-application, and RTC-service heartbeat
 intervals were all `2 ms`. Loaded traffic and fault scenarios remain to be
 measured.
+
+TX-load target result (2026-07-21): two standard CAN slots with distinct IDs
+ran concurrently at `1 ms` periods for two minutes. No watchdog reset occurred,
+and the maximum observed heartbeat interval remained `2 ms` for the main loop,
+CAN application, and RTC service.
 
 ### 4. Target Fault Injection
 
