@@ -13,6 +13,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  watchdog-tests:
+    name: Watchdog host tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run watchdog policy tests
+        run: python tests/host/run_watchdog_tests.py
+
   firmware:
     name: Firmware
     runs-on: ubuntu-24.04
