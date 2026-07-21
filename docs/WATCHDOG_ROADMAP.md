@@ -80,8 +80,9 @@ with health-gate rejection cause `2` and missing-heartbeat mask `4`.
 ### 3. Timing Characterization
 
 - [x] Capture maximum main-loop, CAN, and RTC check-in intervals under load
-- [ ] Exercise maximum RX FIFO traffic, TX congestion, RTC I2C timeouts, and bus-off
-  recovery
+- [x] Exercise sustained RX command traffic with TX congestion
+- [ ] Exercise RTC I2C timeouts under load
+- [ ] Exercise CAN bus-off recovery under load
 - [ ] Measure the actual IWDG timeout on representative boards
 - [ ] Repeat measurements across the required voltage and temperature range
 - [ ] Set timeout and refresh constants from measured bounds and documented margin
@@ -98,6 +99,13 @@ TX-load target result (2026-07-21): two standard CAN slots with distinct IDs
 ran concurrently at `1 ms` periods for two minutes. No watchdog reset occurred,
 and the maximum observed heartbeat interval remained `2 ms` for the main loop,
 CAN application, and RTC service.
+
+Combined CAN-load target result (2026-07-21): while both `1 ms` transmit slots
+were active, the PCAN stress runner sent `117911` valid commands in `120.210 s`
+(`980.9` frames/s) and received `123905` frames (`1030.7` frames/s). The host
+missed `2090` scheduling periods. Target diagnostics at `190520 ms` showed one
+initialization, `762` successful refreshes, no refresh errors or health-gate
+rejections, and `2 ms` maximum intervals for all three heartbeats.
 
 ### 4. Target Fault Injection
 
