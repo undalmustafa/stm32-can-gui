@@ -6,6 +6,7 @@
 #include "rtc_app.h"
 #include "app_diagnostics.h"
 #include "app_log.h"
+#include "app_watchdog.h"
 #include "app_log_can.h"
 
 #define SYSTEM_STATUS_PERIOD_MS         500U
@@ -449,6 +450,7 @@ void CAN_App_Process(void)
     /* Uygulama servisleri yeni mesajlar üretebilir. */
     CAN_Process_Rx_Command();
     RTC_Process();
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
     System_Status_Process();
     App_Log_Can_Process();
     CAN_Process_TxSlots();
@@ -456,6 +458,7 @@ void CAN_App_Process(void)
     /* Bu döngüde oluşan mesajları bekletmeden ilerlet. */
     CAN_Transport_Process();
     App_Diagnostics_Process();
+    App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_CAN_APP);
 }
 
 void CAN_Process_Rx_Command(void)

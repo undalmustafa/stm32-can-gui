@@ -24,6 +24,8 @@
 #include "can_app.h"
 #include "rtc_app.h"
 #include "app_log.h"
+#include "app_reset_reason.h"
+#include "app_watchdog.h"
 
 /* USER CODE END Includes */
 
@@ -87,6 +89,8 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
+  App_ResetReason_Capture();
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -106,11 +110,13 @@ int main(void)
   BSP_LED_Init(LED_RED);
 
   App_Log_Init();
+  App_ResetReason_Snapshot_t reset_reason;
+  App_ResetReason_GetSnapshot(&reset_reason);
   (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,
                      APP_LOG_SEVERITY_INFO,
                      APP_LOG_EVENT_SYSTEM_BOOT,
-                     0U,
-                     0U);
+                     reset_reason.decoded_flags,
+                     reset_reason.raw_rsr);
 
   CAN_App_Init();
   PCA2131_Init_Check();
@@ -132,6 +138,13 @@ int main(void)
     Error_Handler();
   }
 
+  /* USER CODE BEGIN Watchdog_Init */
+  if (App_Watchdog_Init() != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE END Watchdog_Init */
+
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -142,6 +155,8 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	  CAN_App_Process();
+	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
+	  App_Watchdog_Process();
 
   }
   /* USER CODE END 3 */
