@@ -91,15 +91,24 @@ maximum valid service interval, with an agreed engineering margin.
 
 ### 4. Target Fault Injection
 
-- [ ] Suppress each required heartbeat independently
-- [ ] Inhibit refresh and measure reset latency
+- [x] Suppress each required heartbeat independently
+- [x] Inhibit refresh and confirm hard-stall retained evidence
+- [ ] Measure watchdog reset latency
 - [ ] Stall the main loop inside representative services
 - [ ] Verify the IWDG reset flag and system boot event after each reset
-- [ ] Verify debugger freeze and post-detach behavior
+- [x] Verify debugger freeze while the core is halted
+- [ ] Verify watchdog operation after debugger detach
 - [ ] Confirm that normal CAN, RTC, and logging faults do not cause false resets
 
 Exit criterion: every intended fault resets and recovers as specified, and the
 stress matrix produces no false watchdog resets.
+
+Target result (2026-07-21): Debug fault injection independently suppressed the
+main-loop, CAN-application, and RTC-service heartbeat masks (`1`, `2`, and `4`).
+Each reset produced valid health-gate evidence with the corresponding missing
+mask. Inhibiting refresh produced valid hard-stall evidence with cause `1` and
+no missing heartbeat. Halting the core for more than 10 seconds did not reset
+the MCU, and watchdog refresh resumed after the debugger continued execution.
 
 ### 5. Production Sign-Off
 
