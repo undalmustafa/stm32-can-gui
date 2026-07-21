@@ -1,0 +1,183 @@
+import sys
+import types
+from pathlib import Path
+
+
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+GUI_DIRECTORY = PACKAGE_ROOT / "upload"
+if not (GUI_DIRECTORY / "can_gui_app").is_dir():
+    GUI_DIRECTORY = PACKAGE_ROOT
+sys.path.insert(0, str(GUI_DIRECTORY))
+
+
+class FakeSignal:
+    def __init__(self):
+        self.callbacks = []
+
+    def connect(self, callback):
+        self.callbacks.append(callback)
+
+    def emit(self, *args):
+        for callback in self.callbacks:
+            callback(*args)
+
+
+class FakeWidget:
+    def __init__(self, text="", *_args, **_kwargs):
+        self._text = text
+        self.layout = None
+        self.stylesheet = ""
+        self.tooltip = ""
+
+    def setText(self, text):
+        self._text = text
+
+    def text(self):
+        return self._text
+
+    def setLayout(self, layout):
+        self.layout = layout
+
+    def setStyleSheet(self, stylesheet):
+        self.stylesheet = stylesheet
+
+    def setToolTip(self, tooltip):
+        self.tooltip = tooltip
+
+    def setWordWrap(self, _enabled):
+        pass
+
+
+class FakeButton(FakeWidget):
+    def __init__(self, text=""):
+        super().__init__(text)
+        self.clicked = FakeSignal()
+
+
+class FakeSpinBox(FakeWidget):
+    def __init__(self):
+        super().__init__()
+        self._value = 0
+        self.minimum = None
+        self.maximum = None
+
+    def setRange(self, minimum, maximum):
+        self.minimum = minimum
+        self.maximum = maximum
+
+    def setValue(self, value):
+        self._value = value
+
+    def value(self):
+        return self._value
+
+
+class FakeLayout:
+    def __init__(self, *_args):
+        self.items = []
+
+    def addWidget(self, widget):
+        self.items.append(widget)
+
+    def addLayout(self, layout):
+        self.items.append(layout)
+
+
+qtwidgets = types.ModuleType("PySide6.QtWidgets")
+qtwidgets.QGroupBox = FakeWidget
+qtwidgets.QHBoxLayout = FakeLayout
+qtwidgets.QLabel = FakeWidget
+qtwidgets.QLineEdit = FakeWidget
+qtwidgets.QPushButton = FakeButton
+qtwidgets.QSpinBox = FakeSpinBox
+qtwidgets.QVBoxLayout = FakeLayout
+
+pyside = types.ModuleType("PySide6")
+pyside.QtWidgets = qtwidgets
+sys.modules.setdefault("PySide6", pyside)
+sys.modules.setdefault("PySide6.QtWidgets", qtwidgets)
+
+from can_gui_app.can_connection_panel import CanConnectionPanel  # noqa: E402
+
+
+def expect(condition, description):
+    if not condition:
+        raise AssertionError(description)
+
+
+def main():
+    connection_requests = []
+    panel = CanConnectionPanel(
+        connect_requested=lambda **request: connection_requests.append(
+            request
+        )
+    )
+
+    expect(panel.get_connection_request() == {
+        "channel": "PCAN_USBBUS1",
+        "bitrate": 500000,
+    }, "PCAN channel and bitrate defaults remain unchanged")
+
+    panel.channel_input.setText("  PCAN_USBBUS2  ")
+    panel.bitrate_input.setValue(250000)
+    panel.connect_button.clicked.emit()
+    expect(connection_requests == [{
+        "channel": "PCAN_USBBUS2",
+        "bitrate": 250000,
+    }], "Connect button forwards normalized channel and bitrate")
+
+    panel.show_connected("PCAN_USBBUS2", 250000)
+    expect(
+        panel.connection_status_label.text()
+        == "Connected: PCAN_USBBUS2, 250000 bit/s",
+        "successful connection status text remains unchanged",
+    )
+    expect("#168018" in panel.connection_status_label.stylesheet,
+           "successful connection is rendered green")
+
+    panel.show_disconnected()
+    expect(panel.connection_status_label.text() == "Disconnected",
+           "failed connection is rendered disconnected")
+    expect("#C62828" in panel.connection_status_label.stylesheet,
+           "failed connection is rendered red")
+
+    panel.render_health(
+        severity="WARN",
+        code="BUS_HEAVY",
+        detail="Driver=0x00000008",
+        tooltip="PCAN reported BUSHEAVY",
+        rx_count=351,
+        error_event_count=2,
+        rx_budget_hit_count=3,
+        error_frame_count=4,
+    )
+    expect(
+        panel.health_label.text()
+        == "CAN  WARN | BUS_HEAVY | Driver=0x00000008 | RX=351 | EVENTS=2",
+        "CAN health engineering status remains unchanged",
+    )
+    expect("#8A6D00" in panel.health_label.stylesheet,
+           "warning health state is rendered amber")
+    expect("RX poll budget hits: 3" in panel.health_label.tooltip,
+           "poll-budget diagnostics remain in the tooltip")
+    expect("PCAN error frames: 4" in panel.health_label.tooltip,
+           "PCAN error-frame diagnostics remain in the tooltip")
+
+    panel.render_health(
+        severity="OK",
+        code="ACTIVE",
+        detail="STM32 traffic active",
+        tooltip="healthy",
+        rx_count=400,
+        error_event_count=2,
+        rx_budget_hit_count=3,
+        error_frame_count=4,
+    )
+    expect("#168018" in panel.health_label.stylesheet,
+           "healthy CAN state is rendered green")
+
+    print("PASS: GUI CAN connection inputs and health rendering")
+
+
+if __name__ == "__main__":
+    main()
