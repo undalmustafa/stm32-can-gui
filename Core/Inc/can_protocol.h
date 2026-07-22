@@ -10,6 +10,7 @@
 #define CAN_PROTOCOL_RTC_TIME_TX_ID            0x556U
 #define CAN_PROTOCOL_SYSTEM_STATUS_TX_ID       0x557U
 #define CAN_PROTOCOL_RTC_ALARM_EVENT_TX_ID     0x558U
+#define CAN_PROTOCOL_PWM_STATUS_TX_ID           0x559U
 #define CAN_PROTOCOL_LOG_RESPONSE_TX_ID        0x55AU
 #define CAN_PROTOCOL_LOG_HEARTBEAT_TX_ID       0x55BU
 
@@ -25,6 +26,12 @@
 
 #define CAN_PROTOCOL_SLOT_FLAG_ENABLE          0x01U
 #define CAN_PROTOCOL_SLOT_FLAG_EXTENDED_ID     0x02U
+
+#define CAN_PROTOCOL_PWM_FLAG_ENABLE           0x01U
+#define CAN_PROTOCOL_PWM_FLAG_MASK             0x01U
+#define CAN_PROTOCOL_PWM_MIN_FREQUENCY_HZ       1UL
+#define CAN_PROTOCOL_PWM_MAX_FREQUENCY_HZ       1000000UL
+#define CAN_PROTOCOL_PWM_MAX_DUTY_PERMILLE      1000U
 
 #define CAN_PROTOCOL_RTC_ALARM_ENABLE_SECOND   0x01U
 #define CAN_PROTOCOL_RTC_ALARM_ENABLE_MINUTE   0x02U
@@ -48,7 +55,8 @@ typedef enum
     CAN_PROTOCOL_CMD_RTC_SET_DATETIME = 0x21U,
     CAN_PROTOCOL_CMD_RTC_SET_ALARM = 0x22U,
     CAN_PROTOCOL_CMD_LOG_GET_INFO = 0x30U,
-    CAN_PROTOCOL_CMD_LOG_READ_SEQUENCE = 0x31U
+    CAN_PROTOCOL_CMD_LOG_READ_SEQUENCE = 0x31U,
+    CAN_PROTOCOL_CMD_PWM_CONFIG = 0x40U
 } CAN_Protocol_Command_t;
 
 typedef enum
@@ -139,6 +147,21 @@ typedef struct
 
 typedef struct
 {
+    uint32_t frequency_hz;
+    uint16_t duty_permille;
+    uint8_t enabled;
+} CAN_Protocol_PwmCommand_t;
+
+typedef struct
+{
+    uint32_t actual_frequency_hz;
+    uint16_t duty_permille;
+    uint8_t enabled;
+    uint8_t result;
+} CAN_Protocol_PwmStatus_t;
+
+typedef struct
+{
     uint32_t latest_sequence;
     uint8_t record_count;
     uint8_t ready;
@@ -148,6 +171,7 @@ typedef struct
 
 uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
+void CAN_Protocol_WriteU16LE(uint8_t *data, uint16_t value);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
 
 uint8_t CAN_Protocol_IsValidId(uint8_t is_extended,
@@ -172,6 +196,14 @@ void CAN_Protocol_EncodeRtcAlarmEvent(
 
 void CAN_Protocol_EncodeSystemStatus(
     const CAN_Protocol_SystemStatus_t *system_status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+uint8_t CAN_Protocol_DecodePwmCommand(
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE],
+    CAN_Protocol_PwmCommand_t *command);
+
+void CAN_Protocol_EncodePwmStatus(
+    const CAN_Protocol_PwmStatus_t *status,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 void CAN_Protocol_EncodeLogHeartbeat(

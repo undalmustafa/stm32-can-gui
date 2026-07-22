@@ -29,6 +29,8 @@ def main():
            "system status ID remains unchanged")
     expect(protocol.RTC_ALARM_EVENT_RX_ID == 0x558,
            "RTC alarm event ID remains unchanged")
+    expect(protocol.PWM_STATUS_RX_ID == 0x559,
+           "PWM status uses its assigned standard ID")
     expect(protocol.STM32_LOG_RESPONSE_RX_ID == 0x55A,
            "STM32 log response ID remains unchanged")
     expect(protocol.STM32_LOG_RECORD_MAGIC == 0x4C4F4731,
@@ -39,6 +41,25 @@ def main():
            "u16 encoding remains little-endian")
     expect(protocol.u32_to_le(0x12345678) == [0x78, 0x56, 0x34, 0x12],
            "u32 encoding remains little-endian")
+    expect(protocol.build_pwm_command(True, 1000, 500) == [
+        protocol.CMD_PWM_CONFIG, protocol.PWM_FLAG_ENABLE,
+        0xE8, 0x03, 0x00, 0x00, 0xF4, 0x01,
+    ], "PWM command encodes frequency and 0.1-percent duty little-endian")
+    expect(protocol.decode_pwm_status([
+        1, 0xE8, 0x03, 0, 0, 0xF4, 0x01, 0,
+    ]) == {
+        "enabled": True,
+        "actual_frequency_hz": 1000,
+        "duty_permille": 500,
+        "result": 0,
+    }, "PWM status decoder preserves confirmed output values")
+
+    try:
+        protocol.build_pwm_command(True, 0, 500)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("zero-frequency PWM must be rejected")
     expect(protocol.parse_can_id("0x123") == 0x123,
            "hex CAN ID parsing remains unchanged")
     expect(protocol.decode_hal_status(1) == "HAL_ERROR",

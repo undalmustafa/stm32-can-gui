@@ -171,7 +171,11 @@ def main():
     rtc.alarm_configuration_group = widget("rtc_alarm_config")
     rtc.values_group = widget("rtc_values")
 
-    view = MainWindowView(connection, event_log, can_app, rtc)
+    pwm = Panel()
+    pwm.configuration_group = widget("pwm_config")
+    pwm.status_group = widget("pwm_status")
+
+    view = MainWindowView(connection, event_log, can_app, rtc, pwm)
     expect([title for _page, title in view.tabs.tabs] == [
         "Control", "Live Data", "Logs & Errors"
     ], "task-oriented tab order remains stable")
@@ -191,6 +195,7 @@ def main():
         "slot1_config",
         "slot2_config",
         "led_config",
+        "pwm_config",
         "rtc_calendar",
         "rtc_alarm_config",
     ], "Control page contains only operational controls")
@@ -207,6 +212,7 @@ def main():
         "slot1_status",
         "slot2_status",
         "led_status",
+        "pwm_status",
     ], "Live Data page contains current device state")
 
     logs_scroll = view.logs_page.layout.items[0]

@@ -16,6 +16,7 @@ and debugger-friendly diagnostics.
 - Standard 11-bit and extended 29-bit slot identifiers
 - Configurable cycle time and continuously wrapping 32-bit counters
 - Remote control of two board LEDs
+- Adjustable TIM4 PWM output for oscilloscope setup and triggering
 - PCA2131 date/time read and verified write operations
 - PCA2131 alarm configuration with selective comparison fields
 - Alarm status polling, one-shot event reporting, and flag clearing
@@ -46,6 +47,8 @@ and debugger-friendly diagnostics.
 | Software TX queue | 16 frames |
 | RTC | PCA2131 at 7-bit I2C address `0x53` |
 | I2C peripheral | I2C1, PB8 SCL and PB9 SDA |
+| PWM output | TIM4 channel 4 on Arduino D9 / PD15 |
+| PWM range | 1 Hz to 1 MHz, 0.0% to 100.0% duty cycle |
 
 Automatic CAN retransmission is enabled. The FDCAN1 interrupt must remain
 enabled and must call `HAL_FDCAN_IRQHandler()` for error and TX-complete
@@ -62,7 +65,7 @@ callbacks to work.
 +-------------------------------v-----------------------------------+
 | STM32H7A3 firmware                                                 |
 |                                                                    |
-| can_app          RX validation, command dispatch, slots, LEDs      |
+| can_app          RX validation, command dispatch, slots, LEDs, PWM |
 |   |                                                                |
 |   +-> rtc_app    RTC and alarm policy/state machines               |
 |   |     +-> pca2131       PCA2131 register-level I2C driver        |
@@ -72,6 +75,7 @@ callbacks to work.
 |   +-> can_recovery        bus-off restart and verification         |
 |   +-> app_diagnostics     periodic RX/TX health snapshot           |
 |   +-> app_log             binary event ring buffer                 |
+|   +-> app_pwm             TIM4 frequency and duty-cycle control    |
 |                                                                    |
 | STM32 HAL -> FDCAN/I2C/GPIO registers -> transceiver/RTC/LEDs      |
 +--------------------------------------------------------------------+
@@ -93,6 +97,7 @@ Core/Inc|Src/app_diagnostics.* Aggregated runtime diagnostics
 Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
 Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
+Core/Inc|Src/app_pwm.*      TIM4 PWM configuration and state
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
 python/can_gui.py           Desktop control and monitoring GUI
@@ -108,7 +113,7 @@ runtime, `main()` performs:
 2. HAL and SysTick initialization
 3. RCC reset-cause and retained watchdog-evidence capture
 4. 64 MHz clock-tree configuration
-5. GPIO, FDCAN1, I2C1, and IWDG1 hardware initialization
+5. GPIO, FDCAN1, I2C1, TIM4 PWM, and IWDG1 hardware initialization
 6. RAM event-log initialization and `SYSTEM_BOOT` record creation
 7. CAN application, transport, filter, notification, and diagnostics setup
 8. Non-blocking PCA2131 initialization scheduling
@@ -168,6 +173,7 @@ bytes**. Multi-byte integers are little-endian.
 | MCU -> GUI | `0x556` | Standard | RTC date/time and health |
 | MCU -> GUI | `0x557` | Standard | Slot and LED state |
 | MCU -> GUI | `0x558` | Standard | RTC alarm event |
+| MCU -> GUI | `0x559` | Standard | Confirmed PWM output state |
 
 FDCAN hardware uses an exact-mask extended filter for `0x1894AABB` and rejects
 unmatched standard, extended, and remote frames. Software still validates ID,
@@ -185,6 +191,9 @@ frame type, Classic/FD format, DLC, command, reserved fields, and value ranges.
 | `0x20` | Set RTC time |
 | `0x21` | Set RTC date and time |
 | `0x22` | Configure RTC alarm comparisons |
+| `0x30` | Request binary-log information |
+| `0x31` | Request a binary-log record by sequence |
+| `0x40` | Configure oscilloscope PWM output |
 
 ### Slot Configuration: `0x01` / `0x02`
 
@@ -219,6 +228,20 @@ continuously. Bytes 4-7 are zero.
 ```
 
 Logical LED 1 maps to the green board LED and logical LED 2 to the red LED.
+
+### PWM Command: `0x40`
+
+```text
+Byte 0     command 0x40
+Byte 1     bit 0 output enabled; bits 1-7 must be zero
+Bytes 2-5 requested frequency in Hz, uint32 little-endian
+Bytes 6-7 duty cycle in 0.1% units, uint16 little-endian
+```
+
+Frequency must be `1..1000000` Hz and duty must be `0..1000` (0.0% to
+100.0%). TIM4 runs from the 64 MHz APB1 timer clock. Firmware selects a
+prescaler and 16-bit period dynamically, then reports the rounded frequency
+actually generated.
 
 ### RTC Date/Time Command: `0x21`
 
@@ -290,6 +313,19 @@ The firmware polls the PCA2131 alarm flag every 100 ms when the RTC is ready
 and at least one alarm comparison is enabled. It sends one high-priority event
 for an active flag, then clears the flag. A failed transmission or flag-clear
 operation is counted in alarm diagnostics.
+
+### PWM Status: `0x559`
+
+```text
+Byte 0     bit 0 output enabled
+Bytes 1-4 actual frequency in Hz, uint32 little-endian
+Bytes 5-6 duty cycle in 0.1% units, uint16 little-endian
+Byte 7     result: 0 OK, 1 invalid argument, 2 timer error
+```
+
+The status is sent immediately after a valid PWM command and every 500 ms.
+Periodic copies use latest-value coalescing; the command response uses the
+high-priority transport path.
 
 ## CAN Application and RX Diagnostics
 
@@ -427,6 +463,8 @@ The GUI in `python/can_gui.py` provides:
 - PCAN controller health monitoring
 - Slot configuration and counter start
 - LED control
+- PWM frequency, duty-cycle, and output-enable controls
+- Confirmed PWM output status and physical pin identification
 - RTC date/time display and update
 - RTC communication, OSF, and calendar-validity display
 - Alarm comparison-field configuration and disable command
@@ -438,7 +476,24 @@ The GUI in `python/can_gui.py` provides:
 - Plain-language CAN, RTC, and log health summaries with technical tooltips
 
 The GUI defaults to `PCAN_USBBUS1` at `500000` bit/s. It accepts application
-telemetry only from standard IDs `0x551`, `0x556`, `0x557`, and `0x558`.
+telemetry only from the documented STM32 application IDs, including PWM status
+on `0x559` and binary-log transport on `0x55A..0x55B`.
+
+### Oscilloscope PWM Connection
+
+The PWM output is a separate 3.3 V logic reference; it does not generate or
+modify CANH/CANL. It is useful for checking probe setup or as a stable trigger
+while observing CAN on another channel.
+
+1. Flash the new firmware and connect the GUI to CAN.
+2. Connect the probe ground clip to a Nucleo `GND` pin.
+3. Connect the probe tip to Arduino `D9` (`PD15`, TIM4 channel 4).
+4. In **Control > Oscilloscope PWM**, choose frequency and duty cycle, select
+   **Output enabled**, and press **Apply PWM**.
+5. Confirm that **Live Data > PWM Output** says **Running** before measuring.
+
+Do not attach the probe ground clip to CANH or CANL. A bench oscilloscope ground
+clip is normally earth-referenced and must connect only to circuit ground.
 
 ## Build and Run
 

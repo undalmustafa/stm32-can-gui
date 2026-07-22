@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  watchdog-tests:
-    name: Watchdog host tests
+  host-tests:
+    name: Host unit tests
     runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
@@ -27,6 +27,9 @@ jobs:
 
       - name: Run watchdog policy tests
         run: python tests/host/run_watchdog_tests.py
+
+      - name: Run CAN protocol tests
+        run: python tests/host/run_can_protocol_tests.py
 
   firmware:
     name: Firmware

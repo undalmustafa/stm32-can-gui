@@ -19,6 +19,8 @@ from can_gui_app.protocol import (
 )
 from can_gui_app.rtc_controller import RtcController
 from can_gui_app.rtc_panel import RtcPanel
+from can_gui_app.pwm_controller import PwmController
+from can_gui_app.pwm_panel import PwmPanel
 from can_gui_app.theme import apply_application_theme
 
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox
@@ -43,6 +45,15 @@ class CanGui(QWidget):
 
         self.can_connection_panel = CanConnectionPanel(
             connect_requested=self.connect_can,
+        )
+
+        self.pwm_panel = PwmPanel(
+            apply_requested=self.apply_pwm,
+        )
+
+        self.pwm_controller = PwmController(
+            command_sender=self.send_can_command,
+            status_renderer=self.pwm_panel.render_status,
         )
 
         self.can_app_controller = CanAppController(
@@ -88,10 +99,12 @@ class CanGui(QWidget):
             event_log_panel=self.event_log_panel,
             can_app_panel=self.can_app_panel,
             rtc_panel=self.rtc_panel,
+            pwm_panel=self.pwm_panel,
         )
         self.setLayout(self.window_view.root_layout)
 
         self.can_app_controller.render_status()
+        self.pwm_controller.render_status()
         self.event_log_panel.update_event_status()
         self.event_log_panel.update_stm32_status()
 
@@ -188,11 +201,20 @@ class CanGui(QWidget):
     def send_led_command(self, led_no: int, state: int):
         self.can_app_controller.send_led_command(led_no, state)
 
+    def apply_pwm(self, enabled, frequency_hz, duty_percent):
+        try:
+            self.pwm_controller.apply(enabled, frequency_hz, duty_percent)
+        except ValueError as error:
+            QMessageBox.warning(self, "Invalid PWM Settings", str(error))
+
     def handle_application_message(self, msg):
         if self.rtc_controller.handle_message(msg):
             return
 
         if self.can_app_controller.handle_message(msg):
+            return
+
+        if self.pwm_controller.handle_message(msg):
             return
 
         if msg.arbitration_id in {

@@ -8,8 +8,10 @@
 #include "app_log.h"
 #include "app_watchdog.h"
 #include "app_log_can.h"
+#include "app_pwm.h"
 
 #define SYSTEM_STATUS_PERIOD_MS         500U
+#define PWM_STATUS_PERIOD_MS            500U
 
 extern FDCAN_HandleTypeDef hfdcan1;
 
@@ -57,6 +59,7 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
     uint8_t id_type;
     uint32_t can_id;
     CAN_Protocol_RtcAlarmCommand_t alarm_command;
+    CAN_Protocol_PwmCommand_t pwm_command;
 
     switch (data[0])
     {
@@ -191,6 +194,15 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
                 (data[5] != 0U) ||
                 (data[6] != 0U) ||
                 (data[7] != 0U))
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            return CAN_COMMAND_VALID;
+
+        case CAN_PROTOCOL_CMD_PWM_CONFIG:
+
+            if (CAN_Protocol_DecodePwmCommand(data, &pwm_command) == 0U)
             {
                 return CAN_COMMAND_INVALID_PAYLOAD;
             }
@@ -431,6 +443,7 @@ void CAN_App_Init(void)
     /* USER CODE END CAN_App_Init BusOff */
 
     App_Diagnostics_Init();
+    CAN_Send_Pwm_Status(0U);
 }
 
 void CAN_App_GetRxStats(CAN_App_RxStats_t *stats)
@@ -567,6 +580,20 @@ void CAN_Process_Rx_Command(void)
                     CAN_Protocol_ReadU32LE(&RxData[1]));
                 break;
 
+            case CAN_PROTOCOL_CMD_PWM_CONFIG:
+            {
+                CAN_Protocol_PwmCommand_t command;
+
+                if (CAN_Protocol_DecodePwmCommand(RxData, &command) != 0U)
+                {
+                    (void)App_PWM_Configure(command.enabled,
+                                            command.frequency_hz,
+                                            command.duty_permille);
+                    CAN_Send_Pwm_Status(1U);
+                }
+                break;
+            }
+
             default:
                 break;
         }
@@ -682,12 +709,19 @@ static void CAN_Handle_LED_Command(uint8_t *data)
 void System_Status_Process(void)
 {
     static uint32_t last_system_status_time = 0U;
+    static uint32_t last_pwm_status_time = 0U;
     uint32_t now = HAL_GetTick();
 
     if ((now - last_system_status_time) >= SYSTEM_STATUS_PERIOD_MS)
     {
         last_system_status_time = now;
         CAN_Send_System_Status();
+    }
+
+    if ((now - last_pwm_status_time) >= PWM_STATUS_PERIOD_MS)
+    {
+        last_pwm_status_time = now;
+        CAN_Send_Pwm_Status(0U);
     }
 }
 void CAN_Send_System_Status(void)
@@ -705,6 +739,35 @@ void CAN_Send_System_Status(void)
     (void)CAN_Transport_SendClassicLatest(CAN_PROTOCOL_SYSTEM_STATUS_TX_ID,
                                           CAN_TRANSPORT_ID_STANDARD,
                                           txData);
+}
+
+void CAN_Send_Pwm_Status(uint8_t high_priority)
+{
+    App_PWM_Status_t app_status;
+    CAN_Protocol_PwmStatus_t wire_status;
+    uint8_t txData[8] = {0};
+
+    App_PWM_GetStatus(&app_status);
+    wire_status.enabled = app_status.enabled;
+    wire_status.actual_frequency_hz = app_status.actual_frequency_hz;
+    wire_status.duty_permille = app_status.duty_permille;
+    wire_status.result = (uint8_t)app_status.result;
+    CAN_Protocol_EncodePwmStatus(&wire_status, txData);
+
+    if (high_priority != 0U)
+    {
+        (void)CAN_Transport_SendClassicHighPriority(
+            CAN_PROTOCOL_PWM_STATUS_TX_ID,
+            CAN_TRANSPORT_ID_STANDARD,
+            txData);
+    }
+    else
+    {
+        (void)CAN_Transport_SendClassicLatest(
+            CAN_PROTOCOL_PWM_STATUS_TX_ID,
+            CAN_TRANSPORT_ID_STANDARD,
+            txData);
+    }
 }
 
 
