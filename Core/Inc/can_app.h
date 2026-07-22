@@ -34,7 +34,6 @@ void CAN_App_GetRxStats(CAN_App_RxStats_t *stats);
 void CAN_Process_Rx_Command(void);
 void CAN_Process_TxSlots(void);
 void CAN_Send_System_Status(void);
-void CAN_Send_Pwm_Status(uint8_t high_priority);
 void System_Status_Process(void);
 
 #endif /* CAN_APP_H */

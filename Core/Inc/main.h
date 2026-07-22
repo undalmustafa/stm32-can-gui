@@ -68,8 +68,6 @@ void Error_Handler(void);
 #define PH0_MCU_GPIO_Port GPIOH
 #define PH1_MCU_Pin GPIO_PIN_1
 #define PH1_MCU_GPIO_Port GPIOH
-#define PWM_OUT_Pin GPIO_PIN_15
-#define PWM_OUT_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 

@@ -15,12 +15,11 @@ class MainWindowView:
     """Assemble already-owned feature panels into the main window."""
 
     def __init__(self, can_connection_panel, event_log_panel,
-                 can_app_panel, rtc_panel, pwm_panel):
+                 can_app_panel, rtc_panel):
         self.can_connection_panel = can_connection_panel
         self.event_log_panel = event_log_panel
         self.can_app_panel = can_app_panel
         self.rtc_panel = rtc_panel
-        self.pwm_panel = pwm_panel
 
         self.header = self._build_header()
         self.tabs = QTabWidget()
@@ -84,12 +83,11 @@ class MainWindowView:
         layout.addWidget(self.can_app_panel.slot1, 0, 0)
         layout.addWidget(self.can_app_panel.slot2, 0, 1)
         layout.addWidget(self.can_app_panel.led_control_group, 1, 0, 1, 2)
-        layout.addWidget(self.pwm_panel.configuration_group, 2, 0, 1, 2)
-        layout.addWidget(self.rtc_panel.calendar_group, 3, 0, 1, 2)
+        layout.addWidget(self.rtc_panel.calendar_group, 2, 0, 1, 2)
         layout.addWidget(
-            self.rtc_panel.alarm_configuration_group, 4, 0, 1, 2
+            self.rtc_panel.alarm_configuration_group, 3, 0, 1, 2
         )
-        layout.setRowStretch(5, 1)
+        layout.setRowStretch(4, 1)
         return self._scroll_page(content)
 
     def _build_values_page(self):
@@ -105,8 +103,7 @@ class MainWindowView:
         layout.addWidget(self.can_app_panel.slot1_status_group, 1, 0)
         layout.addWidget(self.can_app_panel.slot2_status_group, 1, 1)
         layout.addWidget(self.can_app_panel.led_status_group, 2, 0, 1, 2)
-        layout.addWidget(self.pwm_panel.status_group, 3, 0, 1, 2)
-        layout.setRowStretch(4, 1)
+        layout.setRowStretch(3, 1)
         return self._scroll_page(content)
 
     def _build_logs_page(self):

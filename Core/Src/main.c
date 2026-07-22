@@ -27,7 +27,6 @@
 #include "app_reset_reason.h"
 #include "app_watchdog.h"
 #include "app_watchdog_evidence.h"
-#include "app_pwm.h"
 
 /* USER CODE END Includes */
 
@@ -56,8 +55,6 @@ I2C_HandleTypeDef hi2c1;
 
 IWDG_HandleTypeDef hiwdg1;
 
-TIM_HandleTypeDef htim4;
-
 /* USER CODE BEGIN PV */
 /* USER CODE END PV */
 
@@ -68,9 +65,7 @@ static void MX_GPIO_Init(void);
 static void MX_FDCAN1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_IWDG1_Init(void);
-static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -114,7 +109,6 @@ int main(void)
   MX_GPIO_Init();
   MX_FDCAN1_Init();
   MX_I2C1_Init();
-  MX_TIM4_Init();
   MX_IWDG1_Init();
   /* USER CODE BEGIN 2 */
   App_Log_Init();
@@ -135,11 +129,6 @@ int main(void)
                        APP_LOG_EVENT_WATCHDOG_RESET_EVIDENCE,
                        watchdog_evidence.cause,
                        watchdog_evidence.missing_heartbeat_mask);
-  }
-
-  if (App_PWM_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
   }
 
   CAN_App_Init();
@@ -351,38 +340,6 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 2 */
 
-}
-
-/**
-  * @brief TIM4 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM4_Init(void)
-{
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 63;
-  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 999;
-  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 500;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  HAL_TIM_MspPostInit(&htim4);
 }
 
 /**

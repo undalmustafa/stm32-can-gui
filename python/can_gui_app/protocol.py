@@ -12,7 +12,6 @@ CMD_RTC_SET_DATETIME = 0x21
 CMD_RTC_SET_ALARM = 0x22
 CMD_LOG_GET_INFO = 0x30
 CMD_LOG_READ_SEQUENCE = 0x31
-CMD_PWM_CONFIG = 0x40
 
 SLOT_FLAG_ENABLE = 0x01
 SLOT_FLAG_EXTENDED_ID = 0x02
@@ -27,7 +26,6 @@ RTC_STATUS_RX_ID = 0x551
 RTC_TIME_RX_ID = 0x556
 SYSTEM_STATUS_RX_ID = 0x557
 RTC_ALARM_EVENT_RX_ID = 0x558
-PWM_STATUS_RX_ID = 0x559
 STM32_LOG_RESPONSE_RX_ID = 0x55A
 STM32_LOG_HEARTBEAT_RX_ID = 0x55B
 
@@ -45,11 +43,6 @@ STM32_LOG_HEARTBEAT_FLAG_MASK = (
     STM32_LOG_HEARTBEAT_FLAG_READY |
     STM32_LOG_HEARTBEAT_FLAG_OVERWRITE
 )
-
-PWM_FLAG_ENABLE = 0x01
-PWM_MIN_FREQUENCY_HZ = 1
-PWM_MAX_FREQUENCY_HZ = 1_000_000
-PWM_MAX_DUTY_PERMILLE = 1000
 
 STM32_LOG_EVENT_SYSTEM_BOOT = 0x0001
 
@@ -76,9 +69,6 @@ COMMAND_NAMES = {
     CMD_RTC_SET_TIME: "RTC_SET_TIME",
     CMD_RTC_SET_DATETIME: "RTC_SET_DATETIME",
     CMD_RTC_SET_ALARM: "RTC_SET_ALARM",
-    CMD_LOG_GET_INFO: "LOG_GET_INFO",
-    CMD_LOG_READ_SEQUENCE: "LOG_READ_SEQUENCE",
-    CMD_PWM_CONFIG: "PWM_CONFIG",
 }
 
 STM32_APPLICATION_RX_IDS = {
@@ -86,7 +76,6 @@ STM32_APPLICATION_RX_IDS = {
     RTC_TIME_RX_ID,
     SYSTEM_STATUS_RX_ID,
     RTC_ALARM_EVENT_RX_ID,
-    PWM_STATUS_RX_ID,
     STM32_LOG_RESPONSE_RX_ID,
     STM32_LOG_HEARTBEAT_RX_ID,
 }
@@ -200,53 +189,6 @@ def u32_to_le(value: int):
         (value >> 16) & 0xFF,
         (value >> 24) & 0xFF,
     ]
-
-
-def le_to_u16(data) -> int:
-    return int(data[0]) | (int(data[1]) << 8)
-
-
-def le_to_u32(data) -> int:
-    return (
-        int(data[0]) |
-        (int(data[1]) << 8) |
-        (int(data[2]) << 16) |
-        (int(data[3]) << 24)
-    )
-
-
-def build_pwm_command(enabled: bool,
-                      frequency_hz: int,
-                      duty_permille: int):
-    frequency_hz = int(frequency_hz)
-    duty_permille = int(duty_permille)
-
-    if not PWM_MIN_FREQUENCY_HZ <= frequency_hz <= PWM_MAX_FREQUENCY_HZ:
-        raise ValueError("PWM frequency must be between 1 Hz and 1 MHz")
-
-    if not 0 <= duty_permille <= PWM_MAX_DUTY_PERMILLE:
-        raise ValueError("PWM duty cycle must be between 0.0% and 100.0%")
-
-    return [
-        CMD_PWM_CONFIG,
-        PWM_FLAG_ENABLE if enabled else 0,
-        *u32_to_le(frequency_hz),
-        *u16_to_le(duty_permille),
-    ]
-
-
-def decode_pwm_status(data):
-    data = list(data)
-
-    if len(data) != 8:
-        raise ValueError("PWM status payload must contain 8 bytes")
-
-    return {
-        "enabled": bool(data[0] & PWM_FLAG_ENABLE),
-        "actual_frequency_hz": le_to_u32(data[1:5]),
-        "duty_permille": le_to_u16(data[5:7]),
-        "result": data[7],
-    }
 
 
 def parse_can_id(text: str) -> int:

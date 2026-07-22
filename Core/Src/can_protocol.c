@@ -16,12 +16,6 @@ uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data)
          | ((uint32_t)data[3] << 24);
 }
 
-void CAN_Protocol_WriteU16LE(uint8_t *data, uint16_t value)
-{
-    data[0] = (uint8_t)(value & 0xFFU);
-    data[1] = (uint8_t)((value >> 8) & 0xFFU);
-}
-
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value)
 {
     data[0] = (uint8_t)(value & 0xFFU);
@@ -54,7 +48,8 @@ uint8_t CAN_Protocol_DecodeRtcAlarmCommand(
 
     enable_mask = payload[1];
 
-    if (((enable_mask & 0xE0U) != 0U) ||
+    if (((enable_mask & (uint8_t)(~CAN_PROTOCOL_RTC_ALARM_ENABLE_MASK)) !=
+         0U) ||
         (payload[7] != 0U))
     {
         return 0U;
@@ -208,46 +203,6 @@ void CAN_Protocol_EncodeSystemStatus(
     payload[5] = 0U;
     payload[6] = 0U;
     payload[7] = 0U;
-}
-
-uint8_t CAN_Protocol_DecodePwmCommand(
-    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE],
-    CAN_Protocol_PwmCommand_t *command)
-{
-    uint32_t frequency_hz;
-    uint16_t duty_permille;
-
-    if ((payload == NULL) || (command == NULL))
-    {
-        return 0U;
-    }
-
-    frequency_hz = CAN_Protocol_ReadU32LE(&payload[2]);
-    duty_permille = CAN_Protocol_ReadU16LE(&payload[6]);
-
-    if (((payload[1] & 0xFEU) != 0U) ||
-        (frequency_hz < CAN_PROTOCOL_PWM_MIN_FREQUENCY_HZ) ||
-        (frequency_hz > CAN_PROTOCOL_PWM_MAX_FREQUENCY_HZ) ||
-        (duty_permille > CAN_PROTOCOL_PWM_MAX_DUTY_PERMILLE))
-    {
-        return 0U;
-    }
-
-    command->enabled = ((payload[1] & CAN_PROTOCOL_PWM_FLAG_ENABLE) != 0U)
-                     ? 1U : 0U;
-    command->frequency_hz = frequency_hz;
-    command->duty_permille = duty_permille;
-    return 1U;
-}
-
-void CAN_Protocol_EncodePwmStatus(
-    const CAN_Protocol_PwmStatus_t *status,
-    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
-{
-    payload[0] = (status->enabled != 0U) ? 1U : 0U;
-    CAN_Protocol_WriteU32LE(&payload[1], status->actual_frequency_hz);
-    CAN_Protocol_WriteU16LE(&payload[5], status->duty_permille);
-    payload[7] = status->result;
 }
 
 void CAN_Protocol_EncodeLogHeartbeat(
