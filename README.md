@@ -804,6 +804,11 @@ Each downloaded record is verified against CRC-16 (`0x1021`), magic marker
 implements an automatic state machine with retry handling and writes results to
 timestamped CSV files (`stm32_events_%Y%m%d_%H%M%S_%f.csv`).
 
+Synchronization remains idle until it receives a valid, ready heartbeat on
+`0x55B`. A heartbeat gap of one second suspends new log requests until the MCU
+heartbeat returns. This prevents repeated command and ACK timeouts when the
+STM32 is disconnected, resetting, or not running the application firmware.
+
 ## Desktop GUI
 
 The GUI is organized as a `can_gui_app` Python package with modular
@@ -848,6 +853,22 @@ Key features:
 On Linux the GUI defaults to `socketcan` channel `can0`; on Windows it defaults
 to `pcan` channel `PCAN_USBBUS1`. The nominal bitrate is 500 kbit/s. It accepts
 application telemetry only from the protocol-defined standard identifiers.
+
+### STM32 traffic health
+
+The connection health monitor uses staged timeout handling to avoid changing
+between healthy and fault states during brief scheduling or bus delays:
+
+| Time without an STM32 application frame | GUI state |
+|---:|---|
+| Less than 2 seconds | Healthy |
+| 2 to less than 5 seconds | `STM32_RX_STALE` warning |
+| 5 seconds or longer | `STM32_RX_TIMEOUT` fault |
+
+After a stale or timeout state, three valid STM32 application frames must arrive
+before the GUI returns to healthy. During that confirmation interval, it shows
+`STM32_RX_RECOVERING`. The recovery requirement prevents a single delayed or
+stray frame from immediately clearing a real communication fault.
 
 ## Build and Run
 
