@@ -17,6 +17,14 @@ Input_Capture_Result_t Input_Capture_Init(
     capture_timer = htim;
     capture_state.counter_clock_hz = counter_clock_hz;
 
+    /*
+     * In reset slave mode each rising edge resets the counter. Restrict update
+     * interrupt requests to genuine counter overflow/underflow events so a
+     * valid capture is not immediately reported as signal loss.
+     */
+    __HAL_TIM_URS_ENABLE(htim);
+    __HAL_TIM_CLEAR_FLAG(htim, TIM_FLAG_UPDATE);
+
     if (HAL_TIM_IC_Start_IT(htim, TIM_CHANNEL_1) != HAL_OK)
     {
         return INPUT_CAPTURE_ERROR_HAL;

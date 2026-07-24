@@ -83,7 +83,7 @@ PWM_Control_Result_t PWM_Control_Set(
          (frequency_hz / 2U)) /
         frequency_hz;
 
-    if (period_ticks < 2U)
+    if (period_ticks < 1U)
     {
         return PWM_Control_RecordResult(
             PWM_CONTROL_ERROR_INVALID_FREQUENCY);
@@ -112,7 +112,15 @@ PWM_Control_Result_t PWM_Control_Set(
     g_pwmControlState.actual_frequency_hz =
         g_pwmControlState.counter_clock_hz / period_ticks;
 
-    g_pwmControlState.duty_percent = duty_percent;
+    /*
+     * Report the quantized duty that is physically produced. At the 1 MHz
+     * upper limit there is one timer tick per period, so only 0% or 100% can
+     * be represented even though intermediate requests remain valid.
+     */
+    g_pwmControlState.duty_percent =
+        (uint8_t)(((uint64_t)pulse_ticks * 100U +
+                   (period_ticks / 2U)) /
+                  period_ticks);
     g_pwmControlState.period_ticks = period_ticks;
     g_pwmControlState.pulse_ticks = pulse_ticks;
 

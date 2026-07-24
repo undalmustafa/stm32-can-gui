@@ -247,6 +247,11 @@ The PWM module drives TIM2 Channel 1 with a configurable counter clock
   timer update event without stopping the output)
 - Frequency rounding to minimize error against the counter clock
 
+At the 1 MHz endpoint the 1 MHz timer clock provides only one count per
+period, so the hardware can represent only 0% or 100% duty. Lower frequencies
+provide progressively finer duty-cycle resolution; telemetry reports the
+quantized duty actually produced.
+
 A global `volatile PWM_Control_State_t g_pwmControlState` exposes operational
 state, requested versus actual frequency, tick counts, and error codes for
 real-time inspection in STM32CubeIDE Live Expressions.
