@@ -66,13 +66,21 @@ void Input_Capture_Process(void)
         return;
     }
 
-    period = HAL_TIM_ReadCapturedValue(capture_timer, TIM_CHANNEL_1);
-    pulse = HAL_TIM_ReadCapturedValue(capture_timer, TIM_CHANNEL_2);
+    /*
+     * Reset-mode capture stores the final zero-based counter value. Convert
+     * it to an elapsed tick count before calculating frequency and duty.
+     * For example, a 100 kHz loopback at a 1 MHz counter captures 9 for a
+     * 10-tick period and 4 for a 5-tick high pulse.
+     */
+    period =
+        HAL_TIM_ReadCapturedValue(capture_timer, TIM_CHANNEL_1) + 1U;
+    pulse =
+        HAL_TIM_ReadCapturedValue(capture_timer, TIM_CHANNEL_2) + 1U;
     __HAL_TIM_CLEAR_FLAG(capture_timer,
                          TIM_FLAG_CC1 | TIM_FLAG_CC2 |
                          TIM_FLAG_CC1OF | TIM_FLAG_CC2OF);
 
-    if ((period == 0U) || (pulse > period))
+    if (pulse > period)
     {
         return;
     }
