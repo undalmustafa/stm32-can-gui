@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define CAN_APP_RX_FRAME_BUDGET_PER_PROCESS 8U
+
 typedef enum
 {
     CAN_APP_RX_REJECT_NONE = 0,
@@ -33,6 +35,7 @@ typedef struct
     uint32_t command_acks_sent;
     uint32_t command_ack_tx_failures;
     uint32_t hal_rx_errors;
+    uint32_t rx_budget_hits;
     CAN_App_RxRejectReason_t last_reject_reason;
     uint8_t last_rejected_command;
 } CAN_App_RxStats_t;

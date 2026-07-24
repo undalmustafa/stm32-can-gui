@@ -7,6 +7,7 @@
 static App_Diagnostics_Snapshot_t diagnostics_snapshot;
 static uint32_t last_diagnostics_update_tick;
 static uint32_t last_logged_queue_overflow_count;
+static uint32_t last_logged_rx_budget_hit_count;
 
 static void App_Diagnostics_Capture(uint32_t now)
 {
@@ -73,12 +74,43 @@ static void App_Diagnostics_Capture(uint32_t now)
         diagnostics_snapshot.latched_issue_flags |=
             APP_DIAGNOSTICS_ISSUE_TX_QUEUE_STUCK;
     }
+
+    if (diagnostics_snapshot.can_rx.rx_budget_hits != 0U)
+    {
+        diagnostics_snapshot.latched_issue_flags |=
+            APP_DIAGNOSTICS_ISSUE_CAN_RX_BUDGET;
+    }
+
+    if (diagnostics_snapshot.can_rx.rx_budget_hits <
+        last_logged_rx_budget_hit_count)
+    {
+        last_logged_rx_budget_hit_count =
+            diagnostics_snapshot.can_rx.rx_budget_hits;
+    }
+    else if (diagnostics_snapshot.can_rx.rx_budget_hits >
+             last_logged_rx_budget_hit_count)
+    {
+        uint32_t hit_delta =
+            diagnostics_snapshot.can_rx.rx_budget_hits -
+            last_logged_rx_budget_hit_count;
+
+        (void)App_Log_Push(
+            APP_LOG_SOURCE_CAN,
+            APP_LOG_SEVERITY_WARNING,
+            APP_LOG_EVENT_CAN_RX_BUDGET_EXHAUSTED,
+            hit_delta,
+            diagnostics_snapshot.can_rx.rx_budget_hits);
+
+        last_logged_rx_budget_hit_count =
+            diagnostics_snapshot.can_rx.rx_budget_hits;
+    }
 }
 
 void App_Diagnostics_Init(void)
 {
     diagnostics_snapshot = (App_Diagnostics_Snapshot_t){0};
     last_logged_queue_overflow_count = 0U;
+    last_logged_rx_budget_hit_count = 0U;
     last_diagnostics_update_tick = HAL_GetTick();
     App_Diagnostics_Capture(last_diagnostics_update_tick);
 }

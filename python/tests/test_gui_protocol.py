@@ -71,6 +71,16 @@ def main():
            "I2C error decoding remains unchanged")
     expect(protocol.STM32_LOG_EVENT_NAMES[0x0205] == "RTC_RECOVERED",
            "RTC recovered event mapping is retained")
+    expect(
+        protocol.STM32_LOG_EVENT_NAMES[0x0108] ==
+        "CAN_RX_BUDGET_EXHAUSTED",
+        "firmware RX saturation event is named",
+    )
+    expect(
+        protocol.decode_stm32_log_event_detail(0x0108, 3, 17) ==
+        "NEW_HITS=3; TOTAL_HITS=17",
+        "firmware RX saturation counts are decoded",
+    )
 
     print("PASS: GUI protocol constants and pure helpers")
 

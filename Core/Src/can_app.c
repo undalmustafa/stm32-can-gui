@@ -638,8 +638,11 @@ void CAN_Process_Rx_Command(void)
     uint8_t sequence;
     uint8_t session_tag;
     uint8_t ack_flags;
+    uint32_t processed_count = 0U;
 
-    while (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) > 0U)
+    while ((processed_count < CAN_APP_RX_FRAME_BUDGET_PER_PROCESS) &&
+           (HAL_FDCAN_GetRxFifoFillLevel(
+                &hfdcan1, FDCAN_RX_FIFO0) > 0U))
     {
         if (HAL_FDCAN_GetRxMessage(&hfdcan1,
                                    FDCAN_RX_FIFO0,
@@ -652,6 +655,7 @@ void CAN_Process_Rx_Command(void)
             break;
         }
 
+        processed_count++;
         can_rx_stats.frames_received++;
 
         if ((RxHeader.IdType != FDCAN_EXTENDED_ID) ||
@@ -941,6 +945,13 @@ void CAN_Process_Rx_Command(void)
             default:
                 break;
         }
+    }
+
+    if ((processed_count == CAN_APP_RX_FRAME_BUDGET_PER_PROCESS) &&
+        (HAL_FDCAN_GetRxFifoFillLevel(
+            &hfdcan1, FDCAN_RX_FIFO0) > 0U))
+    {
+        can_rx_stats.rx_budget_hits++;
     }
 }
 

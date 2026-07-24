@@ -157,6 +157,7 @@ STM32_LOG_EVENT_NAMES = {
     0x0105: "CAN_TX_QUEUE_STUCK",
     0x0106: "CAN_ERROR_PASSIVE",
     0x0107: "CAN_CONTROL_ACCESS_OPENED",
+    0x0108: "CAN_RX_BUDGET_EXHAUSTED",
     0x0200: "RTC_INIT_OK",
     0x0201: "RTC_INIT_FAILED",
     0x0202: "RTC_READ_FAILED",
@@ -198,6 +199,9 @@ def decode_stm32_log_event_detail(event_code: int,
             f"RESET_CAUSE={decode_reset_reason_mask(data_0)}; "
             f"RAW_RSR=0x{int(data_1) & 0xFFFFFFFF:08X}"
         )
+
+    if event_code == 0x0108:
+        return f"NEW_HITS={int(data_0)}; TOTAL_HITS={int(data_1)}"
 
     return ""
 

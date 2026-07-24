@@ -659,6 +659,14 @@ Received frames are classified into exactly one rejection category:
 command. Every actual rejection creates one binary `CAN_RX_REJECTED` log entry
 in main-loop context; cumulative counters are not repeatedly logged.
 
+Receive processing is limited to eight frames per `CAN_App_Process()` call.
+This is intentionally larger than the three-element hardware RX FIFO so normal
+bursts drain immediately, while a continuously refilling bus cannot starve the
+RTC, PWM, input-capture, watchdog, diagnostics, and transmit services. If work
+remains after the budget, `rx_budget_hits` increments and diagnostics emit a
+rate-limited `CAN_RX_BUDGET_EXHAUSTED` event containing the new and cumulative
+hit counts.
+
 ## CAN Transport
 
 The transport first uses the three-element FDCAN hardware TX FIFO. If hardware
