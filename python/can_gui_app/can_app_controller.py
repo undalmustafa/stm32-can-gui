@@ -3,6 +3,7 @@
 from .protocol import (
     CMD_LED_CONTROL,
     CMD_PWM_SET,
+    CMD_PWM_SELF_TEST,
     CMD_SET_SLOT_1,
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
@@ -12,6 +13,8 @@ from .protocol import (
     SYSTEM_STATUS_RX_ID,
     PWM_STATUS_RX_ID,
     INPUT_CAPTURE_STATUS_RX_ID,
+    PWM_SELF_TEST_STATUS_RX_ID,
+    PWM_SELF_TEST_RESULT_RX_ID,
     parse_can_id,
     u16_to_le,
     u32_to_le,
@@ -57,6 +60,14 @@ class CanAppController:
             "duty_percent": 0,
             "edge_count": 0,
         }
+        self.pwm_self_test_status = {
+            "state": 0,
+            "current_point": 0,
+            "total_points": 10,
+            "passed_points": 0,
+            "expected_frequency_hz": 0,
+        }
+        self.pwm_self_test_results = []
 
     def render_status(self):
         self._status_renderer(
@@ -160,11 +171,18 @@ class CanAppController:
             CMD_PWM_SET, *u32_to_le(wire_frequency), duty_percent, 0, 0
         ])
 
+    def send_pwm_self_test(self, start=True):
+        return self._command_sender([
+            CMD_PWM_SELF_TEST, 1 if start else 0, 0, 0, 0, 0, 0, 0
+        ])
+
     def render_pwm_status(self):
         if self._pwm_status_renderer is not None:
             self._pwm_status_renderer(
                 pwm_status=self.pwm_status,
                 input_capture_status=self.input_capture_status,
+                self_test_status=self.pwm_self_test_status,
+                self_test_results=self.pwm_self_test_results,
             )
 
     def handle_message(self, msg):
@@ -188,6 +206,59 @@ class CanAppController:
                     "frequency_hz": int.from_bytes(bytes(data[2:6]), "little"),
                     "edge_count": int.from_bytes(bytes(data[6:8]), "little"),
                 }
+                self.render_pwm_status()
+            return True
+
+        if msg.arbitration_id == PWM_SELF_TEST_STATUS_RX_ID:
+            data = list(msg.data)
+            if len(data) >= 8:
+                previous_state = self.pwm_self_test_status["state"]
+                state = data[0]
+                if state == 1 and previous_state != 1:
+                    self.pwm_self_test_results = []
+                self.pwm_self_test_status = {
+                    "state": state,
+                    "current_point": data[1],
+                    "total_points": data[2],
+                    "passed_points": data[3],
+                    "expected_frequency_hz": int.from_bytes(
+                        bytes(data[4:8]), "little"
+                    ),
+                }
+                self.render_pwm_status()
+            return True
+
+        if msg.arbitration_id == PWM_SELF_TEST_RESULT_RX_ID:
+            data = list(msg.data)
+            if len(data) >= 8:
+                point = data[0]
+                profile_frequencies = (
+                    1_000, 10_000, 100_000, 500_000,
+                    10_000, 10_000, 10_000, 10_000, 10_000, 0,
+                )
+                expected_frequency = (
+                    profile_frequencies[point - 1]
+                    if 1 <= point <= len(profile_frequencies)
+                    else 0
+                )
+                result = {
+                    "point": point,
+                    "passed": bool(data[1]),
+                    "expected_duty_percent": data[2],
+                    "measured_duty_percent": data[3],
+                    "expected_frequency_hz": expected_frequency,
+                    "measured_frequency_hz": int.from_bytes(
+                        bytes(data[4:8]), "little"
+                    ),
+                }
+                self.pwm_self_test_results = [
+                    item for item in self.pwm_self_test_results
+                    if item["point"] != point
+                ]
+                self.pwm_self_test_results.append(result)
+                self.pwm_self_test_results.sort(
+                    key=lambda item: item["point"]
+                )
                 self.render_pwm_status()
             return True
 

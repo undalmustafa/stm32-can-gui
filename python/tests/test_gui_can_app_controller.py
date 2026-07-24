@@ -17,6 +17,7 @@ from can_gui_app.can_app_controller import (  # noqa: E402
 from can_gui_app.protocol import (  # noqa: E402
     CMD_LED_CONTROL,
     CMD_PWM_SET,
+    CMD_PWM_SELF_TEST,
     CMD_SET_SLOT_1,
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
@@ -26,6 +27,8 @@ from can_gui_app.protocol import (  # noqa: E402
     SYSTEM_STATUS_RX_ID,
     PWM_STATUS_RX_ID,
     INPUT_CAPTURE_STATUS_RX_ID,
+    PWM_SELF_TEST_STATUS_RX_ID,
+    PWM_SELF_TEST_RESULT_RX_ID,
 )
 
 
@@ -125,6 +128,16 @@ def main():
     expect(sent_commands[-1] == [
         CMD_PWM_SET, 0, 0, 0, 0, 90, 0, 0
     ], "PWM stop uses the protocol frequency-zero sentinel")
+    expect(controller.send_pwm_self_test(),
+           "built-in PWM self-test start command is accepted")
+    expect(sent_commands[-1] == [
+        CMD_PWM_SELF_TEST, 1, 0, 0, 0, 0, 0, 0
+    ], "built-in-test start action has a fixed eight-byte payload")
+    expect(controller.send_pwm_self_test(start=False),
+           "built-in PWM self-test cancel command is accepted")
+    expect(sent_commands[-1] == [
+        CMD_PWM_SELF_TEST, 0, 0, 0, 0, 0, 0, 0
+    ], "built-in-test cancel action has a fixed eight-byte payload")
 
     handled = controller.handle_message(FakeMessage(
         SYSTEM_STATUS_RX_ID,
@@ -168,7 +181,36 @@ def main():
     }, "input capture telemetry is decoded")
     expect(len(pwm_views) == 2, "each PWM-related frame refreshes the panel")
 
-    print("PASS: GUI CAN app controller slot, LED and system status")
+    expect(controller.handle_message(FakeMessage(
+        PWM_SELF_TEST_STATUS_RX_ID,
+        [1, 3, 10, 2, 0xA0, 0x86, 0x01, 0],
+    )), "built-in-test status telemetry is consumed")
+    expect(controller.pwm_self_test_status == {
+        "state": 1,
+        "current_point": 3,
+        "total_points": 10,
+        "passed_points": 2,
+        "expected_frequency_hz": 100_000,
+    }, "built-in-test status telemetry is decoded")
+    expect(controller.pwm_self_test_results == [],
+           "a newly running test starts with an empty result list")
+
+    expect(controller.handle_message(FakeMessage(
+        PWM_SELF_TEST_RESULT_RX_ID,
+        [3, 0, 50, 44, 0x07, 0xB2, 0x01, 0],
+    )), "built-in-test point result is consumed")
+    expect(controller.pwm_self_test_results == [{
+        "point": 3,
+        "passed": False,
+        "expected_duty_percent": 50,
+        "measured_duty_percent": 44,
+        "expected_frequency_hz": 100_000,
+        "measured_frequency_hz": 111_111,
+    }], "point results combine wire measurements with the fixed test profile")
+    expect(len(pwm_views) == 4,
+           "status and result frames each refresh the built-in-test view")
+
+    print("PASS: GUI CAN app controller commands and telemetry")
 
 
 if __name__ == "__main__":

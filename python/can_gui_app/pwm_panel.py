@@ -2,7 +2,7 @@
 
 import math
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QGridLayout, QGroupBox, QHBoxLayout, QLabel, QProgressBar,
     QPushButton, QSlider, QSpinBox, QVBoxLayout,
@@ -10,14 +10,21 @@ from PySide6.QtWidgets import (
 
 
 class PwmPanel:
-    SWEEP_FREQUENCIES = (1_000, 10_000, 100_000, 500_000)
+    SELF_TEST_STATE_NAMES = {
+        0: "Idle",
+        1: "Running",
+        2: "Passed",
+        3: "Failed",
+        4: "Cancelled",
+        5: "Firmware error",
+    }
 
-    def __init__(self, command_requested):
+    def __init__(self, command_requested, self_test_requested=None):
         self._command_requested = command_requested
+        self._self_test_requested = self_test_requested or (
+            lambda _start: False
+        )
         self._syncing = False
-        self._sweep_index = -1
-        self._sweep_results = []
-        self._sweep_running = False
         self._mismatch_observations = 0
         self._latest_pwm_status = {
             "running": False, "frequency_hz": 0, "duty_percent": 0
@@ -32,12 +39,6 @@ class PwmPanel:
         self.status_group = self._build_status()
         self.capture_group = self._build_capture()
         self.loopback_group = self._build_loopback()
-        self.sweep_timer = QTimer()
-        # Status and capture telemetry are each published every 500 ms.
-        # Three telemetry periods prevent comparing a new target with the
-        # previous target's capture sample.
-        self.sweep_timer.setInterval(1500)
-        self.sweep_timer.timeout.connect(self._advance_sweep)
 
     def _build_controls(self):
         group = QGroupBox("PWM Output Control")
@@ -80,14 +81,14 @@ class PwmPanel:
             presets.addWidget(button)
         layout.addLayout(presets, 2, 1, 1, 2)
 
-        enable = QPushButton("Enable PWM")
-        enable.setObjectName("primaryButton")
-        disable = QPushButton("Disable PWM")
-        enable.clicked.connect(lambda: self._send(True))
-        disable.clicked.connect(lambda: self._send(False))
+        self.enable_button = QPushButton("Enable PWM")
+        self.enable_button.setObjectName("primaryButton")
+        self.disable_button = QPushButton("Disable PWM")
+        self.enable_button.clicked.connect(lambda: self._send(True))
+        self.disable_button.clicked.connect(lambda: self._send(False))
         buttons = QHBoxLayout()
-        buttons.addWidget(enable)
-        buttons.addWidget(disable)
+        buttons.addWidget(self.enable_button)
+        buttons.addWidget(self.disable_button)
         layout.addLayout(buttons, 3, 1, 1, 2)
         return group
 
@@ -137,12 +138,28 @@ class PwmPanel:
         self.loopback_result = QLabel(
             "Connect D32 (PA0) to D12 (PA6)."
         )
-        self.sweep_result = QLabel("No sweep run yet.")
-        self.sweep_button = QPushButton("Run Frequency Sweep")
-        self.sweep_button.clicked.connect(self.start_sweep)
+        self.self_test_progress = QProgressBar()
+        self.self_test_progress.setRange(0, 10)
+        self.self_test_progress.setValue(0)
+        self.self_test_progress.setFormat("Built-in test: idle")
+        self.self_test_result = QLabel("No built-in test run yet.")
+        self.self_test_start_button = QPushButton("Start Built-In Test")
+        self.self_test_start_button.setObjectName("primaryButton")
+        self.self_test_cancel_button = QPushButton("Cancel Test")
+        self.self_test_cancel_button.setEnabled(False)
+        self.self_test_start_button.clicked.connect(
+            lambda: self._self_test_requested(True)
+        )
+        self.self_test_cancel_button.clicked.connect(
+            lambda: self._self_test_requested(False)
+        )
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.self_test_start_button)
+        buttons.addWidget(self.self_test_cancel_button)
         layout.addWidget(self.loopback_result)
-        layout.addWidget(self.sweep_result)
-        layout.addWidget(self.sweep_button)
+        layout.addWidget(self.self_test_progress)
+        layout.addWidget(self.self_test_result)
+        layout.addLayout(buttons)
         return group
 
     @staticmethod
@@ -170,88 +187,12 @@ class PwmPanel:
             self.frequency_spin.value(), self.duty_spin.value(), enabled
         )
 
-    def start_sweep(self):
-        self._sweep_index = -1
-        self._sweep_results = []
-        self._sweep_running = True
-        self._pre_sweep_frequency = self.frequency_spin.value()
-        self._pre_sweep_duty = self.duty_spin.value()
-        self._pre_sweep_running = self._latest_pwm_status["running"]
-        # Fifty percent is representable across the complete capture range.
-        # High requested duties quantize to 100% at 500 kHz, eliminating the
-        # falling edge required by PWM-input duty measurement.
-        self.duty_spin.setValue(50)
-        self.sweep_button.setEnabled(False)
-        self.sweep_result.setText("Sweep starting at 1 kHz / 50%…")
-        self._advance_sweep()
-        self.sweep_timer.start()
-
-    def _advance_sweep(self):
-        if self._sweep_index >= 0:
-            self._record_sweep_result(
-                self.SWEEP_FREQUENCIES[self._sweep_index]
-            )
-
-        self._sweep_index += 1
-        if self._sweep_index >= len(self.SWEEP_FREQUENCIES):
-            self.sweep_timer.stop()
-            self._sweep_running = False
-            self.sweep_button.setEnabled(True)
-            passed = sum(result["passed"] for result in self._sweep_results)
-            total = len(self.SWEEP_FREQUENCIES)
-            failed = [
-                result for result in self._sweep_results
-                if not result["passed"]
-            ]
-            detail = ""
-            if failed:
-                first = failed[0]
-                detail = (
-                    f"; first failure {first['expected']:,} Hz → "
-                    f"{first['measured']:,} Hz/{first['duty']}%"
-                )
-            self.sweep_result.setText(
-                f"{'PASS' if passed == total else 'FAIL'}: "
-                f"{passed}/{total} frequencies within tolerance{detail}"
-            )
-            self.frequency_spin.setValue(self._pre_sweep_frequency)
-            self.duty_spin.setValue(self._pre_sweep_duty)
-            self._send(self._pre_sweep_running)
-            return
-        target = self.SWEEP_FREQUENCIES[self._sweep_index]
-        self.frequency_spin.setValue(target)
-        self.sweep_result.setText(
-            f"Sweep {self._sweep_index + 1}/{len(self.SWEEP_FREQUENCIES)}: "
-            f"waiting for {target:,} Hz / 50% telemetry…"
-        )
-        self._send(True)
-
     @staticmethod
     def _within_frequency_tolerance(measured, expected):
         return abs(measured - expected) <= max(2, expected * 0.02)
 
-    def _record_sweep_result(self, expected):
-        pwm = self._latest_pwm_status
-        capture = self._latest_capture_status
-        passed = (
-            pwm["running"]
-            and capture["signal_detected"]
-            and self._within_frequency_tolerance(
-                pwm["frequency_hz"], expected
-            )
-            and self._within_frequency_tolerance(
-                capture["frequency_hz"], expected
-            )
-            and abs(capture["duty_percent"] - pwm["duty_percent"]) <= 2
-        )
-        self._sweep_results.append({
-            "expected": expected,
-            "measured": capture["frequency_hz"],
-            "duty": capture["duty_percent"],
-            "passed": passed,
-        })
-
-    def render_status(self, pwm_status, input_capture_status):
+    def render_status(self, pwm_status, input_capture_status,
+                      self_test_status=None, self_test_results=None):
         self._latest_pwm_status = dict(pwm_status)
         self._latest_capture_status = dict(input_capture_status)
         running = pwm_status["running"]
@@ -298,3 +239,64 @@ class PwmPanel:
         else:
             self._mismatch_observations = 0
             self.loopback_result.setText("PWM stopped.")
+
+        if self_test_status is not None:
+            self._render_self_test(
+                self_test_status, self_test_results or []
+            )
+
+    def _render_self_test(self, status, results):
+        state = status["state"]
+        running = state == 1
+        total = status["total_points"] or 10
+        completed = len(results)
+        state_name = self.SELF_TEST_STATE_NAMES.get(
+            state, f"Unknown ({state})"
+        )
+
+        self.self_test_progress.setRange(0, total)
+        self.self_test_progress.setValue(min(completed, total))
+        self.self_test_start_button.setEnabled(not running)
+        self.self_test_cancel_button.setEnabled(running)
+        self.control_group.setEnabled(not running)
+
+        if running:
+            self.self_test_progress.setFormat(
+                f"Point {status['current_point']}/{total}: "
+                f"{status['expected_frequency_hz']:,} Hz"
+            )
+            self.self_test_result.setText(
+                f"Running: {status['passed_points']}/{completed} "
+                "completed points passed"
+            )
+            return
+
+        self.self_test_progress.setFormat(
+            f"Built-in test: {state_name.lower()}"
+        )
+        failed = [result for result in results if not result["passed"]]
+        if state == 2:
+            self.self_test_progress.setValue(total)
+            self.self_test_result.setText(
+                f"PASS: {status['passed_points']}/{total} points"
+            )
+        elif state == 3:
+            detail = ""
+            if failed:
+                first = failed[0]
+                detail = (
+                    f"; point {first['point']} expected "
+                    f"{first['expected_frequency_hz']:,} Hz/"
+                    f"{first['expected_duty_percent']}%, measured "
+                    f"{first['measured_frequency_hz']:,} Hz/"
+                    f"{first['measured_duty_percent']}%"
+                )
+            self.self_test_result.setText(
+                f"FAIL: {status['passed_points']}/{total} points{detail}"
+            )
+        elif state == 4:
+            self.self_test_result.setText("Built-in test cancelled.")
+        elif state == 5:
+            self.self_test_result.setText(
+                "Built-in test stopped because of a firmware control error."
+            )

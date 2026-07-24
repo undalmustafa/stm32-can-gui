@@ -24,7 +24,11 @@ def expect(condition, description):
 def main():
     app = QApplication.instance() or QApplication([])
     commands = []
-    panel = PwmPanel(lambda *args: commands.append(args))
+    self_test_commands = []
+    panel = PwmPanel(
+        lambda *args: commands.append(args),
+        lambda start: self_test_commands.append(start),
+    )
     panel.frequency_spin.setValue(100_000)
     panel.duty_spin.setValue(40)
     panel._send(True)
@@ -60,30 +64,82 @@ def main():
     expect("Loopback settling:" in panel.loopback_result.text(),
            "one stale capture sample is treated as telemetry settling")
 
-    panel.start_sweep()
-    expect(commands[-1] == (1_000, 50, True),
-           "sweep uses 50 percent duty at its first point")
-    for frequency in panel.SWEEP_FREQUENCIES:
-        panel.render_status(
-            {
-                "running": True,
-                "frequency_hz": frequency,
-                "duty_percent": 50,
-            },
-            {
-                "signal_detected": True,
-                "frequency_hz": frequency,
-                "duty_percent": 50,
-                "edge_count": 200,
-            },
-        )
-        panel._advance_sweep()
-    expect("PASS: 4/4" in panel.sweep_result.text(),
-           "settled sweep measurements produce a complete pass report")
-    expect(all(result["passed"] for result in panel._sweep_results),
-           "each sweep point is evaluated once at the end of its window")
+    panel.self_test_start_button.click()
+    panel.self_test_cancel_button.click()
+    expect(self_test_commands == [True],
+           "disabled cancel button cannot send before a test is running")
+
+    passing_results = [
+        {
+            "point": point,
+            "passed": True,
+            "expected_duty_percent": 50,
+            "measured_duty_percent": 50,
+            "expected_frequency_hz": 10_000,
+            "measured_frequency_hz": 10_000,
+        }
+        for point in range(1, 4)
+    ]
+    panel.render_status(
+        {"running": True, "frequency_hz": 10_000, "duty_percent": 50},
+        {
+            "signal_detected": True,
+            "frequency_hz": 10_000,
+            "duty_percent": 50,
+            "edge_count": 200,
+        },
+        {
+            "state": 1,
+            "current_point": 4,
+            "total_points": 10,
+            "passed_points": 3,
+            "expected_frequency_hz": 500_000,
+        },
+        passing_results,
+    )
+    expect(panel.self_test_progress.value() == 3,
+           "firmware result frames drive built-in-test progress")
+    expect("Point 4/10" in panel.self_test_progress.format(),
+           "running status displays the current firmware test point")
+    expect(not panel.control_group.isEnabled(),
+           "manual PWM controls are disabled while firmware owns the output")
+    panel.self_test_cancel_button.click()
+    expect(self_test_commands[-1] is False,
+           "cancel button sends the firmware cancel action")
+
+    failed_results = passing_results + [{
+        "point": 4,
+        "passed": False,
+        "expected_duty_percent": 50,
+        "measured_duty_percent": 44,
+        "expected_frequency_hz": 500_000,
+        "measured_frequency_hz": 555_556,
+    }]
+    panel.render_status(
+        {"running": True, "frequency_hz": 100_000, "duty_percent": 40},
+        {
+            "signal_detected": True,
+            "frequency_hz": 100_000,
+            "duty_percent": 40,
+            "edge_count": 220,
+        },
+        {
+            "state": 3,
+            "current_point": 10,
+            "total_points": 10,
+            "passed_points": 9,
+            "expected_frequency_hz": 0,
+        },
+        failed_results,
+    )
+    expect("FAIL: 9/10" in panel.self_test_result.text(),
+           "terminal firmware failure is reported")
+    expect("measured 555,556 Hz/44%" in panel.self_test_result.text(),
+           "the first failed point includes measured values")
+    expect(panel.control_group.isEnabled(),
+           "manual PWM controls return after the test finishes")
     app.processEvents()
-    print("PASS: GUI PWM panel controls and loopback rendering")
+    print("PASS: GUI PWM panel controls and built-in-test rendering")
 
 
 if __name__ == "__main__":

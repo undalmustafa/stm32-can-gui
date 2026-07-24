@@ -27,6 +27,12 @@ def main():
            "RTC time ID remains unchanged")
     expect(protocol.SYSTEM_STATUS_RX_ID == 0x557,
            "system status ID remains unchanged")
+    expect(protocol.PWM_SELF_TEST_STATUS_RX_ID == 0x55E,
+           "PWM built-in-test status ID is defined")
+    expect(protocol.PWM_SELF_TEST_RESULT_RX_ID == 0x55F,
+           "PWM built-in-test result ID is defined")
+    expect(protocol.CMD_PWM_SELF_TEST == 0x41,
+           "PWM built-in-test command is defined")
     expect(protocol.RTC_ALARM_EVENT_RX_ID == 0x558,
            "RTC alarm event ID remains unchanged")
     expect(protocol.STM32_LOG_RESPONSE_RX_ID == 0x55A,

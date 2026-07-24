@@ -43,6 +43,7 @@ class CanGui(QWidget):
         )
         self.pwm_panel = PwmPanel(
             command_requested=self.send_pwm_command,
+            self_test_requested=self.send_pwm_self_test,
         )
 
         self.can_connection_panel = CanConnectionPanel(
@@ -204,6 +205,9 @@ class CanGui(QWidget):
         except ValueError as error:
             QMessageBox.warning(self, "Invalid PWM Setting", str(error))
             return False
+
+    def send_pwm_self_test(self, start=True):
+        return self.can_app_controller.send_pwm_self_test(start)
 
     def handle_application_message(self, msg):
         if self.rtc_controller.handle_message(msg):
