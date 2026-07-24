@@ -61,6 +61,12 @@ identifiers:
     direction: mcu_to_gui
     description: "PWM output status"
 
+  input_capture_status:
+    id: 0x055D
+    type: standard
+    direction: mcu_to_gui
+    description: "Input capture measurement"
+
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)
 # ---------------------------------------------------------------------------

@@ -37,5 +37,6 @@ void CAN_Send_System_Status(void);
 void System_Status_Process(void);
 
 void CAN_Send_Pwm_Status(void);
+void CAN_Send_Input_Capture_Status(void);
 
 #endif /* CAN_APP_H */

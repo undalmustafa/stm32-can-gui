@@ -13,6 +13,7 @@
 #define CAN_PROTOCOL_LOG_RESPONSE_TX_ID        0x55AU
 #define CAN_PROTOCOL_LOG_HEARTBEAT_TX_ID       0x55BU
 #define CAN_PROTOCOL_PWM_STATUS_TX_ID          0x055CU
+#define CAN_PROTOCOL_INPUT_CAPTURE_STATUS_TX_ID 0x055DU
 
 #define CAN_PROTOCOL_LOG_VERSION               1U
 #define CAN_PROTOCOL_LOG_FRAGMENT_DATA_SIZE    7U
@@ -155,9 +156,18 @@ typedef struct
     uint32_t actual_frequency_hz;
 } CAN_Protocol_PwmStatus_t;
 
+typedef struct
+{
+    uint8_t signal_detected;
+    uint8_t duty_percent;
+    uint32_t frequency_hz;
+    uint16_t edge_count;
+} CAN_Protocol_InputCaptureStatus_t;
+
 uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
+void CAN_Protocol_WriteU16LE(uint8_t *data, uint16_t value);
 
 uint8_t CAN_Protocol_IsValidId(uint8_t is_extended,
                                uint32_t identifier);
@@ -189,6 +199,10 @@ void CAN_Protocol_EncodeLogHeartbeat(
 
 void CAN_Protocol_EncodePwmStatus(
     const CAN_Protocol_PwmStatus_t *pwm_status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodeInputCaptureStatus(
+    const CAN_Protocol_InputCaptureStatus_t *status,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 #endif /* CAN_PROTOCOL_H */

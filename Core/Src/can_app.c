@@ -9,6 +9,7 @@
 #include "app_watchdog.h"
 #include "app_log_can.h"
 #include "pwm_control.h"
+#include "input_capture.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
 
 extern FDCAN_HandleTypeDef hfdcan1;
@@ -741,7 +742,26 @@ void System_Status_Process(void)
         last_system_status_time = now;
         CAN_Send_System_Status();
         CAN_Send_Pwm_Status();
+        CAN_Send_Input_Capture_Status();
     }
+}
+
+void CAN_Send_Input_Capture_Status(void)
+{
+    CAN_Protocol_InputCaptureStatus_t status;
+    Input_Capture_State_t state = Input_Capture_GetState();
+    uint8_t txData[8] = {0};
+
+    status.signal_detected = state.signal_detected;
+    status.duty_percent = state.duty_percent;
+    status.frequency_hz = state.frequency_hz;
+    status.edge_count = (uint16_t)state.edge_count;
+    CAN_Protocol_EncodeInputCaptureStatus(&status, txData);
+
+    (void)CAN_Transport_SendClassicLatest(
+        CAN_PROTOCOL_INPUT_CAPTURE_STATUS_TX_ID,
+        CAN_TRANSPORT_ID_STANDARD,
+        txData);
 }
 void CAN_Send_System_Status(void)
 {

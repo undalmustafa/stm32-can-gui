@@ -24,6 +24,12 @@ void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value)
     data[3] = (uint8_t)((value >> 24) & 0xFFU);
 }
 
+void CAN_Protocol_WriteU16LE(uint8_t *data, uint16_t value)
+{
+    data[0] = (uint8_t)(value & 0xFFU);
+    data[1] = (uint8_t)((value >> 8U) & 0xFFU);
+}
+
 uint8_t CAN_Protocol_IsValidId(uint8_t is_extended,
                                uint32_t identifier)
 {
@@ -236,4 +242,14 @@ void CAN_Protocol_EncodePwmStatus(
     CAN_Protocol_WriteU32LE(&payload[2], pwm_status->actual_frequency_hz);
     payload[6] = 0U;
     payload[7] = 0U;
+}
+
+void CAN_Protocol_EncodeInputCaptureStatus(
+    const CAN_Protocol_InputCaptureStatus_t *status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = status->signal_detected;
+    payload[1] = status->duty_percent;
+    CAN_Protocol_WriteU32LE(&payload[2], status->frequency_hz);
+    CAN_Protocol_WriteU16LE(&payload[6], status->edge_count);
 }
