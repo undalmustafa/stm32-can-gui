@@ -133,10 +133,10 @@ pwm_status:
 
 ### 2.3 Deliverables
 
-- [ ] `pwm_panel.py` with frequency slider, duty slider, enable/disable
-- [ ] Controller integration for sending `0x40` and receiving `0x055C`
-- [ ] Panel added to main window navigation
-- [ ] Python GUI tests for the new panel
+- [x] `pwm_panel.py` with frequency slider, duty slider, enable/disable
+- [x] Controller integration for sending `0x40` and receiving `0x055C`
+- [x] Panel added to main window navigation
+- [x] Python GUI tests for the new panel
 
 ---
 
@@ -212,11 +212,11 @@ input_capture_status:
 
 ### 3.5 Deliverables
 
-- [ ] `input_capture.c/h` driver using TIM3 PWM Input Mode
-- [ ] CubeMX TIM3 configuration on PA6
-- [ ] ISR-based period/pulse capture with signal-loss detection
-- [ ] Telemetry on `0x055D` published periodically
-- [ ] Protocol YAML updated and regenerated
+- [x] `input_capture.c/h` driver using TIM3 PWM Input Mode
+- [x] CubeMX TIM3 configuration on PA6
+- [x] ISR-based period/pulse capture with signal-loss detection
+- [x] Telemetry on `0x055D` published periodically
+- [x] Protocol YAML updated and regenerated
 
 ---
 
@@ -254,10 +254,10 @@ input_capture_status:
 
 ### 4.3 Deliverables
 
-- [ ] Input capture display integrated into PWM panel
-- [ ] Live frequency, duty, and signal-status readback
-- [ ] Visual duty-cycle bar indicator
-- [ ] Python GUI tests
+- [x] Input capture display integrated into PWM panel
+- [x] Live frequency, duty, and signal-status readback
+- [x] Visual duty-cycle bar indicator
+- [x] Python GUI tests
 
 ---
 
@@ -276,10 +276,10 @@ input_capture_status:
 
 ### 5.2 Deliverables
 
-- [ ] Loopback self-test mode in GUI
-- [ ] Frequency sweep with pass/fail report
-- [ ] README updated with PWM and input capture sections
-- [ ] CI tests for new firmware and GUI modules
+- [x] Loopback self-test mode in GUI
+- [x] Frequency sweep with pass/fail report
+- [x] README updated with PWM and input capture sections
+- [x] CI tests for protocol/controller and GUI modules
 
 ---
 

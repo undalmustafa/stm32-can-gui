@@ -251,6 +251,31 @@ A global `volatile PWM_Control_State_t g_pwmControlState` exposes operational
 state, requested versus actual frequency, tick counts, and error codes for
 real-time inspection in STM32CubeIDE Live Expressions.
 
+The GUI's **PWM & Capture** page sends PWM commands on `0x1894AABB` (command
+`0x40`) and displays the `0x055C` status readback. Frequency uses a logarithmic
+1 Hz–1 MHz control, with duty-cycle control, presets, and explicit enable/stop
+actions.
+
+## PWM Input Capture and Loopback
+
+TIM3 measures an external PWM signal on PA6 with a 1 MHz counter. Channel 1
+captures the rising-edge period and Channel 2 captures high-pulse width; the
+firmware publishes signal state, frequency, duty cycle, and the low 16 bits of
+the edge counter on CAN ID `0x055D`. With a 16-bit timer, the practical
+measurement range is approximately 15 Hz–500 kHz.
+
+For a closed-loop check, connect the pins with one jumper:
+
+```text
+PA0 (TIM2_CH1 PWM output) ───── PA6 (TIM3_CH1 capture input)
+```
+
+Open **PWM & Capture** in the GUI. Live measurements are compared with the
+reported output using a 2% frequency and 2 percentage-point duty tolerance.
+**Run Frequency Sweep** checks 1 kHz, 10 kHz, 100 kHz, and 500 kHz and reports
+the number of passing points. Do not drive PA6 from an external source while
+the PA0–PA6 jumper is installed.
+
 ## Watchdog Architecture
 
 The watchdog system has two layers:
