@@ -177,10 +177,20 @@ class CanSession:
                 False, "INVALID_DLC", "CAN data must contain 8 bytes"
             )
 
-        if not self.command_session_started:
-            session_result = self._start_command_session()
-            if not session_result.ok:
+        if not self.command_session_confirmed:
+            self.command_resync_queue.append(list(data))
+            self.command_resync_in_progress = True
+
+            if not self.command_session_started:
+                session_result = self._start_command_session()
+                if not session_result.ok:
+                    self.command_resync_queue.clear()
+                    self.command_resync_in_progress = False
                 return session_result
+
+            return CanCommandResult(
+                True, message="Queued until the command session is confirmed"
+            )
 
         return self._send_reliable_command(data)
 

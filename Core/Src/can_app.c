@@ -743,7 +743,11 @@ void CAN_Process_Rx_Command(void)
             continue;
         }
 
-        guard_decision = CAN_CommandGuard_Check(
+        /*
+         * Evaluate without consuming the sequence so invalid or unauthorized
+         * commands cannot later look like successfully executed duplicates.
+         */
+        guard_decision = CAN_CommandGuard_Evaluate(
             &command_guard,
             session_tag,
             sequence,
@@ -816,6 +820,26 @@ void CAN_Process_Rx_Command(void)
                 command,
                 sequence,
                 CAN_PROTOCOL_COMMAND_ACK_ACCESS_DENIED,
+                0U);
+            continue;
+        }
+
+        /*
+         * The non-mutating evaluation above returned ACCEPT, so this call
+         * records the sequence immediately before command dispatch.
+         */
+        guard_decision = CAN_CommandGuard_Check(
+            &command_guard,
+            session_tag,
+            sequence,
+            RxData);
+        if (guard_decision != CAN_COMMAND_GUARD_ACCEPT)
+        {
+            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_REPLAY, command);
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_REPLAY_REJECTED,
                 0U);
             continue;
         }

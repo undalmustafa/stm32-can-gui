@@ -126,11 +126,31 @@ def main():
 
     command = [0x10, 2, 1, 0, 0, 0, 0, 0]
     result = session.send_command(command)
-    expect(result.ok, "valid GUI command is sent")
-    expect(len(bus.sent) == 2,
-           "session start precedes the first GUI command")
+    expect(result.ok, "valid GUI command starts a reliable session")
+    expect(len(bus.sent) == 1,
+           "first GUI command waits for the session acknowledgement")
     expect(bus.sent[0].data[0] == protocol.CMD_SESSION_START,
            "first reliable frame starts a command session")
+
+    session_sequence = (
+        bus.sent[0].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
+    )
+    bus.rx_items.append(FakeMessage(
+        protocol.COMMAND_ACK_RX_ID,
+        data=[
+            protocol.PROTOCOL_VERSION,
+            protocol.CMD_SESSION_START,
+            session_sequence,
+            protocol.COMMAND_ACK_ACCEPTED,
+            protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
+            0, session.command_session_tag, 0,
+        ],
+    ))
+    session.poll()
+    expect(session.command_session_confirmed,
+           "session acknowledgement confirms reliable transport")
+    expect(len(bus.sent) == 2,
+           "queued GUI command is sent after session confirmation")
     expect(
         (bus.sent[-1].arbitration_id &
          protocol.GUI_COMMAND_ID_MASK_EXT) ==
@@ -141,42 +161,24 @@ def main():
            "GUI command remains an extended CAN frame")
     expect(list(bus.sent[-1].data) == command,
            "GUI command payload remains unchanged")
-    expect(events[-1]["event_code"] == "LED_CONTROL",
+    expect(any(event["event_code"] == "LED_CONTROL" for event in events[-2:]),
            "known command name is logged")
 
-    session_sequence = (
-        bus.sent[0].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
-    )
     command_sequence = (
         bus.sent[1].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
     )
-    bus.rx_items.extend([
-        FakeMessage(
-            protocol.COMMAND_ACK_RX_ID,
-            data=[
-                protocol.PROTOCOL_VERSION,
-                protocol.CMD_SESSION_START,
-                session_sequence,
-                protocol.COMMAND_ACK_ACCEPTED,
-                protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
-                0, session.command_session_tag, 0,
-            ],
-        ),
-        FakeMessage(
-            protocol.COMMAND_ACK_RX_ID,
-            data=[
-                protocol.PROTOCOL_VERSION,
-                command[0],
-                command_sequence,
-                protocol.COMMAND_ACK_ACCEPTED,
-                protocol.COMMAND_ACK_FLAG_EXECUTED,
-                0, session.command_session_tag, 0,
-            ],
-        ),
-    ])
+    bus.rx_items.append(FakeMessage(
+        protocol.COMMAND_ACK_RX_ID,
+        data=[
+            protocol.PROTOCOL_VERSION,
+            command[0],
+            command_sequence,
+            protocol.COMMAND_ACK_ACCEPTED,
+            protocol.COMMAND_ACK_FLAG_EXECUTED,
+            0, session.command_session_tag, 0,
+        ],
+    ))
     session.poll()
-    expect(session.command_session_confirmed,
-           "session acknowledgement confirms reliable transport")
     expect(not session.pending_commands,
            "matching acknowledgements clear pending commands")
     expect(session.command_ack_count == 2,
@@ -299,12 +301,16 @@ def main():
         ],
     ))
     resync_session.poll()
+    initial_command_sequence = (
+        resync_bus.sent[-1].arbitration_id &
+        protocol.GUI_COMMAND_SEQUENCE_MASK
+    )
     resync_bus.rx_items.append(FakeMessage(
         protocol.COMMAND_ACK_RX_ID,
         data=[
             protocol.PROTOCOL_VERSION,
             command[0],
-            resync_result.sequence,
+            initial_command_sequence,
             protocol.COMMAND_ACK_SESSION_REQUIRED,
             0,
             0,
@@ -346,12 +352,12 @@ def main():
            "timeout test sends session and command")
     timeout_clock[0] += 0.8
     timeout_session.poll()
-    expect(timeout_session.command_retry_count == 2,
-           "each unacknowledged reliable frame is retried once")
+    expect(timeout_session.command_retry_count == 1,
+           "the unacknowledged session frame is retried once")
     timeout_clock[0] += 0.8
     timeout_session.poll()
-    expect(timeout_session.command_ack_timeout_count == 2,
-           "frames missing after their retry are timed out")
+    expect(timeout_session.command_ack_timeout_count == 1,
+           "a session missing after its retry is timed out")
 
     print("PASS: GUI CAN session connection, TX, RX metrics and shutdown")
 

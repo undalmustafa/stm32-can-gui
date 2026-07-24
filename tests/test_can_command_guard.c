@@ -51,6 +51,30 @@ static void test_duplicate_is_not_accepted_twice(void)
                           &guard, 0xA5U, 11U, command));
 }
 
+static void test_evaluation_does_not_consume_sequence(void)
+{
+    const uint8_t start[8] =
+        {CAN_PROTOCOL_CMD_SESSION_START, 1U, 0U, 0U, 0U, 1U, 0U, 0U};
+    const uint8_t command[8] =
+        {CAN_PROTOCOL_CMD_LED_CONTROL, 1U, 1U, 0U, 0U, 0U, 0U, 0U};
+
+    (void)CAN_CommandGuard_StartSession(
+        &guard, 1U, 0xA5U, 10U, start);
+
+    TEST_ASSERT_EQUAL(CAN_COMMAND_GUARD_ACCEPT,
+                      CAN_CommandGuard_Evaluate(
+                          &guard, 0xA5U, 11U, command));
+    TEST_ASSERT_EQUAL(CAN_COMMAND_GUARD_ACCEPT,
+                      CAN_CommandGuard_Evaluate(
+                          &guard, 0xA5U, 11U, command));
+    TEST_ASSERT_EQUAL(CAN_COMMAND_GUARD_ACCEPT,
+                      CAN_CommandGuard_Check(
+                          &guard, 0xA5U, 11U, command));
+    TEST_ASSERT_EQUAL(CAN_COMMAND_GUARD_DUPLICATE,
+                      CAN_CommandGuard_Evaluate(
+                          &guard, 0xA5U, 11U, command));
+}
+
 static void test_same_sequence_with_changed_payload_is_replay(void)
 {
     const uint8_t start[8] =
@@ -163,6 +187,7 @@ int main(void)
     RUN_TEST(test_command_requires_session);
     RUN_TEST(test_new_session_accepts_first_sequence);
     RUN_TEST(test_duplicate_is_not_accepted_twice);
+    RUN_TEST(test_evaluation_does_not_consume_sequence);
     RUN_TEST(test_same_sequence_with_changed_payload_is_replay);
     RUN_TEST(test_delayed_retry_matches_recent_history);
     RUN_TEST(test_old_sequence_is_rejected_after_wrap);

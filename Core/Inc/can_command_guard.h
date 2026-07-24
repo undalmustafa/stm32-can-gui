@@ -51,6 +51,12 @@ CAN_CommandGuardDecision_t CAN_CommandGuard_Check(
     uint8_t sequence,
     const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
+CAN_CommandGuardDecision_t CAN_CommandGuard_Evaluate(
+    const CAN_CommandGuard_t *guard,
+    uint8_t session_tag,
+    uint8_t sequence,
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
 uint8_t CAN_CommandGuard_IsPrivileged(
     const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 

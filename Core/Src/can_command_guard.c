@@ -23,8 +23,8 @@ static void CAN_CommandGuard_Record(
         (index + 1U) % CAN_COMMAND_GUARD_HISTORY_CAPACITY);
 }
 
-static CAN_CommandGuardDecision_t CAN_CommandGuard_CheckSequence(
-    CAN_CommandGuard_t *guard,
+static CAN_CommandGuardDecision_t CAN_CommandGuard_EvaluateSequence(
+    const CAN_CommandGuard_t *guard,
     uint8_t sequence,
     const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
 {
@@ -57,7 +57,6 @@ static CAN_CommandGuardDecision_t CAN_CommandGuard_CheckSequence(
         return CAN_COMMAND_GUARD_REPLAY;
     }
 
-    CAN_CommandGuard_Record(guard, sequence, payload);
     return CAN_COMMAND_GUARD_ACCEPT;
 }
 
@@ -87,7 +86,14 @@ CAN_CommandGuardDecision_t CAN_CommandGuard_StartSession(
         (guard->session_nonce == session_nonce) &&
         (guard->session_tag == session_tag))
     {
-        return CAN_CommandGuard_CheckSequence(guard, sequence, payload);
+        CAN_CommandGuardDecision_t decision =
+            CAN_CommandGuard_EvaluateSequence(guard, sequence, payload);
+
+        if (decision == CAN_COMMAND_GUARD_ACCEPT)
+        {
+            CAN_CommandGuard_Record(guard, sequence, payload);
+        }
+        return decision;
     }
 
     for (index = 0U;
@@ -122,6 +128,8 @@ CAN_CommandGuardDecision_t CAN_CommandGuard_Check(
     uint8_t sequence,
     const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
 {
+    CAN_CommandGuardDecision_t decision;
+
     if ((guard == NULL) || (payload == NULL))
     {
         return CAN_COMMAND_GUARD_REPLAY;
@@ -137,7 +145,36 @@ CAN_CommandGuardDecision_t CAN_CommandGuard_Check(
         return CAN_COMMAND_GUARD_REPLAY;
     }
 
-    return CAN_CommandGuard_CheckSequence(guard, sequence, payload);
+    decision = CAN_CommandGuard_EvaluateSequence(guard, sequence, payload);
+    if (decision == CAN_COMMAND_GUARD_ACCEPT)
+    {
+        CAN_CommandGuard_Record(guard, sequence, payload);
+    }
+    return decision;
+}
+
+CAN_CommandGuardDecision_t CAN_CommandGuard_Evaluate(
+    const CAN_CommandGuard_t *guard,
+    uint8_t session_tag,
+    uint8_t sequence,
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    if ((guard == NULL) || (payload == NULL))
+    {
+        return CAN_COMMAND_GUARD_REPLAY;
+    }
+
+    if (guard->session_active == 0U)
+    {
+        return CAN_COMMAND_GUARD_SESSION_REQUIRED;
+    }
+
+    if (guard->session_tag != session_tag)
+    {
+        return CAN_COMMAND_GUARD_REPLAY;
+    }
+
+    return CAN_CommandGuard_EvaluateSequence(guard, sequence, payload);
 }
 
 uint8_t CAN_CommandGuard_IsPrivileged(
