@@ -76,21 +76,24 @@ Deferred until the direct-input implementation is accepted:
 
 ## Proposed Hardware Interface
 
-The current project does not enable SPI. SPI1 on the Arduino header conflicts
-with PA6, which is already TIM3 input capture. The provisional interface uses
-the independent SPI3 Zio pins:
+The current project does not enable SPI. The SPI1 MISO option on PA6 conflicts
+with TIM3 input capture, so the provisional interface uses SPI3 on otherwise
+unused STM32 GPIOs exposed by the NUCLEO-H7A3ZI-Q connectors:
 
-| TIC12400-Q1 signal | Nucleo signal | STM32 pin | Configuration |
+| TIC12400-Q1 signal | STM32 pin | Nucleo connector | Configuration |
 |---|---|---|---|
-| SI / MOSI | D22 | PB5 | SPI3 MOSI |
-| SCLK | D23 | PB3 | SPI3 SCK |
-| CS | D24 | PA4 | Software-controlled GPIO output |
-| SO / MISO | D25 | PB4 | SPI3 MISO |
-| INT | D26 | PG6 | GPIO EXTI, falling edge, 3.3 V pull-up |
-| RESET | D27 | PA2 | GPIO output, low during normal operation |
-| VDD | 3V3 | - | SPI logic supply |
-| DGND/AGND | GND | - | Common ground |
-| VS | External protected supply | - | Normally 12 V; never use the 3.3 V rail |
+| SI / MOSI | PB5 | CN7 pin 13 | SPI3 MOSI |
+| SCLK | PB3 | CN7 pin 15 | SPI3 SCK |
+| CS | PA4 | CN7 pin 17 | Software-controlled GPIO output |
+| SO / MISO | PB4 | CN7 pin 19 | SPI3 MISO |
+| INT | PG6 | CN10 pin 13 | GPIO EXTI, falling edge, 3.3 V pull-up |
+| RESET | PA2 | CN10 pin 11 | GPIO output, low during normal operation |
+| VDD | - | Nucleo 3V3 rail | SPI logic supply |
+| DGND/AGND | - | Nucleo GND | Common ground |
+| VS | - | External protected supply | Normally 12 V; never use the 3.3 V rail |
+
+PB3 is also capable of SWO trace output. SPI3 use keeps normal SWD debugging on
+PA13/PA14 available, but SWO trace must remain disabled while PB3 is SCLK.
 
 SPI will initially run at 2 MHz for timing margin, with clock polarity low,
 second-edge sampling (SPI mode 1), MSB first, software chip select, and exactly
