@@ -13,6 +13,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  c-tests:
+    name: Host C tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Build and run Unity tests
+        run: make -C tests test
+
   watchdog-tests:
     name: Watchdog host tests
     runs-on: ubuntu-24.04

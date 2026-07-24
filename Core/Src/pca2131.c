@@ -160,7 +160,11 @@ static uint8_t PCA2131_EncodeAlarmHour(
 
 static uint8_t PCA2131_IsLeapYear(uint8_t year)
 {
-    return ((year != 0U) && ((year % 4U) == 0U)) ? 1U : 0U;
+    /*
+     * PCA2131 stores an offset in the range 00..99, representing
+     * 2000..2099. Year 00 is therefore 2000 and is a leap year.
+     */
+    return ((year % 4U) == 0U) ? 1U : 0U;
 }
 
 static uint8_t PCA2131_DaysInMonth(uint8_t month, uint8_t year)

@@ -18,7 +18,12 @@ add_library(unity STATIC unity/unity.c)
 add_executable(test_can_protocol test_can_protocol.c ../Core/Src/can_protocol.c)
 target_link_libraries(test_can_protocol unity)
 
-add_executable(test_pca2131_validation test_pca2131_validation.c ../Core/Src/pca2131.c)
+add_executable(
+    test_pca2131_validation
+    test_pca2131_validation.c
+    ../Core/Src/pca2131.c
+    stubs/pca2131_hal_stubs.c
+)
 target_link_libraries(test_pca2131_validation unity)
 
 add_executable(test_can_transport test_can_transport.c ../Core/Src/can_transport.c)

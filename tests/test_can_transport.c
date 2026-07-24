@@ -5,28 +5,44 @@
 static uint32_t current_tick = 0;
 uint32_t HAL_GetTick(void) { return current_tick; }
 
-/* Mock HAL FDCAN Add Message */
 uint32_t mock_fdcan_fifo_size = 3;
 uint32_t mock_fdcan_messages_added = 0;
 HAL_StatusTypeDef mock_fdcan_status = HAL_OK;
 FDCAN_HandleTypeDef hfdcan1;
+
+uint32_t HAL_FDCAN_GetTxFifoFreeLevel(FDCAN_HandleTypeDef *hfdcan)
+{
+    (void)hfdcan;
+
+    if (mock_fdcan_messages_added >= mock_fdcan_fifo_size)
+    {
+        return 0U;
+    }
+
+    return mock_fdcan_fifo_size - mock_fdcan_messages_added;
+}
 
 HAL_StatusTypeDef HAL_FDCAN_AddMessageToTxFifoQ(FDCAN_HandleTypeDef *hfdcan, FDCAN_TxHeaderTypeDef *pTxHeader, uint8_t *pTxData)
 {
     (void)hfdcan;
     (void)pTxHeader;
     (void)pTxData;
-    if (mock_fdcan_messages_added < mock_fdcan_fifo_size) {
-        mock_fdcan_messages_added++;
-        return HAL_OK;
+
+    if (mock_fdcan_status != HAL_OK)
+    {
+        return mock_fdcan_status;
     }
-    return HAL_ERROR;
+
+    mock_fdcan_messages_added++;
+    return HAL_OK;
 }
 
 void setUp(void)
 {
     mock_fdcan_messages_added = 0;
     mock_fdcan_fifo_size = 3;
+    mock_fdcan_status = HAL_OK;
+    current_tick = 0U;
     CAN_Transport_Init(&hfdcan1);
 }
 
@@ -50,7 +66,7 @@ void test_SendClassic_queues_when_hw_fifo_full(void)
     
     CAN_Transport_Stats_t stats;
     CAN_Transport_GetStats(&stats);
-    TEST_ASSERT_EQUAL(1, stats.queue_length);
+    TEST_ASSERT_EQUAL_UINT8(1U, stats.pending_count);
 }
 
 void test_SendClassicLatest_replaces_pending_same_id(void)
@@ -67,8 +83,8 @@ void test_SendClassicLatest_replaces_pending_same_id(void)
 
     CAN_Transport_Stats_t stats;
     CAN_Transport_GetStats(&stats);
-    TEST_ASSERT_EQUAL(1, stats.queue_length); // Queue length should still be 1 (replaced)
-    TEST_ASSERT_EQUAL(1, stats.coalesced);
+    TEST_ASSERT_EQUAL_UINT8(1U, stats.pending_count);
+    TEST_ASSERT_EQUAL_UINT32(1U, stats.coalesced);
 }
 
 int main(void)

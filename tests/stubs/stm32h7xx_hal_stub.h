@@ -56,16 +56,23 @@ typedef struct
 
 #define FDCAN_STANDARD_ID 0x00000000U
 #define FDCAN_EXTENDED_ID 0x40000000U
+#define FDCAN_DATA_FRAME  0x00000000U
 #define FDCAN_DLC_BYTES_8 0x00000008U
+#define FDCAN_ESI_ACTIVE  0x00000000U
+#define FDCAN_BRS_OFF     0x00000000U
+#define FDCAN_CLASSIC_CAN 0x00000000U
+#define FDCAN_NO_TX_EVENTS 0x00000000U
 #define FDCAN_TX_BUFFER0  0x00000001U
 #define FDCAN_TX_BUFFER1  0x00000002U
 #define FDCAN_TX_BUFFER2  0x00000004U
 
 /* Mock HAL Functions used in our source */
 extern uint32_t HAL_GetTick(void);
+extern HAL_StatusTypeDef HAL_I2C_IsDeviceReady(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint32_t Trials, uint32_t Timeout);
 extern HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
 extern HAL_StatusTypeDef HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress, uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout);
 extern uint32_t HAL_I2C_GetError(I2C_HandleTypeDef *hi2c);
+extern uint32_t HAL_FDCAN_GetTxFifoFreeLevel(FDCAN_HandleTypeDef *hfdcan);
 extern HAL_StatusTypeDef HAL_FDCAN_AddMessageToTxFifoQ(FDCAN_HandleTypeDef *hfdcan, FDCAN_TxHeaderTypeDef *pTxHeader, uint8_t *pTxData);
 
 #endif /* STM32H7XX_HAL_STUB_H */

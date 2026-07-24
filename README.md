@@ -844,15 +844,15 @@ On Windows, a launch script is provided:
 **C firmware tests** (requires a host C compiler and Unity):
 
 ```bash
-cd tests
-make
+make -C tests test
 ```
 
 Or with CMake:
 
 ```bash
-cd tests
-cmake -B build && cmake --build build && ctest --test-dir build
+cmake -S tests -B tests/build
+cmake --build tests/build
+ctest --test-dir tests/build --output-on-failure
 ```
 
 **Python GUI tests**:
