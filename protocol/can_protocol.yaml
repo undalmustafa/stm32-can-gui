@@ -1,0 +1,290 @@
+# =============================================================================
+# CAN Protocol Definition — SINGLE SOURCE OF TRUTH
+# =============================================================================
+#
+# This file defines every protocol constant shared between the STM32 firmware
+# and the Python GUI.  Generators read this YAML and produce:
+#
+#   protocol/generate_c.py      →  Core/Inc/can_protocol_generated.h
+#   protocol/generate_python.py →  python/can_protocol_generated.py
+#
+# RULES:
+#   • Never hard-code a CAN ID, command code, or status code in C or Python.
+#   • Add new protocol elements HERE, then re-run the generators.
+#   • Numeric values are part of the wire contract — never change them.
+#   • New entries must be appended; do not reorder existing entries.
+# =============================================================================
+
+protocol:
+  name: can_gui
+  version: 1
+  payload_size: 8
+  byte_order: little_endian
+
+# ---------------------------------------------------------------------------
+# CAN Identifiers
+# ---------------------------------------------------------------------------
+identifiers:
+  gui_command:
+    id: 0x1894AABB
+    type: extended
+    direction: gui_to_mcu
+    description: "All GUI commands"
+
+  rtc_status:
+    id: 0x0551
+    type: standard
+    direction: mcu_to_gui
+    description: "RTC operation status"
+
+  rtc_time:
+    id: 0x0556
+    type: standard
+    direction: mcu_to_gui
+    description: "RTC time and calendar"
+
+  system_status:
+    id: 0x0557
+    type: standard
+    direction: mcu_to_gui
+    description: "Slot and LED state"
+
+  rtc_alarm_event:
+    id: 0x0558
+    type: standard
+    direction: mcu_to_gui
+    description: "RTC alarm event notification"
+
+# ---------------------------------------------------------------------------
+# Command Codes (byte 0 of GUI→MCU payload)
+# ---------------------------------------------------------------------------
+commands:
+  set_slot_1:
+    code: 0x01
+    description: "Configure transmit slot 1"
+
+  set_slot_2:
+    code: 0x02
+    description: "Configure transmit slot 2"
+
+  led_control:
+    code: 0x10
+    description: "Set LED 1 or LED 2"
+
+  start_slot_1_counter:
+    code: 0x11
+    description: "Start slot 1 counter"
+
+  start_slot_2_counter:
+    code: 0x12
+    description: "Start slot 2 counter"
+
+  rtc_set_time:
+    code: 0x20
+    description: "Set time while retaining calendar data"
+
+  rtc_set_datetime:
+    code: 0x21
+    description: "Set the complete RTC calendar"
+
+  rtc_set_alarm:
+    code: 0x22
+    description: "Set RTC alarm configuration"
+
+# ---------------------------------------------------------------------------
+# RTC Status Codes (byte 0 of 0x551 telemetry)
+#
+# 0xAx = success / info
+# 0xEx = error / warning
+# 0xFx = extended error
+# ---------------------------------------------------------------------------
+rtc_status_codes:
+  # ---- Success / Info (0xAx) ----
+  init_ok:
+    code: 0xA1
+    severity: info
+    mnemonic: "INIT_OK"
+    description: "PCA2131 address probe acknowledged"
+
+  write_verify_ok:
+    code: 0xA2
+    severity: info
+    mnemonic: "WRITE_VERIFY_OK"
+    description: "Calendar write verified by readback"
+
+  reconnected:
+    code: 0xA3
+    severity: info
+    mnemonic: "LINK_RECOVERED"
+    description: "I2C communication restored"
+
+  alarm_write_verify_ok:
+    code: 0xA4
+    severity: info
+    mnemonic: "ALARM_WRITE_VERIFY_OK"
+    description: "Alarm configuration verified by readback"
+
+  # ---- Errors / Warnings (0xEx) ----
+  init_failed:
+    code: 0xE1
+    severity: fault
+    mnemonic: "INIT_FAILED"
+    description: "PCA2131 not detected during initialization"
+    is_communication_fault: true
+
+  read_failed:
+    code: 0xE2
+    severity: fault
+    mnemonic: "READ_FAILED"
+    description: "RTC register read failed"
+    is_communication_fault: true
+
+  invalid_datetime:
+    code: 0xE4
+    severity: warning
+    mnemonic: "INVALID_DATETIME"
+    description: "Date/time parameters rejected"
+
+  control_read_failed:
+    code: 0xE5
+    severity: fault
+    mnemonic: "CONTROL_READ_FAILED"
+    description: "Control_1 register read failed"
+    is_communication_fault: true
+
+  stop_write_failed:
+    code: 0xE6
+    severity: fault
+    mnemonic: "STOP_ASSERT_FAILED"
+    description: "STOP bit could not be asserted"
+    is_communication_fault: true
+
+  cpr_write_failed:
+    code: 0xE7
+    severity: fault
+    mnemonic: "PRESCALER_RESET_FAILED"
+    description: "Prescaler reset command failed"
+    is_communication_fault: true
+
+  calendar_write_failed:
+    code: 0xE8
+    severity: fault
+    mnemonic: "CALENDAR_WRITE_FAILED"
+    description: "Calendar register write failed"
+    is_communication_fault: true
+
+  start_write_failed:
+    code: 0xE9
+    severity: fault
+    mnemonic: "STOP_RELEASE_FAILED"
+    description: "STOP bit could not be released"
+    is_communication_fault: true
+
+  recovery_failed:
+    code: 0xEA
+    severity: fault
+    mnemonic: "RECOVERY_FAILED"
+    description: "RTC write recovery failed"
+    is_communication_fault: true
+
+  busy:
+    code: 0xEB
+    severity: warning
+    mnemonic: "BUSY"
+    description: "RTC operation already in progress"
+
+  alarm_not_ready:
+    code: 0xEC
+    severity: warning
+    mnemonic: "ALARM_NOT_READY"
+    description: "RTC is not ready for alarm configuration"
+
+  invalid_alarm_config:
+    code: 0xED
+    severity: warning
+    mnemonic: "INVALID_ALARM_CONFIG"
+    description: "Alarm configuration was rejected"
+
+  alarm_write_failed:
+    code: 0xEE
+    severity: fault
+    mnemonic: "ALARM_WRITE_FAILED"
+    description: "Alarm register write failed"
+
+  alarm_readback_failed:
+    code: 0xEF
+    severity: fault
+    mnemonic: "ALARM_READBACK_FAILED"
+    description: "Alarm register readback failed"
+
+  alarm_verify_mismatch:
+    code: 0xF0
+    severity: fault
+    mnemonic: "ALARM_VERIFY_MISMATCH"
+    description: "Alarm write/readback mismatch"
+
+  alarm_flag_clear_failed:
+    code: 0xF1
+    severity: fault
+    mnemonic: "ALARM_FLAG_CLEAR_FAILED"
+    description: "Previous alarm flag could not be cleared"
+
+# ---------------------------------------------------------------------------
+# RTC Alarm Event Codes (byte 0 of 0x558 telemetry)
+# ---------------------------------------------------------------------------
+rtc_alarm_event_codes:
+  triggered:
+    code: 0x01
+    description: "Alarm condition matched"
+
+# ---------------------------------------------------------------------------
+# Slot Configuration Flags (byte 1 of SET_SLOT commands)
+# ---------------------------------------------------------------------------
+slot_flags:
+  enable:
+    bit: 0
+    description: "Slot enable"
+
+  extended_id:
+    bit: 1
+    description: "Use 29-bit extended CAN identifier"
+
+# ---------------------------------------------------------------------------
+# Alarm Enable Flags (byte 1 of RTC_SET_ALARM command)
+# ---------------------------------------------------------------------------
+alarm_enable_flags:
+  second:
+    bit: 0
+    description: "Match second field"
+
+  minute:
+    bit: 1
+    description: "Match minute field"
+
+  hour:
+    bit: 2
+    description: "Match hour field"
+
+  day:
+    bit: 3
+    description: "Match day field"
+
+  weekday:
+    bit: 4
+    description: "Match weekday field"
+
+# ---------------------------------------------------------------------------
+# Alarm Event Flags (byte 1 of 0x558 telemetry, bit field)
+# ---------------------------------------------------------------------------
+alarm_event_flags:
+  af:
+    bit: 0
+    description: "Alarm Flag (AF) — hardware alarm matched"
+
+  aie:
+    bit: 1
+    description: "Alarm Interrupt Enable (AIE)"
+
+  config_ok:
+    bit: 2
+    description: "Alarm configuration valid"

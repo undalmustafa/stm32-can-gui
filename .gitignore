@@ -21,6 +21,9 @@ __pycache__/
 .pytest_cache/
 logs/
 
+# IDE settings
+.vscode/
+
 # Local agent state
 .agents/
 
