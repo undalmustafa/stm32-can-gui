@@ -88,12 +88,18 @@ unused STM32 GPIOs exposed by the NUCLEO-H7A3ZI-Q connectors:
 | SO / MISO | PB4 | CN7 pin 19 | SPI3 MISO |
 | INT | PG6 | CN10 pin 13 | GPIO EXTI, falling edge, 3.3 V pull-up |
 | RESET | PA2 | CN10 pin 11 | GPIO output, low during normal operation |
-| VDD | - | Nucleo 3V3 rail | SPI logic supply |
+| VDD | - | Nucleo 3V3 rail | 3.0-5.5 V allowed; project uses 3.3 V |
 | DGND/AGND | - | Nucleo GND | Common ground |
-| VS | - | External protected supply | Normally 12 V; never use the 3.3 V rail |
+| VS | - | External protected supply | 4.5-35 V allowed; begin testing at 12 V |
 
 PB3 is also capable of SWO trace output. SPI3 use keeps normal SWD debugging on
 PA13/PA14 available, but SWO trace must remain disabled while PB3 is SCLK.
+
+The selected VDD is 3.3 V because the STM32H7 GPIO operates at 3.3 V. VDD must
+be present during every SPI transaction. VS is a separate protected device
+supply within the 4.5-35 V operating range; it must not be connected to the
+Nucleo 3.3 V rail. The initial 12 V bench point represents the intended
+automotive use case, not the only supported VS voltage.
 
 SPI will initially run at 2 MHz for timing margin, with clock polarity low,
 second-edge sampling (SPI mode 1), MSB first, software chip select, and exactly
@@ -174,7 +180,8 @@ Mechanical / resistor-coded switches
 
 - [ ] Identify the exact module/EVM and revision.
 - [ ] Obtain its schematic and connector pinout.
-- [ ] Confirm VS, VDD, ground, protection, and decoupling.
+- [ ] Confirm VS is within 4.5-35 V, VDD is within 3.0-5.5 V, and verify
+      ground, protection, and decoupling.
 - [ ] Confirm which inputs will use ground switches, battery switches, and
       resistor-coded switches.
 - [ ] Confirm from the carrier schematic that IN12 is not fitted and record it
