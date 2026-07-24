@@ -14,6 +14,8 @@
 #define CAN_PROTOCOL_LOG_HEARTBEAT_TX_ID       0x55BU
 #define CAN_PROTOCOL_PWM_STATUS_TX_ID          0x055CU
 #define CAN_PROTOCOL_INPUT_CAPTURE_STATUS_TX_ID 0x055DU
+#define CAN_PROTOCOL_PWM_SELF_TEST_STATUS_TX_ID 0x055EU
+#define CAN_PROTOCOL_PWM_SELF_TEST_RESULT_TX_ID 0x055FU
 
 #define CAN_PROTOCOL_LOG_VERSION               1U
 #define CAN_PROTOCOL_LOG_FRAGMENT_DATA_SIZE    7U
@@ -51,7 +53,8 @@ typedef enum
     CAN_PROTOCOL_CMD_RTC_SET_ALARM = 0x22U,
     CAN_PROTOCOL_CMD_LOG_GET_INFO = 0x30U,
     CAN_PROTOCOL_CMD_LOG_READ_SEQUENCE = 0x31U,
-    CAN_PROTOCOL_CMD_PWM_SET = 0x40U
+    CAN_PROTOCOL_CMD_PWM_SET = 0x40U,
+    CAN_PROTOCOL_CMD_PWM_SELF_TEST = 0x41U
 } CAN_Protocol_Command_t;
 
 typedef enum
@@ -164,6 +167,24 @@ typedef struct
     uint16_t edge_count;
 } CAN_Protocol_InputCaptureStatus_t;
 
+typedef struct
+{
+    uint8_t state;
+    uint8_t current_point;
+    uint8_t total_points;
+    uint8_t passed_points;
+    uint32_t expected_frequency_hz;
+} CAN_Protocol_PwmSelfTestStatus_t;
+
+typedef struct
+{
+    uint8_t point;
+    uint8_t passed;
+    uint8_t expected_duty_percent;
+    uint8_t measured_duty_percent;
+    uint32_t measured_frequency_hz;
+} CAN_Protocol_PwmSelfTestResult_t;
+
 uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
@@ -203,6 +224,14 @@ void CAN_Protocol_EncodePwmStatus(
 
 void CAN_Protocol_EncodeInputCaptureStatus(
     const CAN_Protocol_InputCaptureStatus_t *status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodePwmSelfTestStatus(
+    const CAN_Protocol_PwmSelfTestStatus_t *status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodePwmSelfTestResult(
+    const CAN_Protocol_PwmSelfTestResult_t *result,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 #endif /* CAN_PROTOCOL_H */

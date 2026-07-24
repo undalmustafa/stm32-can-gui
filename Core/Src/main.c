@@ -29,6 +29,7 @@
 #include "app_watchdog_evidence.h"
 #include "pwm_control.h"
 #include "input_capture.h"
+#include "pwm_self_test.h"
 
 /* USER CODE END Includes */
 
@@ -136,6 +137,7 @@ int main(void)
   {
       Error_Handler();
   }
+  PWM_SelfTest_Init();
   App_ResetReason_Snapshot_t reset_reason;
   App_ResetReason_GetSnapshot(&reset_reason);
   (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,

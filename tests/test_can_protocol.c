@@ -61,8 +61,6 @@ void test_EncodeSystemStatus_matches_struct(void)
     status.slot_2_running = 0;
     status.led_1_on = 1;
     status.led_2_on = 0;
-    status.protocol_version = CAN_PROTOCOL_VERSION;
-
     uint8_t payload[8] = {0};
     CAN_Protocol_EncodeSystemStatus(&status, payload);
 
@@ -72,7 +70,55 @@ void test_EncodeSystemStatus_matches_struct(void)
     TEST_ASSERT_EQUAL_UINT8(0, payload[2]); // slot2
     TEST_ASSERT_EQUAL_UINT8(1, payload[3]); // led1
     TEST_ASSERT_EQUAL_UINT8(0, payload[4]); // led2
-    TEST_ASSERT_EQUAL_UINT8(CAN_PROTOCOL_VERSION, payload[5]); // protocol_version
+    TEST_ASSERT_EQUAL_UINT8(0, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0, payload[7]);
+}
+
+void test_EncodePwmSelfTestStatus_matches_wire_format(void)
+{
+    CAN_Protocol_PwmSelfTestStatus_t status = {
+        .state = 1U,
+        .current_point = 3U,
+        .total_points = 10U,
+        .passed_points = 2U,
+        .expected_frequency_hz = 100000U,
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodePwmSelfTestStatus(&status, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(1U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(3U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(10U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(2U, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0xA0U, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0x86U, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x01U, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[7]);
+}
+
+void test_EncodePwmSelfTestResult_matches_wire_format(void)
+{
+    CAN_Protocol_PwmSelfTestResult_t result = {
+        .point = 3U,
+        .passed = 1U,
+        .expected_duty_percent = 50U,
+        .measured_duty_percent = 49U,
+        .measured_frequency_hz = 99999U,
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodePwmSelfTestResult(&result, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(3U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(1U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(50U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(49U, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0x9FU, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0x86U, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x01U, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[7]);
 }
 
 int main(void)
@@ -86,5 +132,7 @@ int main(void)
     RUN_TEST(test_IsValidId_extended_max_0x1FFFFFFF);
     RUN_TEST(test_IsValidId_extended_rejects_0x20000000);
     RUN_TEST(test_EncodeSystemStatus_matches_struct);
+    RUN_TEST(test_EncodePwmSelfTestStatus_matches_wire_format);
+    RUN_TEST(test_EncodePwmSelfTestResult_matches_wire_format);
     return UNITY_END();
 }

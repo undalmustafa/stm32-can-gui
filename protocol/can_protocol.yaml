@@ -67,6 +67,18 @@ identifiers:
     direction: mcu_to_gui
     description: "Input capture measurement with estimated edge count"
 
+  pwm_self_test_status:
+    id: 0x055E
+    type: standard
+    direction: mcu_to_gui
+    description: "PWM built-in self-test state and current target"
+
+  pwm_self_test_result:
+    id: 0x055F
+    type: standard
+    direction: mcu_to_gui
+    description: "PWM built-in self-test point result"
+
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)
 # ---------------------------------------------------------------------------
@@ -106,6 +118,10 @@ commands:
   pwm_set:
     code: 0x40
     description: "Set PWM output frequency and duty cycle"
+
+  pwm_self_test:
+    code: 0x41
+    description: "Start or cancel the PWM built-in self-test"
 
 # ---------------------------------------------------------------------------
 # RTC Status Codes (byte 0 of 0x551 telemetry)

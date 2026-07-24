@@ -43,6 +43,7 @@ PWM_Control_Result_t PWM_Control_Set(
     uint8_t duty_percent);
 
 PWM_Control_Result_t PWM_Control_Stop(void);
+PWM_Control_Result_t PWM_Control_Start(void);
 
 PWM_Control_State_t PWM_Control_GetState(void);
 

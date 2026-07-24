@@ -253,3 +253,25 @@ void CAN_Protocol_EncodeInputCaptureStatus(
     CAN_Protocol_WriteU32LE(&payload[2], status->frequency_hz);
     CAN_Protocol_WriteU16LE(&payload[6], status->edge_count);
 }
+
+void CAN_Protocol_EncodePwmSelfTestStatus(
+    const CAN_Protocol_PwmSelfTestStatus_t *status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = status->state;
+    payload[1] = status->current_point;
+    payload[2] = status->total_points;
+    payload[3] = status->passed_points;
+    CAN_Protocol_WriteU32LE(&payload[4], status->expected_frequency_hz);
+}
+
+void CAN_Protocol_EncodePwmSelfTestResult(
+    const CAN_Protocol_PwmSelfTestResult_t *result,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = result->point;
+    payload[1] = result->passed;
+    payload[2] = result->expected_duty_percent;
+    payload[3] = result->measured_duty_percent;
+    CAN_Protocol_WriteU32LE(&payload[4], result->measured_frequency_hz);
+}

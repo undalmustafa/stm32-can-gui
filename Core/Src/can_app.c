@@ -10,6 +10,7 @@
 #include "app_log_can.h"
 #include "pwm_control.h"
 #include "input_capture.h"
+#include "pwm_self_test.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
 
 extern FDCAN_HandleTypeDef hfdcan1;
@@ -39,6 +40,7 @@ static uint8_t RxData[8];
 static uint8_t led1_state = 0U;
 static uint8_t led2_state = 0U;
 static CAN_App_RxStats_t can_rx_stats;
+static uint32_t pwm_self_test_result_sequence_sent;
 
 typedef enum
 {
@@ -220,6 +222,21 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
 
             return CAN_COMMAND_VALID;
         }
+
+        case CAN_PROTOCOL_CMD_PWM_SELF_TEST:
+
+            if ((data[1] > 1U) ||
+                (data[2] != 0U) ||
+                (data[3] != 0U) ||
+                (data[4] != 0U) ||
+                (data[5] != 0U) ||
+                (data[6] != 0U) ||
+                (data[7] != 0U))
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            return CAN_COMMAND_VALID;
 
         default:
             return CAN_COMMAND_UNKNOWN;
@@ -475,6 +492,8 @@ void CAN_App_Process(void)
     CAN_Process_Rx_Command();
     RTC_Process();
     Input_Capture_Process();
+    PWM_SelfTest_Process();
+    CAN_Send_Pwm_Self_Test_Result();
     App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
     System_Status_Process();
     App_Log_Can_Process();
@@ -597,29 +616,38 @@ void CAN_Process_Rx_Command(void)
                 uint32_t freq = CAN_Protocol_ReadU32LE(&RxData[1]);
                 uint8_t duty = RxData[5];
 
+                if (PWM_SelfTest_IsRunning() != 0U)
+                {
+                    PWM_SelfTest_Cancel();
+                }
+
                 if (freq == 0U)
                 {
                     PWM_Control_Stop();
                 }
                 else
                 {
-                    if (g_pwmControlState.running == 0U)
+                    if (PWM_Control_Set(freq, duty) == PWM_CONTROL_OK)
                     {
-                        /*
-                         * Re-start PWM if it was stopped. Init is
-                         * already done in main(); just restart output.
-                         */
-                        extern TIM_HandleTypeDef htim2;
-                        HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-                        g_pwmControlState.running = 1U;
+                        (void)PWM_Control_Start();
                     }
-
-                    PWM_Control_Set(freq, duty);
                 }
 
                 CAN_Send_Pwm_Status();
                 break;
             }
+
+            case CAN_PROTOCOL_CMD_PWM_SELF_TEST:
+                if (RxData[1] == 0U)
+                {
+                    PWM_SelfTest_Cancel();
+                }
+                else
+                {
+                    (void)PWM_SelfTest_Start();
+                }
+                CAN_Send_Pwm_Self_Test_Status();
+                break;
 
             default:
                 break;
@@ -744,6 +772,56 @@ void System_Status_Process(void)
         CAN_Send_System_Status();
         CAN_Send_Pwm_Status();
         CAN_Send_Input_Capture_Status();
+        CAN_Send_Pwm_Self_Test_Status();
+    }
+}
+
+void CAN_Send_Pwm_Self_Test_Status(void)
+{
+    CAN_Protocol_PwmSelfTestStatus_t status;
+    PWM_SelfTest_State_t state = PWM_SelfTest_GetState();
+    uint8_t txData[8] = {0};
+
+    status.state = (uint8_t)state.state;
+    status.current_point = state.current_point;
+    status.total_points = state.total_points;
+    status.passed_points = state.passed_points;
+    status.expected_frequency_hz = state.expected_frequency_hz;
+    CAN_Protocol_EncodePwmSelfTestStatus(&status, txData);
+
+    (void)CAN_Transport_SendClassicLatest(
+        CAN_PROTOCOL_PWM_SELF_TEST_STATUS_TX_ID,
+        CAN_TRANSPORT_ID_STANDARD,
+        txData);
+}
+
+void CAN_Send_Pwm_Self_Test_Result(void)
+{
+    CAN_Protocol_PwmSelfTestResult_t result;
+    PWM_SelfTest_State_t state = PWM_SelfTest_GetState();
+    uint8_t txData[8] = {0};
+
+    if (state.result_sequence == pwm_self_test_result_sequence_sent)
+    {
+        return;
+    }
+
+    result.point = state.last_result.point;
+    result.passed = state.last_result.passed;
+    result.expected_duty_percent =
+        state.last_result.expected_duty_percent;
+    result.measured_duty_percent =
+        state.last_result.measured_duty_percent;
+    result.measured_frequency_hz =
+        state.last_result.measured_frequency_hz;
+    CAN_Protocol_EncodePwmSelfTestResult(&result, txData);
+
+    if (CAN_Transport_SendClassicHighPriority(
+            CAN_PROTOCOL_PWM_SELF_TEST_RESULT_TX_ID,
+            CAN_TRANSPORT_ID_STANDARD,
+            txData) != CAN_TRANSPORT_QUEUE_FULL)
+    {
+        pwm_self_test_result_sequence_sent = state.result_sequence;
     }
 }
 
