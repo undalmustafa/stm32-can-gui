@@ -31,7 +31,8 @@ class EventLogPanel:
     MAX_VISIBLE_EVENTS = 250
 
     def __init__(self, default_directory, bus_provider, rtc_time_provider,
-                 dialog_parent=None, directory_selector=None):
+                 command_sender=None, dialog_parent=None,
+                 directory_selector=None):
         self._bus_provider = bus_provider
         self._rtc_time_provider = rtc_time_provider
         self._dialog_parent = dialog_parent
@@ -43,6 +44,7 @@ class EventLogPanel:
             bus_provider=bus_provider,
             enabled_provider=lambda: self.logger.enabled,
             directory_provider=lambda: self.logger.directory,
+            command_sender=command_sender,
             status_changed=self.update_stm32_status,
             record_observer=self._append_stm32_event,
         )

@@ -77,6 +77,7 @@ class CanGui(QWidget):
             default_directory=Path(__file__).resolve().parent / "logs",
             bus_provider=lambda: self.can_session.bus,
             rtc_time_provider=self.rtc_panel.get_log_time,
+            command_sender=self.send_can_command,
             dialog_parent=self,
         )
 

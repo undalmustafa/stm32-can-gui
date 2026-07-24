@@ -1,13 +1,29 @@
 """Generate sustained valid command traffic for target watchdog testing."""
 
 import argparse
+import secrets
 import time
 
 import can
 
+from can_protocol_generated import (
+    CMD_LED_CONTROL,
+    CMD_SESSION_START,
+    GUI_COMMAND_ID_EXT,
+    GUI_COMMAND_ID_MASK_EXT,
+    GUI_COMMAND_SESSION_MASK,
+    GUI_COMMAND_SESSION_SHIFT,
+    PROTOCOL_VERSION,
+)
 
-GUI_COMMAND_ID_EXT = 0x1894AABB
-CMD_LED_CONTROL = 0x10
+
+def command_id(sequence, session_tag):
+    return (
+        (GUI_COMMAND_ID_EXT & GUI_COMMAND_ID_MASK_EXT)
+        | ((session_tag << GUI_COMMAND_SESSION_SHIFT)
+           & GUI_COMMAND_SESSION_MASK)
+        | (sequence & 0xFF)
+    )
 
 
 def parse_args():
@@ -58,6 +74,26 @@ def run(args):
     deadline = started + args.duration
     next_send = started
     try:
+        session_nonce = secrets.randbits(32) or 1
+        session_tag = session_nonce & 0xFF
+        session_payload = [
+            CMD_SESSION_START,
+            session_nonce & 0xFF,
+            (session_nonce >> 8) & 0xFF,
+            (session_nonce >> 16) & 0xFF,
+            (session_nonce >> 24) & 0xFF,
+            PROTOCOL_VERSION,
+            0,
+            0,
+        ]
+        bus.send(can.Message(
+            arbitration_id=command_id(0, session_tag),
+            is_extended_id=True,
+            is_fd=False,
+            data=bytearray(session_payload),
+        ))
+        sequence = 1
+
         while time.perf_counter() < deadline:
             now = time.perf_counter()
             if now < next_send:
@@ -71,7 +107,7 @@ def run(args):
 
             state ^= 1
             message = can.Message(
-                arbitration_id=GUI_COMMAND_ID_EXT,
+                arbitration_id=command_id(sequence, session_tag),
                 is_extended_id=True,
                 is_fd=False,
                 data=bytearray(
@@ -80,6 +116,7 @@ def run(args):
             )
             bus.send(message)
             sent += 1
+            sequence = (sequence + 1) & 0xFF
             next_send += period_s
             received += drain_receive_queue(bus)
     finally:

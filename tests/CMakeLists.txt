@@ -32,9 +32,18 @@ target_link_libraries(test_can_transport unity)
 add_executable(test_pwm_self_test test_pwm_self_test.c ../Core/Src/pwm_self_test.c)
 target_link_libraries(test_pwm_self_test unity)
 
+add_executable(
+    test_can_command_guard
+    test_can_command_guard.c
+    ../Core/Src/can_command_guard.c
+    ../Core/Src/can_protocol.c
+)
+target_link_libraries(test_can_command_guard unity)
+
 # Register tests
 enable_testing()
 add_test(NAME test_can_protocol COMMAND test_can_protocol)
 add_test(NAME test_pca2131_validation COMMAND test_pca2131_validation)
 add_test(NAME test_can_transport COMMAND test_can_transport)
 add_test(NAME test_pwm_self_test COMMAND test_pwm_self_test)
+add_test(NAME test_can_command_guard COMMAND test_can_command_guard)

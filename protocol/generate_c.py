@@ -41,6 +41,25 @@ def generate_c_header(yaml_path, out_path):
                 )
         out.write("\n")
 
+        command_transport = data.get("command_transport", {})
+        out.write("/* Reliable Command Transport */\n")
+        out.write(
+            "#define CAN_PROTOCOL_GUI_COMMAND_SEQUENCE_MASK "
+            f"0x{command_transport.get('sequence_mask', 0xFF):08X}UL\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_GUI_COMMAND_SESSION_MASK "
+            f"0x{command_transport.get('session_mask', 0xFF00):08X}UL\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_GUI_COMMAND_SESSION_SHIFT "
+            f"{command_transport.get('session_shift', 8)}U\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT "
+            f"0x{command_transport.get('identifier_mask', 0x1FFF0000):08X}UL\n\n"
+        )
+
         out.write("/* Slot Flags */\n")
         for key, val in data.get("slot_flags", {}).items():
             name = key.upper()
@@ -86,6 +105,29 @@ def generate_c_header(yaml_path, out_path):
             lines.append(f"    CAN_PROTOCOL_CMD_{name} = 0x{code:02X}U")
         out.write(",\n".join(lines))
         out.write("\n} CAN_Protocol_Command_t;\n\n")
+
+        out.write("/* Command Acknowledgement Status Codes */\n")
+        out.write("typedef enum\n{\n")
+        ack_status_codes = data.get("command_ack_status_codes", {})
+        lines = []
+        for key, val in ack_status_codes.items():
+            name = key.upper()
+            code = val["code"]
+            lines.append(
+                f"    CAN_PROTOCOL_COMMAND_ACK_{name} = 0x{code:02X}U"
+            )
+        out.write(",\n".join(lines))
+        out.write("\n} CAN_Protocol_CommandAckStatus_t;\n\n")
+
+        out.write("/* Command Acknowledgement Flags */\n")
+        for key, val in data.get("command_ack_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"#define CAN_PROTOCOL_COMMAND_ACK_FLAG_{name} "
+                f"0x{(1 << bit):02X}U\n"
+            )
+        out.write("\n")
 
         out.write("/* RTC Status Codes */\n")
         out.write("typedef enum\n{\n")

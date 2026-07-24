@@ -91,6 +91,18 @@ identifiers:
     direction: mcu_to_gui
     description: "STM32 event-log heartbeat"
 
+  command_ack:
+    id: 0x0550
+    type: standard
+    direction: mcu_to_gui
+    description: "Reliable command acknowledgement"
+
+command_transport:
+  sequence_mask: 0x000000FF
+  session_mask: 0x0000FF00
+  session_shift: 8
+  identifier_mask: 0x1FFF0000
+
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)
 # ---------------------------------------------------------------------------
@@ -142,6 +154,36 @@ commands:
   log_read_sequence:
     code: 0x31
     description: "Request one STM32 event-log record by sequence"
+
+  session_start:
+    code: 0x7E
+    description: "Start or replace the reliable command session"
+
+command_ack_status_codes:
+  accepted:
+    code: 0x00
+  duplicate:
+    code: 0x01
+  invalid_payload:
+    code: 0x02
+  unknown_command:
+    code: 0x03
+  access_denied:
+    code: 0x04
+  replay_rejected:
+    code: 0x05
+  session_required:
+    code: 0x06
+  protocol_mismatch:
+    code: 0x07
+
+command_ack_flags:
+  executed:
+    bit: 0
+  access_open:
+    bit: 1
+  session_started:
+    bit: 2
 
 # ---------------------------------------------------------------------------
 # RTC Status Codes (byte 0 of 0x551 telemetry)

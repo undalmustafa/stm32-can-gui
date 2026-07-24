@@ -97,6 +97,9 @@ def create_sync(gui_module, directory):
         bus_provider=lambda: bus,
         enabled_provider=lambda: True,
         directory_provider=lambda: Path(directory),
+        command_sender=lambda data: (
+            bus.sent.append(FakeMessage(data=bytes(data))) or True
+        ),
         status_changed=lambda: status_changes.append(True),
         record_observer=lambda record: observed_records.append(record),
     )

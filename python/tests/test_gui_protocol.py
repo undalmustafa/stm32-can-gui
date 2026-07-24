@@ -42,6 +42,15 @@ def main():
            "GUI RX aliases use generated firmware TX identifiers")
     expect(protocol.RTC_STATUS_DEFINITIONS == generated.RTC_STATUS_DEFINITIONS,
            "GUI imports RTC status definitions from the generated protocol")
+    expect(
+        protocol.command_arbitration_id(0x42, 0xA5) ==
+        ((generated.GUI_COMMAND_ID_EXT &
+          generated.GUI_COMMAND_ID_MASK_EXT) |
+         (0xA5 << generated.GUI_COMMAND_SESSION_SHIFT) | 0x42),
+        "reliable session and sequence are encoded in the identifier",
+    )
+    expect(protocol.COMMAND_ACK_RX_ID == generated.COMMAND_ACK_TX_ID,
+           "GUI receives generated command acknowledgements")
     expect(protocol.RTC_ALARM_EVENT_RX_ID == 0x558,
            "RTC alarm event ID remains unchanged")
     expect(protocol.STM32_LOG_RESPONSE_RX_ID == 0x55A,

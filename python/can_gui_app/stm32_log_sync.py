@@ -5,12 +5,9 @@ import struct
 import time
 from datetime import datetime
 
-import can
-
 from .protocol import (
     CMD_LOG_GET_INFO,
     CMD_LOG_READ_SEQUENCE,
-    GUI_COMMAND_ID_EXT,
     STM32_LOG_COMMIT_MARKER,
     decode_stm32_log_event_detail,
     STM32_LOG_ERROR_FRAME,
@@ -59,11 +56,13 @@ class Stm32LogSync:
                  bus_provider,
                  enabled_provider,
                  directory_provider,
+                 command_sender=None,
                  status_changed=None,
                  record_observer=None):
         self._bus_provider = bus_provider
         self._enabled_provider = enabled_provider
         self._directory_provider = directory_provider
+        self._command_sender = command_sender
         self._status_changed = status_changed
         self._record_observer = record_observer
 
@@ -246,21 +245,14 @@ class Stm32LogSync:
         self._notify()
 
     def send_command(self, data):
-        bus = self.bus
-
-        if bus is None or len(data) != 8:
+        if self.bus is None or len(data) != 8:
             return False
 
-        message = can.Message(
-            arbitration_id=GUI_COMMAND_ID_EXT,
-            is_extended_id=True,
-            data=bytearray(data),
-            is_fd=False,
-        )
-
         try:
-            bus.send(message)
-            return True
+            if self._command_sender is None:
+                return False
+            result = self._command_sender(data)
+            return bool(getattr(result, "ok", result))
         except Exception as error:
             self.protocol_error_count += 1
             self.last_error = f"TX {type(error).__name__}: {error}"

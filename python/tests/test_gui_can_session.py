@@ -58,11 +58,11 @@ def load_session_types():
 
     try:
         from can_gui_app.can_session import CanSession
-        from can_gui_app.protocol import GUI_COMMAND_ID_EXT, RTC_TIME_RX_ID
+        from can_gui_app import protocol
     finally:
         sys.path.remove(str(gui_directory))
 
-    return CanSession, GUI_COMMAND_ID_EXT, RTC_TIME_RX_ID
+    return CanSession, protocol
 
 
 def create_session(session_type, bus, clock, max_frames=256):
@@ -90,7 +90,9 @@ def create_session(session_type, bus, clock, max_frames=256):
 
 
 def main():
-    session_type, command_id, rtc_time_id = load_session_types()
+    session_type, protocol = load_session_types()
+    command_id = protocol.GUI_COMMAND_ID_EXT
+    rtc_time_id = protocol.RTC_TIME_RX_ID
     clock = [100.0]
     bus = FakeBus()
     session, events, frames, health, error_frames, factory_calls = (
@@ -125,15 +127,77 @@ def main():
     command = [0x10, 2, 1, 0, 0, 0, 0, 0]
     result = session.send_command(command)
     expect(result.ok, "valid GUI command is sent")
-    expect(len(bus.sent) == 1, "one CAN command frame is transmitted")
-    expect(bus.sent[-1].arbitration_id == command_id,
-           "GUI command uses the extended command ID")
+    expect(len(bus.sent) == 2,
+           "session start precedes the first GUI command")
+    expect(bus.sent[0].data[0] == protocol.CMD_SESSION_START,
+           "first reliable frame starts a command session")
+    expect(
+        (bus.sent[-1].arbitration_id &
+         protocol.GUI_COMMAND_ID_MASK_EXT) ==
+        (command_id & protocol.GUI_COMMAND_ID_MASK_EXT),
+        "GUI command uses the generated extended command-ID range",
+    )
     expect(bus.sent[-1].is_extended_id,
            "GUI command remains an extended CAN frame")
     expect(list(bus.sent[-1].data) == command,
            "GUI command payload remains unchanged")
     expect(events[-1]["event_code"] == "LED_CONTROL",
            "known command name is logged")
+
+    session_sequence = (
+        bus.sent[0].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
+    )
+    command_sequence = (
+        bus.sent[1].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
+    )
+    bus.rx_items.extend([
+        FakeMessage(
+            protocol.COMMAND_ACK_RX_ID,
+            data=[
+                protocol.PROTOCOL_VERSION,
+                protocol.CMD_SESSION_START,
+                session_sequence,
+                protocol.COMMAND_ACK_ACCEPTED,
+                protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
+                0, session.command_session_tag, 0,
+            ],
+        ),
+        FakeMessage(
+            protocol.COMMAND_ACK_RX_ID,
+            data=[
+                protocol.PROTOCOL_VERSION,
+                command[0],
+                command_sequence,
+                protocol.COMMAND_ACK_ACCEPTED,
+                protocol.COMMAND_ACK_FLAG_EXECUTED,
+                0, session.command_session_tag, 0,
+            ],
+        ),
+    ])
+    session.poll()
+    expect(session.command_session_confirmed,
+           "session acknowledgement confirms reliable transport")
+    expect(not session.pending_commands,
+           "matching acknowledgements clear pending commands")
+    expect(session.command_ack_count == 2,
+           "matching MCU acknowledgements are counted")
+
+    denied_result = session.send_command(command)
+    denied_sequence = denied_result.sequence
+    bus.rx_items.append(FakeMessage(
+        protocol.COMMAND_ACK_RX_ID,
+        data=[
+            protocol.PROTOCOL_VERSION,
+            command[0],
+            denied_sequence,
+            protocol.COMMAND_ACK_ACCESS_DENIED,
+            0,
+            0, session.command_session_tag, 0,
+        ],
+    ))
+    session.poll()
+    expect(health[-1][0:2] == ("WARN", "COMMAND_ACCESS_DENIED"),
+           "access denial tells the operator to press B1")
 
     send_count = len(bus.sent)
     result = session.send_command([0x10, 1])
@@ -164,9 +228,9 @@ def main():
     session.poll()
     metrics = session.get_health_metrics()
     expect(len(error_frames) == 1, "PCAN error frame is delegated once")
-    expect(metrics["rx_count"] == 3,
+    expect(metrics["rx_count"] == 6,
            "all non-error CAN frames are counted")
-    expect(metrics["stm32_rx_count"] == 1,
+    expect(metrics["stm32_rx_count"] == 4,
            "only known STM32 application frames update health traffic")
     expect(metrics["last_stm32_rx_time"] == 101.0,
            "STM32 receive time uses the session clock")
@@ -209,6 +273,85 @@ def main():
     expect(disconnected_events[-1]["event_code"] ==
            "NOT_SENT_DISCONNECTED",
            "disconnected command attempt is logged")
+
+    resync_bus = FakeBus()
+    resync_clock = [150.0]
+    resync_session, _, _, _, _, _ = create_session(
+        session_type, resync_bus, resync_clock
+    )
+    resync_session.connect("pcan", "PCAN_USBBUS1", 500000)
+    resync_result = resync_session.send_command(command)
+    initial_session_sequence = (
+        resync_bus.sent[0].arbitration_id &
+        protocol.GUI_COMMAND_SEQUENCE_MASK
+    )
+    resync_bus.rx_items.append(FakeMessage(
+        protocol.COMMAND_ACK_RX_ID,
+        data=[
+            protocol.PROTOCOL_VERSION,
+            protocol.CMD_SESSION_START,
+            initial_session_sequence,
+            protocol.COMMAND_ACK_ACCEPTED,
+            protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
+            0,
+            resync_session.command_session_tag,
+            0,
+        ],
+    ))
+    resync_session.poll()
+    resync_bus.rx_items.append(FakeMessage(
+        protocol.COMMAND_ACK_RX_ID,
+        data=[
+            protocol.PROTOCOL_VERSION,
+            command[0],
+            resync_result.sequence,
+            protocol.COMMAND_ACK_SESSION_REQUIRED,
+            0,
+            0,
+            resync_session.command_session_tag,
+            0,
+        ],
+    ))
+    resync_session.poll()
+    expect(resync_bus.sent[-1].data[0] == protocol.CMD_SESSION_START,
+           "MCU reset response starts a replacement command session")
+    replacement_sequence = (
+        resync_bus.sent[-1].arbitration_id &
+        protocol.GUI_COMMAND_SEQUENCE_MASK
+    )
+    resync_bus.rx_items.append(FakeMessage(
+        protocol.COMMAND_ACK_RX_ID,
+        data=[
+            protocol.PROTOCOL_VERSION,
+            protocol.CMD_SESSION_START,
+            replacement_sequence,
+            protocol.COMMAND_ACK_ACCEPTED,
+            protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
+            0,
+            resync_session.command_session_tag,
+            0,
+        ],
+    ))
+    resync_session.poll()
+    expect(list(resync_bus.sent[-1].data) == command,
+           "command is resent only after replacement session ACK")
+
+    timeout_bus = FakeBus()
+    timeout_clock = [200.0]
+    timeout_session, _, _, _, _, _ = create_session(
+        session_type, timeout_bus, timeout_clock
+    )
+    timeout_session.connect("pcan", "PCAN_USBBUS1", 500000)
+    expect(timeout_session.send_command(command).ok,
+           "timeout test sends session and command")
+    timeout_clock[0] += 0.8
+    timeout_session.poll()
+    expect(timeout_session.command_retry_count == 2,
+           "each unacknowledged reliable frame is retried once")
+    timeout_clock[0] += 0.8
+    timeout_session.poll()
+    expect(timeout_session.command_ack_timeout_count == 2,
+           "frames missing after their retry are timed out")
 
     print("PASS: GUI CAN session connection, TX, RX metrics and shutdown")
 

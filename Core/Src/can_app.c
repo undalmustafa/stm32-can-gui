@@ -1,6 +1,7 @@
 #include "main.h"
 #include "can_app.h"
 #include "can_protocol.h"
+#include "can_command_guard.h"
 #include "can_transport.h"
 #include "can_recovery.h"
 #include "rtc_app.h"
@@ -12,6 +13,7 @@
 #include "input_capture.h"
 #include "pwm_self_test.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
+#define CAN_CONTROL_ACCESS_WINDOW_MS    240000UL
 
 extern FDCAN_HandleTypeDef hfdcan1;
 
@@ -41,6 +43,10 @@ static uint8_t led1_state = 0U;
 static uint8_t led2_state = 0U;
 static CAN_App_RxStats_t can_rx_stats;
 static uint32_t pwm_self_test_result_sequence_sent;
+static CAN_CommandGuard_t command_guard;
+static volatile uint8_t control_access_requested;
+static uint8_t control_access_active;
+static uint32_t control_access_deadline;
 
 typedef enum
 {
@@ -53,6 +59,12 @@ static void CAN_Process_TxSlot(CAN_TxSlot_t *slot);
 static void CAN_Handle_LED_Command(uint8_t *data);
 static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
                                  uint8_t command);
+static uint8_t CAN_Is_Control_Access_Open(void);
+static void CAN_Send_Command_Ack(
+    uint8_t command,
+    uint8_t sequence,
+    CAN_Protocol_CommandAckStatus_t status,
+    uint8_t flags);
 
 static CAN_CommandValidationResult_t CAN_Validate_Command(
     const uint8_t data[CAN_PROTOCOL_PAYLOAD_SIZE])
@@ -238,6 +250,18 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
 
             return CAN_COMMAND_VALID;
 
+        case CAN_PROTOCOL_CMD_SESSION_START:
+
+            if ((CAN_Protocol_ReadU32LE(&data[1]) == 0U) ||
+                (data[5] != CAN_PROTOCOL_VERSION) ||
+                (data[6] != 0U) ||
+                (data[7] != 0U))
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            return CAN_COMMAND_VALID;
+
         default:
             return CAN_COMMAND_UNKNOWN;
     }
@@ -281,6 +305,21 @@ static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
             detail = command;
             break;
 
+        case CAN_APP_RX_REJECT_REPLAY:
+            can_rx_stats.rejected_replay++;
+            detail = command;
+            break;
+
+        case CAN_APP_RX_REJECT_SESSION_REQUIRED:
+            can_rx_stats.rejected_session_required++;
+            detail = command;
+            break;
+
+        case CAN_APP_RX_REJECT_ACCESS_DENIED:
+            can_rx_stats.rejected_access_denied++;
+            detail = command;
+            break;
+
         case CAN_APP_RX_REJECT_HAL_ERROR:
             can_rx_stats.hal_rx_errors++;
             detail = hfdcan1.ErrorCode;
@@ -306,6 +345,85 @@ static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
                        APP_LOG_EVENT_CAN_RX_REJECTED,
                        (uint32_t)reason,
                        detail);
+}
+
+void CAN_App_RequestControlAccess(void)
+{
+    control_access_requested = 1U;
+}
+
+static uint8_t CAN_Is_Control_Access_Open(void)
+{
+    uint32_t now = HAL_GetTick();
+
+    if (control_access_requested != 0U)
+    {
+        control_access_requested = 0U;
+        control_access_active = 1U;
+        control_access_deadline = now + CAN_CONTROL_ACCESS_WINDOW_MS;
+        (void)App_Log_Push(
+            APP_LOG_SOURCE_CAN,
+            APP_LOG_SEVERITY_INFO,
+            APP_LOG_EVENT_CAN_CONTROL_ACCESS_OPENED,
+            CAN_CONTROL_ACCESS_WINDOW_MS,
+            control_access_deadline);
+    }
+
+    if ((control_access_active != 0U) &&
+        ((int32_t)(control_access_deadline - now) > 0))
+    {
+        return 1U;
+    }
+
+    control_access_active = 0U;
+    return 0U;
+}
+
+static void CAN_Send_Command_Ack(
+    uint8_t command,
+    uint8_t sequence,
+    CAN_Protocol_CommandAckStatus_t status,
+    uint8_t flags)
+{
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE] = {0};
+    uint32_t now = HAL_GetTick();
+    uint32_t remaining_ms = 0U;
+    CAN_Transport_Result_t result;
+
+    if (CAN_Is_Control_Access_Open() != 0U)
+    {
+        flags |= CAN_PROTOCOL_COMMAND_ACK_FLAG_ACCESS_OPEN;
+        remaining_ms = control_access_deadline - now;
+    }
+
+    payload[0] = CAN_PROTOCOL_VERSION;
+    payload[1] = command;
+    payload[2] = sequence;
+    payload[3] = (uint8_t)status;
+    payload[4] = flags;
+    payload[5] = (remaining_ms == 0U)
+               ? 0U
+               : (uint8_t)(((remaining_ms + 999U) / 1000U) > 255U
+                         ? 255U
+                         : ((remaining_ms + 999U) / 1000U));
+    payload[6] = (uint8_t)(
+        (RxHeader.Identifier & CAN_PROTOCOL_GUI_COMMAND_SESSION_MASK) >>
+        CAN_PROTOCOL_GUI_COMMAND_SESSION_SHIFT);
+
+    result = CAN_Transport_SendClassicHighPriority(
+        CAN_PROTOCOL_COMMAND_ACK_TX_ID,
+        CAN_TRANSPORT_ID_STANDARD,
+        payload);
+
+    if ((result == CAN_TRANSPORT_OK) ||
+        (result == CAN_TRANSPORT_QUEUED))
+    {
+        can_rx_stats.command_acks_sent++;
+    }
+    else
+    {
+        can_rx_stats.command_ack_tx_failures++;
+    }
 }
 
 static void CAN_Reset_Slot(CAN_TxSlot_t *slot)
@@ -421,6 +539,10 @@ void CAN_App_Init(void)
     FDCAN_FilterTypeDef sFilterConfig;
 
     can_rx_stats = (CAN_App_RxStats_t){0};
+    CAN_CommandGuard_Init(&command_guard);
+    control_access_requested = 0U;
+    control_access_active = 0U;
+    control_access_deadline = 0U;
 
     CAN_Transport_Init(&hfdcan1);
     App_Log_Can_Init();
@@ -437,8 +559,11 @@ void CAN_App_Init(void)
     sFilterConfig.FilterIndex = 0;
     sFilterConfig.FilterType = FDCAN_FILTER_MASK;
     sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = CAN_PROTOCOL_GUI_COMMAND_ID_EXT;
-    sFilterConfig.FilterID2 = 0x1FFFFFFFU;
+    sFilterConfig.FilterID1 =
+        CAN_PROTOCOL_GUI_COMMAND_ID_EXT &
+        CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT;
+    sFilterConfig.FilterID2 =
+        CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT;
 
     if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig) != HAL_OK)
     {
@@ -508,6 +633,11 @@ void CAN_App_Process(void)
 void CAN_Process_Rx_Command(void)
 {
     CAN_CommandValidationResult_t validation_result;
+    CAN_CommandGuardDecision_t guard_decision;
+    uint8_t command;
+    uint8_t sequence;
+    uint8_t session_tag;
+    uint8_t ack_flags;
 
     while (HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, FDCAN_RX_FIFO0) > 0U)
     {
@@ -525,7 +655,10 @@ void CAN_Process_Rx_Command(void)
         can_rx_stats.frames_received++;
 
         if ((RxHeader.IdType != FDCAN_EXTENDED_ID) ||
-            (RxHeader.Identifier != CAN_PROTOCOL_GUI_COMMAND_ID_EXT))
+            ((RxHeader.Identifier &
+              CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT) !=
+             (CAN_PROTOCOL_GUI_COMMAND_ID_EXT &
+              CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT)))
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_WRONG_ID, 0U);
             continue;
@@ -545,25 +678,157 @@ void CAN_Process_Rx_Command(void)
             continue;
         }
 
+        command = RxData[0];
+        sequence = (uint8_t)(
+            RxHeader.Identifier &
+            CAN_PROTOCOL_GUI_COMMAND_SEQUENCE_MASK);
+        session_tag = (uint8_t)(
+            (RxHeader.Identifier &
+             CAN_PROTOCOL_GUI_COMMAND_SESSION_MASK) >>
+            CAN_PROTOCOL_GUI_COMMAND_SESSION_SHIFT);
         validation_result = CAN_Validate_Command(RxData);
+
+        if (command == CAN_PROTOCOL_CMD_SESSION_START)
+        {
+            if ((validation_result != CAN_COMMAND_VALID) ||
+                (session_tag != (uint8_t)
+                    CAN_Protocol_ReadU32LE(&RxData[1])))
+            {
+                CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_INVALID_PAYLOAD,
+                                     command);
+                CAN_Send_Command_Ack(
+                    command,
+                    sequence,
+                    (RxData[5] != CAN_PROTOCOL_VERSION)
+                        ? CAN_PROTOCOL_COMMAND_ACK_PROTOCOL_MISMATCH
+                        : CAN_PROTOCOL_COMMAND_ACK_INVALID_PAYLOAD,
+                    0U);
+                continue;
+            }
+
+            guard_decision = CAN_CommandGuard_StartSession(
+                &command_guard,
+                CAN_Protocol_ReadU32LE(&RxData[1]),
+                session_tag,
+                sequence,
+                RxData);
+
+            if (guard_decision == CAN_COMMAND_GUARD_DUPLICATE)
+            {
+                can_rx_stats.duplicate_commands++;
+                CAN_Send_Command_Ack(
+                    command,
+                    sequence,
+                    CAN_PROTOCOL_COMMAND_ACK_DUPLICATE,
+                    CAN_PROTOCOL_COMMAND_ACK_FLAG_SESSION_STARTED);
+                continue;
+            }
+
+            if (guard_decision != CAN_COMMAND_GUARD_ACCEPT)
+            {
+                CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_REPLAY, command);
+                CAN_Send_Command_Ack(
+                    command,
+                    sequence,
+                    CAN_PROTOCOL_COMMAND_ACK_REPLAY_REJECTED,
+                    0U);
+                continue;
+            }
+
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
+                CAN_PROTOCOL_COMMAND_ACK_FLAG_SESSION_STARTED);
+            continue;
+        }
+
+        guard_decision = CAN_CommandGuard_Check(
+            &command_guard,
+            session_tag,
+            sequence,
+            RxData);
+
+        if (guard_decision == CAN_COMMAND_GUARD_SESSION_REQUIRED)
+        {
+            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_SESSION_REQUIRED,
+                                 command);
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_SESSION_REQUIRED,
+                0U);
+            continue;
+        }
+
+        if (guard_decision == CAN_COMMAND_GUARD_DUPLICATE)
+        {
+            can_rx_stats.duplicate_commands++;
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_DUPLICATE,
+                0U);
+            continue;
+        }
+
+        if (guard_decision != CAN_COMMAND_GUARD_ACCEPT)
+        {
+            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_REPLAY, command);
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_REPLAY_REJECTED,
+                0U);
+            continue;
+        }
 
         if (validation_result == CAN_COMMAND_UNKNOWN)
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_UNKNOWN_COMMAND,
-                                 RxData[0]);
+                                 command);
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_UNKNOWN_COMMAND,
+                0U);
             continue;
         }
 
         if (validation_result == CAN_COMMAND_INVALID_PAYLOAD)
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_INVALID_PAYLOAD,
-                                 RxData[0]);
+                                 command);
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_INVALID_PAYLOAD,
+                0U);
+            continue;
+        }
+
+        if ((CAN_CommandGuard_IsPrivileged(RxData) != 0U) &&
+            (CAN_Is_Control_Access_Open() == 0U))
+        {
+            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_ACCESS_DENIED,
+                                 command);
+            CAN_Send_Command_Ack(
+                command,
+                sequence,
+                CAN_PROTOCOL_COMMAND_ACK_ACCESS_DENIED,
+                0U);
             continue;
         }
 
         can_rx_stats.commands_accepted++;
+        ack_flags = CAN_PROTOCOL_COMMAND_ACK_FLAG_EXECUTED;
+        CAN_Send_Command_Ack(
+            command,
+            sequence,
+            CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
+            ack_flags);
 
-        switch (RxData[0])
+        switch (command)
         {
             case CAN_PROTOCOL_CMD_SET_SLOT_1:
                 CAN_Set_Slot_Config(&tx_slot_1, RxData);
@@ -880,4 +1145,12 @@ void CAN_Process_TxSlots(void)
 {
     CAN_Process_TxSlot(&tx_slot_1);
     CAN_Process_TxSlot(&tx_slot_2);
+}
+
+void BSP_PB_Callback(Button_TypeDef Button)
+{
+    if (Button == BUTTON_USER)
+    {
+        CAN_App_RequestControlAccess();
+    }
 }

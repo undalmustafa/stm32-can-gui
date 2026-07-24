@@ -21,7 +21,10 @@ static void App_Diagnostics_Capture(uint32_t now)
         + diagnostics_snapshot.can_rx.rejected_frame_format
         + diagnostics_snapshot.can_rx.rejected_dlc
         + diagnostics_snapshot.can_rx.rejected_unknown_command
-        + diagnostics_snapshot.can_rx.rejected_invalid_payload;
+        + diagnostics_snapshot.can_rx.rejected_invalid_payload
+        + diagnostics_snapshot.can_rx.rejected_replay
+        + diagnostics_snapshot.can_rx.rejected_session_required
+        + diagnostics_snapshot.can_rx.rejected_access_denied;
 
     if (diagnostics_snapshot.can_rx.hal_rx_errors != 0U)
     {

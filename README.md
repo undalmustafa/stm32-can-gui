@@ -599,6 +599,45 @@ A cyclic heartbeat frame is sent periodically to indicate the MCU is alive and
 responsive. The GUI uses this to track connection health and detect
 communication loss.
 
+## Reliable Command Transport and Service Access
+
+GUI commands retain their existing eight-byte payloads. Reliability metadata
+is carried in the extended identifier instead: the upper 13 bits remain
+`0x18940000`, the next byte identifies the active session, and the low byte is
+a rolling sequence number. A session begins with command `0x7E`, a nonzero
+32-bit client nonce, and the protocol version.
+
+The MCU replies on standard ID `0x550`:
+
+```text
+Byte 0     protocol version
+Byte 1     command code
+Byte 2     rolling sequence
+Byte 3     ACK status
+Byte 4     executed/access-open/session-started flags
+Byte 5     remaining service-access seconds
+Byte 6     session tag
+Byte 7     zero
+```
+
+The GUI retries once after 750 ms using the same identifier and payload. The
+firmware keeps fingerprints for the 16 most recent commands: an exact retry is
+acknowledged as a duplicate without executing it again, while a reused or stale
+sequence with different data is rejected. If the MCU restarts, a
+`SESSION_REQUIRED` response makes the GUI establish a new session and resend
+the command automatically.
+
+State-changing commands require physical service access. Press the blue Nucleo
+`B1 USER` button to open a four-minute window, then retry the command. Log
+reads, slot disable/stop, LED off, PWM stop, and built-in-test cancel remain
+available while locked so diagnostics and safe shutdown are always possible.
+The button event and denied commands are recorded in device diagnostics.
+
+This is a deliberate physical access boundary, not cryptographic CAN
+authentication. A production system exposed to hostile bus nodes still needs
+per-device keys and a secured protocol such as authenticated CAN-FD payloads or
+a gateway that enforces authentication.
+
 ## CAN Application and RX Diagnostics
 
 `can_app` owns two `CAN_TxSlot_t` instances and the command dispatcher. Each
@@ -612,6 +651,8 @@ Received frames are classified into exactly one rejection category:
 - Wrong DLC
 - Unknown command
 - Invalid command payload
+- Missing session or replayed sequence
+- State-changing command while service access is locked
 - HAL receive failure
 
 `CAN_App_RxStats_t` stores accepted and rejected counts plus the last reason and
@@ -876,6 +917,8 @@ python tests/host/run_watchdog_tests.py
 For target watchdog timing tests, close the GUI and run the controlled PCAN
 command generator. It sends valid alternating LED commands and drains STM32
 responses so sustained receive processing can be measured without manual input.
+Press `B1 USER` immediately before starting to open the four-minute service
+window required by the LED command.
 
 ```bash
 python python/watchdog_can_stress.py --duration 120 --period-ms 1

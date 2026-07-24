@@ -11,7 +11,10 @@ typedef enum
     CAN_APP_RX_REJECT_DLC,
     CAN_APP_RX_REJECT_UNKNOWN_COMMAND,
     CAN_APP_RX_REJECT_INVALID_PAYLOAD,
-    CAN_APP_RX_REJECT_HAL_ERROR
+    CAN_APP_RX_REJECT_HAL_ERROR,
+    CAN_APP_RX_REJECT_REPLAY,
+    CAN_APP_RX_REJECT_SESSION_REQUIRED,
+    CAN_APP_RX_REJECT_ACCESS_DENIED
 } CAN_App_RxRejectReason_t;
 
 typedef struct
@@ -23,6 +26,12 @@ typedef struct
     uint32_t rejected_dlc;
     uint32_t rejected_unknown_command;
     uint32_t rejected_invalid_payload;
+    uint32_t rejected_replay;
+    uint32_t rejected_session_required;
+    uint32_t rejected_access_denied;
+    uint32_t duplicate_commands;
+    uint32_t command_acks_sent;
+    uint32_t command_ack_tx_failures;
     uint32_t hal_rx_errors;
     CAN_App_RxRejectReason_t last_reject_reason;
     uint8_t last_rejected_command;
@@ -31,6 +40,7 @@ typedef struct
 void CAN_App_Init(void);
 void CAN_App_Process(void);
 void CAN_App_GetRxStats(CAN_App_RxStats_t *stats);
+void CAN_App_RequestControlAccess(void);
 void CAN_Process_Rx_Command(void);
 void CAN_Process_TxSlots(void);
 void CAN_Send_System_Status(void);
