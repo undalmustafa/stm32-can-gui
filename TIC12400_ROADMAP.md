@@ -51,10 +51,12 @@ Official references:
 The first usable release will support:
 
 - One TIC12400-Q1 device.
-- All 24 direct inputs.
+- The 23 fitted direct inputs: IN0 through IN11 and IN13 through IN23.
+- IN12 permanently unavailable because its required carrier-board resistor is
+  not fitted.
 - Comparator mode for ordinary open/closed switches.
 - ADC mode and raw ADC readback for resistor-coded switches.
-- Ground-connected inputs on all channels.
+- Ground-connected inputs on every fitted channel.
 - Battery-connected inputs only on IN0 through IN9.
 - Per-channel enable, input type, measurement mode, wetting current, threshold
   selection, and interrupt-edge configuration.
@@ -140,6 +142,7 @@ Mechanical / resistor-coded switches
 
 - Non-blocking initialization and configuration state machine.
 - Validated configuration model instead of arbitrary register writes.
+- Board capability mask that permanently prevents IN12 from being enabled.
 - Interrupt-pending flag set by EXTI; all SPI work remains in main-loop context.
 - Bounded SPI transaction budget per `Process()` call.
 - Switch, ADC, interrupt, supply, temperature, and fault snapshots.
@@ -171,6 +174,8 @@ Mechanical / resistor-coded switches
 - [ ] Confirm VS, VDD, ground, protection, and decoupling.
 - [ ] Confirm which inputs will use ground switches, battery switches, and
       resistor-coded switches.
+- [ ] Confirm from the carrier schematic that IN12 is not fitted and record it
+      in the board capability mask.
 - [ ] Confirm the provisional SPI3, INT, and RESET pins on the physical board.
 - [ ] Define a safe bench test circuit and maximum applied voltage.
 - [ ] Record the initial per-channel profile and expected switch states.
@@ -213,7 +218,7 @@ results, and bench reads match a logic-analyzer decode.
 
 - [ ] Implement a non-blocking initialization sequence.
 - [ ] Keep `TRIGGER=0` while changing configuration.
-- [ ] Apply a safe default direct-input profile.
+- [ ] Apply a safe default direct-input profile with IN12 always disabled.
 - [ ] Read back critical configuration and calculate/compare configuration CRC.
 - [ ] Start monitoring only after the configuration is verified.
 - [ ] Treat the first completed detection cycle as the baseline state.
@@ -230,8 +235,9 @@ results, and bench reads match a logic-analyzer decode.
       SPI/parity failure, supply/temperature faults, and switch changes selected
       for logging.
 
-Exit criterion: all 24 direct channels update correctly without blocking the
-existing application, and a disconnected/reset TIC12400 recovers predictably.
+Exit criterion: all 23 fitted direct channels update correctly, IN12 remains
+disabled, the existing application is not blocked, and a disconnected/reset
+TIC12400 recovers predictably.
 
 ## Phase 4 - CAN Protocol
 
@@ -249,7 +255,9 @@ Proposed command groups:
 Proposed telemetry groups:
 
 - Device status and health.
-- 24-bit switch-state bitmap plus validity/generation information.
+- 24-bit switch-state bitmap plus an availability mask and
+  validity/generation information. IN12 remains zero and unavailable so the
+  wire layout stays aligned with the TIC12400 register layout.
 - Interrupt/fault summary.
 - Requested channel detail with raw 10-bit ADC value and interpreted state.
 - Configuration/action result.
@@ -283,11 +291,12 @@ Classic CAN transport budget.
 - INT, POR, SPI/parity, supply, temperature, CRC, ADC, and wetting-current
   diagnostic indicators.
 
-### 24-channel grid
+### 24-position channel grid
 
 Each channel shows:
 
 - IN0 through IN23.
+- IN12 shown as `Not fitted`, unavailable, and not configurable.
 - Enabled/disabled.
 - Ground or battery switch type.
 - Comparator or ADC mode.
@@ -300,6 +309,7 @@ Each channel shows:
 ### Configuration
 
 - Select a channel and edit only settings valid for that channel.
+- Reject every configuration request targeting IN12 in both GUI and firmware.
 - Prevent battery-switch selection on IN10 through IN23.
 - Validate dependent/shared thresholds before sending.
 - Show desired, pending, ACKed, and readback-confirmed configuration
@@ -345,8 +355,10 @@ range, and polling-mode latency/current meet documented targets.
 
 ## Phase 7 - Hardware-in-the-Loop and Regression Acceptance
 
-- [ ] Test open/closed transitions on all 24 channels.
-- [ ] Test ground-connected switches on all channels.
+- [ ] Test open/closed transitions on all 23 fitted channels.
+- [ ] Test ground-connected switches on all fitted channels.
+- [ ] Confirm IN12 cannot be enabled through firmware or GUI commands and
+      never sources or sinks wetting current.
 - [ ] Test battery-connected switches only on IN0 through IN9.
 - [ ] Test switch bounce and configured detection filters.
 - [ ] Test simultaneous and rapid multi-channel changes.
@@ -379,5 +391,5 @@ be:
 5. Publish that one channel over CAN.
 6. Display it on a minimal TIC12400 GUI page.
 
-After that path works end to end, expand the same tested architecture to all 24
-channels, ADC profiles, low-power polling, and advanced diagnostics.
+After that path works end to end, expand the same tested architecture to all 23
+fitted channels, ADC profiles, low-power polling, and advanced diagnostics.
