@@ -16,6 +16,7 @@ from can_gui_app.can_app_controller import (  # noqa: E402
 )
 from can_gui_app.protocol import (  # noqa: E402
     CMD_LED_CONTROL,
+    CMD_PWM_SET,
     CMD_SET_SLOT_1,
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
@@ -23,6 +24,8 @@ from can_gui_app.protocol import (  # noqa: E402
     SLOT_FLAG_ENABLE,
     SLOT_FLAG_EXTENDED_ID,
     SYSTEM_STATUS_RX_ID,
+    PWM_STATUS_RX_ID,
+    INPUT_CAPTURE_STATUS_RX_ID,
 )
 
 
@@ -112,6 +115,17 @@ def main():
     expect(controller.led_status[2] == "Command sent",
            "LED state waits for the next system status frame")
 
+    expect(controller.send_pwm_command(10_000, 90),
+           "valid PWM command is accepted")
+    expect(sent_commands[-1] == [
+        CMD_PWM_SET, 0x10, 0x27, 0, 0, 90, 0, 0
+    ], "PWM command encodes frequency little-endian")
+    expect(controller.send_pwm_command(10_000, 90, enabled=False),
+           "PWM stop command is accepted")
+    expect(sent_commands[-1] == [
+        CMD_PWM_SET, 0, 0, 0, 0, 90, 0, 0
+    ], "PWM stop uses the protocol frequency-zero sentinel")
+
     handled = controller.handle_message(FakeMessage(
         SYSTEM_STATUS_RX_ID,
         [0x0B, 0, 0, 0, 0, 0, 0, 0],
@@ -133,6 +147,26 @@ def main():
            "short 0x557 frame does not overwrite the last valid state")
     expect(not controller.handle_message(FakeMessage(0x123, [0] * 8)),
            "unrelated CAN frames remain outside the controller")
+
+    pwm_views = []
+    controller._pwm_status_renderer = lambda **view: pwm_views.append(view)
+    expect(controller.handle_message(FakeMessage(
+        PWM_STATUS_RX_ID, [1, 50, 0x10, 0x27, 0, 0, 0, 0]
+    )), "PWM telemetry is consumed")
+    expect(controller.pwm_status == {
+        "running": True, "frequency_hz": 10_000, "duty_percent": 50
+    }, "PWM telemetry is decoded")
+    expect(controller.handle_message(FakeMessage(
+        INPUT_CAPTURE_STATUS_RX_ID,
+        [1, 49, 0x0F, 0x27, 0, 0, 0x34, 0x12]
+    )), "input capture telemetry is consumed")
+    expect(controller.input_capture_status == {
+        "signal_detected": True,
+        "frequency_hz": 9_999,
+        "duty_percent": 49,
+        "edge_count": 0x1234,
+    }, "input capture telemetry is decoded")
+    expect(len(pwm_views) == 2, "each PWM-related frame refreshes the panel")
 
     print("PASS: GUI CAN app controller slot, LED and system status")
 

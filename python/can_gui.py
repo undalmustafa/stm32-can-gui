@@ -19,6 +19,7 @@ from can_gui_app.protocol import (
 )
 from can_gui_app.rtc_controller import RtcController
 from can_gui_app.rtc_panel import RtcPanel
+from can_gui_app.pwm_panel import PwmPanel
 from can_gui_app.theme import apply_application_theme
 
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox
@@ -40,6 +41,9 @@ class CanGui(QWidget):
             slot_start_requested=self.configure_and_start_slot,
             led_command_requested=self.send_led_command,
         )
+        self.pwm_panel = PwmPanel(
+            command_requested=self.send_pwm_command,
+        )
 
         self.can_connection_panel = CanConnectionPanel(
             connect_requested=self.connect_can,
@@ -48,6 +52,7 @@ class CanGui(QWidget):
         self.can_app_controller = CanAppController(
             command_sender=self.send_can_command,
             status_renderer=self.can_app_panel.render_status,
+            pwm_status_renderer=self.pwm_panel.render_status,
         )
 
         self.rtc_controller = RtcController(
@@ -88,6 +93,7 @@ class CanGui(QWidget):
             event_log_panel=self.event_log_panel,
             can_app_panel=self.can_app_panel,
             rtc_panel=self.rtc_panel,
+            pwm_panel=self.pwm_panel,
         )
         self.setLayout(self.window_view.root_layout)
 
@@ -187,6 +193,15 @@ class CanGui(QWidget):
 
     def send_led_command(self, led_no: int, state: int):
         self.can_app_controller.send_led_command(led_no, state)
+
+    def send_pwm_command(self, frequency_hz, duty_percent, enabled=True):
+        try:
+            return self.can_app_controller.send_pwm_command(
+                frequency_hz, duty_percent, enabled
+            )
+        except ValueError as error:
+            QMessageBox.warning(self, "Invalid PWM Setting", str(error))
+            return False
 
     def handle_application_message(self, msg):
         if self.rtc_controller.handle_message(msg):

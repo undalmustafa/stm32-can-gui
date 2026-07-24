@@ -2,6 +2,7 @@
 
 from .protocol import (
     CMD_LED_CONTROL,
+    CMD_PWM_SET,
     CMD_SET_SLOT_1,
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
@@ -9,6 +10,8 @@ from .protocol import (
     SLOT_FLAG_ENABLE,
     SLOT_FLAG_EXTENDED_ID,
     SYSTEM_STATUS_RX_ID,
+    PWM_STATUS_RX_ID,
+    INPUT_CAPTURE_STATUS_RX_ID,
     parse_can_id,
     u16_to_le,
     u32_to_le,
@@ -23,9 +26,11 @@ class SlotConfigurationError(ValueError):
 
 
 class CanAppController:
-    def __init__(self, command_sender, status_renderer):
+    def __init__(self, command_sender, status_renderer,
+                 pwm_status_renderer=None):
         self._command_sender = command_sender
         self._status_renderer = status_renderer
+        self._pwm_status_renderer = pwm_status_renderer
         self.slot_status = {
             1: {
                 "can_id": "-",
@@ -43,6 +48,15 @@ class CanAppController:
             },
         }
         self.led_status = {1: "OFF", 2: "OFF"}
+        self.pwm_status = {
+            "running": False, "frequency_hz": 0, "duty_percent": 0
+        }
+        self.input_capture_status = {
+            "signal_detected": False,
+            "frequency_hz": 0,
+            "duty_percent": 0,
+            "edge_count": 0,
+        }
 
     def render_status(self):
         self._status_renderer(
@@ -133,7 +147,50 @@ class CanAppController:
         self.render_status()
         return True
 
+    def send_pwm_command(self, frequency_hz, duty_percent, enabled=True):
+        frequency_hz = int(frequency_hz)
+        duty_percent = int(duty_percent)
+        if not 1 <= frequency_hz <= 1_000_000:
+            raise ValueError("PWM frequency must be between 1 Hz and 1 MHz")
+        if not 0 <= duty_percent <= 100:
+            raise ValueError("PWM duty cycle must be between 0 and 100 percent")
+
+        wire_frequency = frequency_hz if enabled else 0
+        return self._command_sender([
+            CMD_PWM_SET, *u32_to_le(wire_frequency), duty_percent, 0, 0
+        ])
+
+    def render_pwm_status(self):
+        if self._pwm_status_renderer is not None:
+            self._pwm_status_renderer(
+                pwm_status=self.pwm_status,
+                input_capture_status=self.input_capture_status,
+            )
+
     def handle_message(self, msg):
+        if msg.arbitration_id == PWM_STATUS_RX_ID:
+            data = list(msg.data)
+            if len(data) >= 6:
+                self.pwm_status = {
+                    "running": bool(data[0]),
+                    "duty_percent": data[1],
+                    "frequency_hz": int.from_bytes(bytes(data[2:6]), "little"),
+                }
+                self.render_pwm_status()
+            return True
+
+        if msg.arbitration_id == INPUT_CAPTURE_STATUS_RX_ID:
+            data = list(msg.data)
+            if len(data) >= 8:
+                self.input_capture_status = {
+                    "signal_detected": bool(data[0]),
+                    "duty_percent": data[1],
+                    "frequency_hz": int.from_bytes(bytes(data[2:6]), "little"),
+                    "edge_count": int.from_bytes(bytes(data[6:8]), "little"),
+                }
+                self.render_pwm_status()
+            return True
+
         if msg.arbitration_id != SYSTEM_STATUS_RX_ID:
             return False
 
