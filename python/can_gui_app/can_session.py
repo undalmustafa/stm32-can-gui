@@ -1,4 +1,4 @@
-"""PCAN connection, command transport and non-blocking receive session."""
+"""Cross-platform CAN connection and non-blocking transport session."""
 
 import time
 
@@ -13,6 +13,7 @@ from .protocol import (
 
 
 CAN_RX_MAX_FRAMES_PER_POLL = 256
+SUPPORTED_CAN_INTERFACES = {"pcan", "socketcan"}
 
 
 class CanCommandResult:
@@ -50,19 +51,26 @@ class CanSession:
         self.rx_budget_hit_count = 0
         self.stm32_rx_count = 0
 
-    def connect(self, channel, bitrate):
+    def connect(self, interface, channel, bitrate):
+        interface = str(interface).strip().lower()
+        channel = str(channel).strip()
+        if interface not in SUPPORTED_CAN_INTERFACES:
+            raise ValueError(f"Unsupported CAN interface: {interface}")
+        if not channel:
+            raise ValueError("CAN channel must not be empty")
+
+        bus_kwargs = {"interface": interface, "channel": channel}
+        if interface == "pcan":
+            bus_kwargs.update({"bitrate": bitrate, "auto_reset": True})
+
         try:
-            bus = self._bus_factory(
-                interface="pcan",
-                channel=channel,
-                bitrate=bitrate,
-                auto_reset=True,
-            )
+            bus = self._bus_factory(**bus_kwargs)
         except Exception:
             self.bus = None
             raise
 
         self.bus = bus
+        self.interface = interface
         self.connected_at = self._clock()
         self.last_can_rx_time = None
         self.last_stm32_rx_time = None
@@ -75,7 +83,12 @@ class CanSession:
             source="CAN",
             severity="INFO",
             event_code="CONNECTED",
-            detail=f"Channel={channel} Bitrate={bitrate} bit/s",
+            detail=(
+                f"Interface={interface} Channel={channel} "
+                f"Bitrate={bitrate} bit/s"
+                + (" (configured by Linux)" if interface == "socketcan"
+                   else "")
+            ),
         )
         return bus
 
@@ -152,7 +165,7 @@ class CanSession:
             source="COMMAND",
             severity="INFO",
             event_code=command_name,
-            detail="GUI command accepted by PCAN transmit API",
+            detail=f"GUI command accepted by {self.interface} transmit API",
             direction="TX",
             can_id=GUI_COMMAND_ID_EXT,
             payload=data,

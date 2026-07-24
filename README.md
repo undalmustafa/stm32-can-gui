@@ -36,7 +36,7 @@ and debugger-friendly diagnostics.
 - 64-entry binary RAM event log with sequence numbers and CRC-16
 - CAN-based STM32 event log synchronization with CRC verification
 - Single-source YAML protocol definition with C and Python code generation
-- PySide6 GUI using `python-can` and PEAK PCAN
+- PySide6 GUI using `python-can` with SocketCAN and PEAK PCAN backends
 - CSV event logging with formula-injection protection
 - Unity-based host C test suite and Python GUI regression tests
 - GitHub Actions CI/CD with automated releases
@@ -68,7 +68,7 @@ callbacks to work.
 
 ```text
 +--------------------------- Desktop PC ----------------------------+
-| PySide6 GUI -> python-can -> PEAK PCAN driver and USB adapter      |
+| PySide6 GUI -> python-can -> SocketCAN or PEAK PCAN adapter       |
 +-------------------------------+-----------------------------------+
                                 | Classic CAN, 500 kbit/s
                                 |
@@ -137,7 +137,7 @@ python/
     __init__.py             Package init
     main_window_view.py     Main window layout and navigation
     can_session.py          CAN bus session lifecycle
-    can_connection_panel.py Connection and channel selection
+    can_connection_panel.py Backend, channel, and bitrate selection
     can_app_controller.py   CAN command dispatch and telemetry
     can_app_panel.py        Slot/LED/system control panel
     can_health.py           CAN health monitoring and indicators
@@ -622,7 +622,7 @@ panels and controllers:
 |---|---|
 | `main_window_view.py` | Main window layout, navigation, and page switching |
 | `can_session.py` | CAN bus session lifecycle management |
-| `can_connection_panel.py` | PCAN channel and bitrate connection UI |
+| `can_connection_panel.py` | CAN backend, channel, and bitrate UI |
 | `can_app_controller.py` | Command dispatch and telemetry decoding |
 | `can_app_panel.py` | Slot configuration, counter, LED, and system control |
 | `can_health.py` | CAN health monitoring, frame rates, and error indicators |
@@ -638,8 +638,8 @@ panels and controllers:
 
 Key features:
 
-- PCAN channel and bitrate connection
-- PCAN controller health monitoring
+- SocketCAN and PCAN channel selection
+- Cross-platform CAN health monitoring
 - Slot configuration and counter start
 - LED control
 - RTC date/time display and update
@@ -654,9 +654,9 @@ Key features:
 - Plain-language CAN, RTC, and log health summaries with technical tooltips
 - Daily CSV event logging with formula-injection protection
 
-The GUI defaults to `PCAN_USBBUS1` at `500000` bit/s. It accepts application
-telemetry only from standard IDs `0x551`, `0x556`, `0x557`, `0x558`, `0x55A`,
-and `0x55B`.
+On Linux the GUI defaults to `socketcan` channel `can0`; on Windows it defaults
+to `pcan` channel `PCAN_USBBUS1`. The nominal bitrate is 500 kbit/s. It accepts
+application telemetry only from the protocol-defined standard identifiers.
 
 ## Build and Run
 
@@ -688,8 +688,24 @@ python -m pip install PySide6 python-can
 python python/can_gui.py
 ```
 
-A PEAK PCAN adapter and its platform driver are required for the configured
-`interface="pcan"` backend.
+The PCAN backend retains support for PEAK hardware and PCAN-Basic, including
+the existing Windows workflow. On Linux, configure a SocketCAN interface before
+starting the GUI:
+
+```bash
+sudo ip link set can0 down
+sudo ip link set can0 type can bitrate 500000 restart-ms 100
+sudo ip link set can0 up
+ip -details -statistics link show can0
+```
+
+Select **SocketCAN (Linux)** and channel `can0` in the connection bar. Linux
+owns the SocketCAN bitrate, so the GUI bitrate field is informational for that
+backend. To stop the interface:
+
+```bash
+sudo ip link set can0 down
+```
 
 On Windows, a launch script is provided:
 

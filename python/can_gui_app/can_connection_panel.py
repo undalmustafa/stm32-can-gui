@@ -1,8 +1,10 @@
 """CAN connection controls and CAN-health status view."""
 
 import re
+import sys
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -16,14 +18,30 @@ from PySide6.QtWidgets import (
 class CanConnectionPanel:
     """Own connection inputs and render transport-health information."""
 
-    def __init__(self, connect_requested):
+    BACKENDS = (
+        ("SocketCAN (Linux)", "socketcan", "can0"),
+        ("PCAN", "pcan", "PCAN_USBBUS1"),
+    )
+
+    def __init__(self, connect_requested, platform=None):
         self._connect_requested = connect_requested
+        self._platform = platform or sys.platform
         self.configuration_group = self._build_configuration_group()
         self.health_widget = self._build_health_widget()
 
     def _build_configuration_group(self):
+        self.interface_input = QComboBox()
+        for label, interface, _channel in self.BACKENDS:
+            self.interface_input.addItem(label, interface)
+        default_interface = (
+            "socketcan" if self._platform.startswith("linux") else "pcan"
+        )
+        self.interface_input.setCurrentIndex(
+            self.interface_input.findData(default_interface)
+        )
+
         self.channel_input = QLineEdit()
-        self.channel_input.setText("PCAN_USBBUS1")
+        self.channel_input.setText(self._default_channel(default_interface))
         self.channel_input.setMinimumWidth(150)
 
         self.bitrate_input = QSpinBox()
@@ -41,6 +59,9 @@ class CanConnectionPanel:
 
         group = QGroupBox("CAN Connection")
         layout = QHBoxLayout()
+        layout.addWidget(QLabel("Backend"))
+        layout.addWidget(self.interface_input, 1)
+        layout.addSpacing(8)
         layout.addWidget(QLabel("Channel"))
         layout.addWidget(self.channel_input, 2)
         layout.addSpacing(8)
@@ -53,7 +74,21 @@ class CanConnectionPanel:
         group.setLayout(layout)
 
         self.connect_button.clicked.connect(self.request_connect)
+        self.interface_input.currentIndexChanged.connect(
+            self._interface_changed
+        )
         return group
+
+    def _default_channel(self, interface):
+        for _label, item_interface, channel in self.BACKENDS:
+            if item_interface == interface:
+                return channel
+        return ""
+
+    def _interface_changed(self, _index):
+        self.channel_input.setText(
+            self._default_channel(self.interface_input.currentData())
+        )
 
     def _build_health_widget(self):
         widget = QWidget()
@@ -117,8 +152,8 @@ class CanConnectionPanel:
             "ERROR_PASSIVE": "CAN error rate is high",
             "BUS_HEAVY": "CAN bus has communication errors",
             "ERROR_WARNING": "CAN communication is becoming unstable",
-            "DRIVER_WARNING": "PCAN adapter reports a warning",
-            "STATUS_EXCEPTION": "Could not read PCAN adapter status",
+            "DRIVER_WARNING": "CAN interface reports a warning",
+            "STATUS_EXCEPTION": "Could not read CAN interface status",
             "CONNECT_FAILED": "Could not connect to the CAN adapter",
             "DISCONNECTED": "CAN adapter is not connected",
         }
@@ -126,6 +161,7 @@ class CanConnectionPanel:
 
     def get_connection_request(self):
         return {
+            "interface": self.interface_input.currentData(),
             "channel": self.channel_input.text().strip(),
             "bitrate": self.bitrate_input.value(),
         }
@@ -133,9 +169,9 @@ class CanConnectionPanel:
     def request_connect(self):
         self._connect_requested(**self.get_connection_request())
 
-    def show_connected(self, channel, bitrate):
+    def show_connected(self, interface, channel, bitrate):
         self.connection_status_label.setText(
-            f"Connected: {channel}, {bitrate} bit/s"
+            f"Connected: {interface}/{channel}, {bitrate} bit/s"
         )
         self.connection_status_label.setStyleSheet(
             "color: #168018; font-weight: bold;"
@@ -178,7 +214,7 @@ class CanConnectionPanel:
             f"Detail: {detail}\n"
             f"{tooltip}\n"
             f"RX poll budget hits: {rx_budget_hit_count}\n"
-            f"PCAN error frames: {error_frame_count}"
+            f"CAN error frames: {error_frame_count}"
         )
         self.health_widget.setToolTip(technical_tooltip)
         self.health_label.setToolTip(technical_tooltip)

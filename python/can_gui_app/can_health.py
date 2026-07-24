@@ -1,4 +1,4 @@
-"""PCAN driver and STM32 application-traffic health state machine."""
+"""CAN driver and STM32 application-traffic health state machine."""
 
 import time
 

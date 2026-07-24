@@ -132,18 +132,20 @@ class CanGui(QWidget):
             payload=payload,
         )
 
-    def connect_can(self, channel, bitrate):
+    def connect_can(self, interface, channel, bitrate):
         try:
-            self.can_session.connect(channel, bitrate)
+            self.can_session.connect(interface, channel, bitrate)
 
-            self.can_connection_panel.show_connected(channel, bitrate)
+            self.can_connection_panel.show_connected(
+                interface, channel, bitrate
+            )
             self.can_health.reset_connection_state()
             self.event_log_panel.reset_sync()
 
             self.set_can_health(
                 "WARN",
                 "WAIT_RX",
-                "PCAN connected; waiting for STM32 application frames"
+                f"{interface}/{channel} connected; waiting for STM32 frames"
             )
 
         except Exception as e:

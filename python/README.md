@@ -1,6 +1,6 @@
 # STM32 CAN GUI
 
-STM32H7 tabanlı CAN/RTC uygulamasını PCAN üzerinden yapılandıran,
+STM32H7 tabanlı CAN/RTC uygulamasını SocketCAN veya PCAN üzerinden yapılandıran,
 izleyen ve olay kayıtlarını bilgisayara aktaran PySide6 masaüstü
 uygulamasıdır.
 
@@ -21,9 +21,17 @@ py can_gui.py
 
 Sonraki çalıştırmalarda `run_gui.bat` dosyası da kullanılabilir.
 
-PCAN adaptörünün Windows sürücüsü/PCAN-Basic bileşeni sistemde kurulu
-olmalıdır. Varsayılan kanal `PCAN_USBBUS1`, varsayılan bitrate
-`500000 bit/s`'dir.
+Windows'ta PCAN adaptörünün sürücüsü/PCAN-Basic bileşeni kurulu olmalıdır.
+Varsayılan backend Windows'ta `pcan/PCAN_USBBUS1`, Linux'ta
+`socketcan/can0`'dır. Varsayılan bitrate `500000 bit/s`'dir.
+
+Linux'ta GUI'yi açmadan önce SocketCAN arabirimini yapılandırın:
+
+```bash
+sudo ip link set can0 down
+sudo ip link set can0 type can bitrate 500000 restart-ms 100
+sudo ip link set can0 up
+```
 
 > `can_gui.py` tek başına kopyalanmamalıdır. `can_gui_app` klasörü aynı
 > dizinde tutulmalıdır.
@@ -45,7 +53,7 @@ stm32_can_gui_final/
 |---|---|
 | `can_gui.py` | Uygulama composition root'u, hata mesajları ve controller bağlantıları |
 | `protocol.py` | CAN ID, komut, durum ve payload sabitleri |
-| `can_session.py` | PCAN bağlantısı, TX/RX ve taşıma sayaçları |
+| `can_session.py` | SocketCAN/PCAN bağlantısı, TX/RX ve taşıma sayaçları |
 | `can_health.py` | CAN health durum makinesi, BUS_HEAVY/BUS_OFF izleme ve log tekrar bastırma |
 | `can_connection_panel.py` | Kanal/bitrate formu ve CAN Health görünümü |
 | `can_app_controller.py` | Slot/LED komutları ve STM32 uygulama durum mesajları |

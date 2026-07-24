@@ -97,7 +97,7 @@ def main():
         create_session(session_type, bus, clock)
     )
 
-    session.connect("PCAN_USBBUS1", 500000)
+    session.connect("pcan", "PCAN_USBBUS1", 500000)
     expect(session.bus is bus, "connected PCAN bus is retained")
     expect(factory_calls[-1] == {
         "interface": "pcan",
@@ -109,6 +109,18 @@ def main():
            "successful connection is logged")
     expect(session.get_health_metrics()["connected_at"] == 100.0,
            "connection time initializes health metrics")
+
+    socket_bus = FakeBus()
+    socket_session, socket_events, _, _, _, socket_factory_calls = (
+        create_session(session_type, socket_bus, clock)
+    )
+    socket_session.connect("socketcan", "can0", 500000)
+    expect(socket_factory_calls[-1] == {
+        "interface": "socketcan",
+        "channel": "can0",
+    }, "SocketCAN relies on the Linux interface bitrate configuration")
+    expect("configured by Linux" in socket_events[-1]["detail"],
+           "SocketCAN connection log explains bitrate ownership")
 
     command = [0x10, 2, 1, 0, 0, 0, 0, 0]
     result = session.send_command(command)
@@ -167,7 +179,7 @@ def main():
     budget_session, _, budget_frames, _, _, _ = create_session(
         session_type, budget_bus, clock, max_frames=2
     )
-    budget_session.connect("PCAN_USBBUS1", 500000)
+    budget_session.connect("pcan", "PCAN_USBBUS1", 500000)
     budget_bus.rx_items.extend([
         FakeMessage(rtc_time_id, data=[0] * 8),
         FakeMessage(rtc_time_id, data=[0] * 8),
