@@ -55,6 +55,12 @@ identifiers:
     direction: mcu_to_gui
     description: "RTC alarm event notification"
 
+  pwm_status:
+    id: 0x055C
+    type: standard
+    direction: mcu_to_gui
+    description: "PWM output status"
+
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)
 # ---------------------------------------------------------------------------
@@ -90,6 +96,10 @@ commands:
   rtc_set_alarm:
     code: 0x22
     description: "Set RTC alarm configuration"
+
+  pwm_set:
+    code: 0x40
+    description: "Set PWM output frequency and duty cycle"
 
 # ---------------------------------------------------------------------------
 # RTC Status Codes (byte 0 of 0x551 telemetry)
