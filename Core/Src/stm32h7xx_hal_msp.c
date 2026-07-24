@@ -270,8 +270,6 @@ void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
     GPIO_InitStruct.Alternate = GPIO_AF2_TIM3;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    HAL_NVIC_SetPriority(TIM3_IRQn, 1, 0);
-    HAL_NVIC_EnableIRQ(TIM3_IRQn);
   }
 
 }
@@ -325,7 +323,6 @@ void HAL_TIM_Base_MspDeInit(TIM_HandleTypeDef* htim_base)
   {
     __HAL_RCC_TIM3_CLK_DISABLE();
     HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6);
-    HAL_NVIC_DisableIRQ(TIM3_IRQn);
   }
 
 }

@@ -104,9 +104,9 @@ class PwmPanel:
             ("Signal Status", self.capture_state),
             ("Frequency", self.capture_frequency),
             ("Duty Cycle", self.capture_duty),
-            ("Edge Count (low 16 bits)", self.capture_edges),
+            ("Estimated Edges (low 16 bits)", self.capture_edges),
             ("Input Pin", QLabel("PA6 (TIM3 CH1)")),
-            ("Range", QLabel("15 Hz – 500 kHz")),
+            ("Range", QLabel("16 Hz – 500 kHz")),
         )
         for row, (name, value) in enumerate(values):
             layout.addWidget(QLabel(name), row, 0)

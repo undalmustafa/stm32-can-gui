@@ -513,16 +513,6 @@ static void MX_TIM3_Init(void)
   }
 }
 
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-  Input_Capture_IRQHandler(htim);
-}
-
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-  Input_Capture_OverflowHandler(htim);
-}
-
 /**
   * @brief GPIO Initialization Function
   * @param None

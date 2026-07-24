@@ -155,7 +155,7 @@ pwm_status:
 | CH2 | Indirect input, falling edge → captures **pulse width** |
 | Slave mode | Reset on CH1 rising edge (auto-clears counter) |
 | Clock | 1 MHz (prescaler = 63 from 64 MHz APB1) |
-| Measurable range | ~15 Hz to 500 kHz (16-bit counter at 1 MHz) |
+| Measurable range | ~16 Hz to 500 kHz (16-bit counter at 1 MHz) |
 
 ### 3.2 Firmware Module
 
@@ -168,21 +168,21 @@ typedef struct {
     uint8_t  duty_percent;      // measured duty cycle
     uint32_t period_ticks;      // raw period capture (CCR1)
     uint32_t pulse_ticks;       // raw pulse capture (CCR2)
-    uint32_t edge_count;        // total rising edges counted
-    uint32_t overflow_count;    // timer overflows (signal lost)
+    uint32_t edge_count;        // estimated rising-edge count
+    uint32_t overflow_count;    // signal-loss transitions
     uint32_t counter_clock_hz;  // capture timer clock
 } Input_Capture_State_t;
 
 Input_Capture_Result_t Input_Capture_Init(TIM_HandleTypeDef *htim, uint32_t counter_clock_hz);
 Input_Capture_State_t  Input_Capture_GetState(void);
-void Input_Capture_IRQHandler(TIM_HandleTypeDef *htim);  // called from HAL callback
+void Input_Capture_Process(void);  // called from the application main loop
 ```
 
 **Key implementation notes:**
-- ISR captures `CCR1` (period) and `CCR2` (pulse) on each rising edge
+- Main-loop service samples hardware-updated `CCR1` (period) and `CCR2` (pulse)
 - Frequency = `counter_clock_hz / CCR1`
 - Duty = `(CCR2 * 100) / CCR1`
-- Timer overflow interrupt detects signal loss (no edges for a full counter period)
+- A 150 ms last-capture timeout detects signal loss without per-edge interrupts
 - `Input_Capture_GetState()` returns a snapshot for main-loop telemetry
 
 ### 3.3 CubeMX Changes
@@ -190,7 +190,7 @@ void Input_Capture_IRQHandler(TIM_HandleTypeDef *htim);  // called from HAL call
 - Enable TIM3 in CubeMX (`can_gui.ioc`)
 - Configure TIM3 CH1 as Input Capture Direct, CH2 as Input Capture Indirect
 - Set prescaler to 63 (1 MHz counter clock)
-- Enable TIM3 global interrupt in NVIC
+- Leave TIM3 global interrupt disabled; capture registers are polled
 - Map PA6 to TIM3_CH1
 
 ### 3.4 Protocol Extension
@@ -207,14 +207,14 @@ input_capture_status:
   # Byte 0: signal_detected (0/1)
   # Byte 1: duty_percent (0..100)
   # Bytes 2-5: frequency_hz, uint32 LE
-  # Bytes 6-7: edge_count low 16 bits, uint16 LE
+  # Bytes 6-7: estimated edge_count low 16 bits, uint16 LE
 ```
 
 ### 3.5 Deliverables
 
 - [x] `input_capture.c/h` driver using TIM3 PWM Input Mode
 - [x] CubeMX TIM3 configuration on PA6
-- [x] ISR-based period/pulse capture with signal-loss detection
+- [x] Polled period/pulse capture with signal-loss detection
 - [x] Telemetry on `0x055D` published periodically
 - [x] Protocol YAML updated and regenerated
 
@@ -235,7 +235,7 @@ input_capture_status:
 │  Edge Count:       1,247,832                           │
 │  Input Pin:        PA6 (TIM3 CH1)                      │
 │                                                        │
-│  Measurable Range: 15 Hz – 500 kHz                     │
+│  Measurable Range: 16 Hz – 500 kHz                     │
 │                                                        │
 │  ┌─ Signal Indicator ─────────────────────────────┐   │
 │  │  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │   │

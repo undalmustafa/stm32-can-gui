@@ -474,6 +474,7 @@ void CAN_App_Process(void)
     /* Uygulama servisleri yeni mesajlar üretebilir. */
     CAN_Process_Rx_Command();
     RTC_Process();
+    Input_Capture_Process();
     App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
     System_Status_Process();
     App_Log_Can_Process();

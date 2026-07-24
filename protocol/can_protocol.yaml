@@ -65,7 +65,7 @@ identifiers:
     id: 0x055D
     type: standard
     direction: mcu_to_gui
-    description: "Input capture measurement"
+    description: "Input capture measurement with estimated edge count"
 
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)

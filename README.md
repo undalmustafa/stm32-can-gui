@@ -266,8 +266,10 @@ actions.
 TIM3 measures an external PWM signal on PA6 with a 1 MHz counter. Channel 1
 captures the rising-edge period and Channel 2 captures high-pulse width; the
 firmware publishes signal state, frequency, duty cycle, and the low 16 bits of
-the edge counter on CAN ID `0x055D`. With a 16-bit timer, the practical
-measurement range is approximately 15 Hz–500 kHz.
+an estimated edge count on CAN ID `0x055D`. The main loop samples hardware
+capture registers rather than servicing every edge in an ISR, keeping the
+application responsive at high input frequencies. With a 16-bit timer, the
+practical measurement range is approximately 16 Hz–500 kHz.
 
 For a closed-loop check, connect the pins with one jumper:
 

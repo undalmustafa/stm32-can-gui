@@ -28,7 +28,6 @@ Input_Capture_Result_t Input_Capture_Init(
     TIM_HandleTypeDef *htim,
     uint32_t counter_clock_hz);
 Input_Capture_State_t Input_Capture_GetState(void);
-void Input_Capture_IRQHandler(TIM_HandleTypeDef *htim);
-void Input_Capture_OverflowHandler(TIM_HandleTypeDef *htim);
+void Input_Capture_Process(void);
 
 #endif /* INPUT_CAPTURE_H */
