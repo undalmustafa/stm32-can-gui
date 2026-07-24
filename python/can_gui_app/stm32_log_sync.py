@@ -32,7 +32,7 @@ from .protocol import (
 STM32_LOG_INFO_RETRY_DELAY_S = 0.5
 STM32_LOG_REQUEST_TIMEOUT_S = 1.0
 STM32_LOG_MAX_RECORD_RETRIES = 3
-STM32_LOG_HEARTBEAT_TIMEOUT_S = 0.35
+STM32_LOG_HEARTBEAT_TIMEOUT_S = 1.0
 
 STM32_EVENT_LOG_HEADERS = (
     "host_time_iso",
@@ -312,6 +312,11 @@ class Stm32LogSync:
                     self.info_required = True
                 self.next_info_time = now + STM32_LOG_INFO_RETRY_DELAY_S
                 self._notify()
+            return
+
+        if (not self.heartbeat_ready or
+                self.last_heartbeat_time is None or
+                self.heartbeat_timeout_active):
             return
 
         if self.info_required:

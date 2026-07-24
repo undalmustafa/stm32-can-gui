@@ -125,6 +125,8 @@ def expect(condition, description):
 
 def main():
     module = load_gui_module()
+    clock = [100.0]
+    module.time.monotonic = lambda: clock[0]
 
     with tempfile.TemporaryDirectory() as temp_directory:
         sync, bus, status_changes, observed_records = create_sync(
@@ -132,7 +134,29 @@ def main():
         )
 
         sync.process()
-        expect(len(bus.sent) == 1, "GUI sends log-info request")
+        expect(len(bus.sent) == 0,
+               "GUI does not send log commands before an MCU heartbeat")
+        clock[0] += module.STM32_LOG_HEARTBEAT_TIMEOUT_S + 0.1
+        sync.process()
+        sync.process()
+        expect(len(bus.sent) == 0,
+               "missing heartbeat never starts command retries")
+        expect(sync.heartbeat_timeout_count == 1,
+               "missing heartbeat timeout is counted only once")
+
+        sync.handle_message(FakeMessage(
+            arbitration_id=module.STM32_LOG_HEARTBEAT_RX_ID,
+            data=bytes([
+                module.STM32_LOG_PROTOCOL_VERSION,
+                module.STM32_LOG_HEARTBEAT_FLAG_READY,
+                1, 0, 0, 0,
+                1,
+                1,
+            ]),
+        ))
+        sync.process()
+        expect(len(bus.sent) == 1,
+               "ready heartbeat enables the log-info request")
         expect(bytes(bus.sent[0].data) == bytes([0x30, 0, 0, 0, 0, 0, 0, 0]),
                "log-info command payload")
 
@@ -185,6 +209,17 @@ def main():
                "validated records are published to the recent-event view")
         expect(observed_records[0]["event_name"] == "SYSTEM_BOOT",
                "published records include the decoded event name")
+
+        sent_before_stale_heartbeat = len(bus.sent)
+        sync.info_required = True
+        sync.next_info_time = clock[0]
+        clock[0] += module.STM32_LOG_HEARTBEAT_TIMEOUT_S + 0.1
+        sync.process()
+        sync.process()
+        expect(sync.heartbeat_timeout_active,
+               "stale heartbeat is reported")
+        expect(len(bus.sent) == sent_before_stale_heartbeat,
+               "stale heartbeat suppresses new log requests")
 
         log_files = list(Path(temp_directory).glob("stm32_events_*.csv"))
         expect(len(log_files) == 1, "separate STM32 CSV file is created")

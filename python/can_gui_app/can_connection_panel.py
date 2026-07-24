@@ -147,6 +147,8 @@ class CanConnectionPanel:
             "ACTIVE": "Receiving data from STM32",
             "RECOVERED_BUS_OFF": "CAN bus recovered",
             "WAIT_RX": "Waiting for STM32 data",
+            "STM32_RX_STALE": "STM32 data is delayed",
+            "STM32_RX_RECOVERING": "STM32 traffic is recovering",
             "STM32_RX_TIMEOUT": "STM32 stopped sending data",
             "BUS_OFF": "CAN bus is offline",
             "ERROR_PASSIVE": "CAN error rate is high",

@@ -17,7 +17,9 @@ except ImportError:
     PCAN_ERROR_BUSPASSIVE = 0x40000
 
 
-STM32_RX_TIMEOUT_S = 1.5
+STM32_RX_STALE_S = 2.0
+STM32_RX_TIMEOUT_S = 5.0
+STM32_RX_RECOVERY_MIN_FRAMES = 3
 PCAN_RECOVERY_RESET_DELAY_S = 0.5
 PCAN_RECOVERY_MIN_STM32_FRAMES = 3
 
@@ -44,6 +46,8 @@ class CanHealthMonitor:
         self.reset_stm32_rx_count = 0
         self.reset_error_frame_count = 0
         self.latched_driver_status_recovered = False
+        self.stm32_rx_degraded = False
+        self.stm32_recovery_rx_count = 0
 
     @property
     def bus(self):
@@ -58,6 +62,8 @@ class CanHealthMonitor:
         self.error_frame_count = 0
         self.active_issue = None
         self.last_logged_state = None
+        self.stm32_rx_degraded = False
+        self.stm32_recovery_rx_count = 0
         self.clear_recovery_state()
 
     def set_health(self, severity, code, detail, tooltip=None):
@@ -131,7 +137,7 @@ class CanHealthMonitor:
         last_stm32_rx_time = metrics["last_stm32_rx_time"]
         recent_stm32_rx = (
             last_stm32_rx_time is not None
-            and (now - last_stm32_rx_time) < STM32_RX_TIMEOUT_S
+            and (now - last_stm32_rx_time) < STM32_RX_STALE_S
         )
         recovered_frame_count = (
             metrics["stm32_rx_count"] - self.warning_stm32_rx_count
@@ -197,7 +203,7 @@ class CanHealthMonitor:
         last_stm32_rx_time = metrics["last_stm32_rx_time"]
         recent_stm32_rx = (
             last_stm32_rx_time is not None
-            and (now - last_stm32_rx_time) < STM32_RX_TIMEOUT_S
+            and (now - last_stm32_rx_time) < STM32_RX_STALE_S
         )
 
         if self.latched_driver_status_recovered:
@@ -369,9 +375,16 @@ class CanHealthMonitor:
 
         if metrics["last_stm32_rx_time"] is None:
             if rx_age >= STM32_RX_TIMEOUT_S:
+                self.stm32_rx_degraded = True
                 self.set_health(
                     "FAULT", "STM32_RX_TIMEOUT",
                     f"MODE={mode_name}; no application frame for {rx_age:.1f} s",
+                )
+            elif rx_age >= STM32_RX_STALE_S:
+                self.stm32_rx_degraded = True
+                self.set_health(
+                    "WARN", "STM32_RX_STALE",
+                    f"MODE={mode_name}; still waiting after {rx_age:.1f} s",
                 )
             else:
                 self.set_health(
@@ -381,11 +394,41 @@ class CanHealthMonitor:
             return
 
         if rx_age >= STM32_RX_TIMEOUT_S:
+            self.stm32_rx_degraded = True
+            self.stm32_recovery_rx_count = metrics["stm32_rx_count"]
             self.set_health(
                 "FAULT", "STM32_RX_TIMEOUT",
                 f"MODE={mode_name}; last application RX {rx_age:.1f} s ago",
             )
             return
+
+        if rx_age >= STM32_RX_STALE_S:
+            if not self.stm32_rx_degraded:
+                self.stm32_recovery_rx_count = metrics["stm32_rx_count"]
+            self.stm32_rx_degraded = True
+            self.set_health(
+                "WARN", "STM32_RX_STALE",
+                f"MODE={mode_name}; last application RX {rx_age:.1f} s ago",
+            )
+            return
+
+        if self.stm32_rx_degraded:
+            recovered_frames = (
+                metrics["stm32_rx_count"] -
+                self.stm32_recovery_rx_count
+            )
+            if recovered_frames < STM32_RX_RECOVERY_MIN_FRAMES:
+                self.set_health(
+                    "WARN",
+                    "STM32_RX_RECOVERING",
+                    (
+                        f"MODE={mode_name}; recovery frames "
+                        f"{recovered_frames}/"
+                        f"{STM32_RX_RECOVERY_MIN_FRAMES}"
+                    ),
+                )
+                return
+            self.stm32_rx_degraded = False
 
         self.set_health(
             "OK", mode_name, f"STM32_RX_AGE={rx_age * 1000.0:.0f} ms"

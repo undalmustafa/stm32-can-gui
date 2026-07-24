@@ -84,6 +84,36 @@ def main():
     monitor.monitor()
     expect(len(events) == 1, "unchanged health state is not logged again")
 
+    metrics["last_stm32_rx_time"] = 97.9
+    clock[0] = 100.0
+    monitor.monitor()
+    expect(views[-1]["severity"] == "WARN",
+           "a short application-frame gap is a warning")
+    expect(views[-1]["code"] == "STM32_RX_STALE",
+           "short frame gap uses the stale state")
+
+    metrics["stm32_rx_count"] = 11
+    metrics["rx_count"] = 11
+    metrics["last_stm32_rx_time"] = 100.1
+    clock[0] = 100.2
+    monitor.monitor()
+    expect(views[-1]["code"] == "STM32_RX_RECOVERING",
+           "one isolated frame does not clear a stale state")
+
+    metrics["stm32_rx_count"] = 13
+    metrics["rx_count"] = 13
+    metrics["last_stm32_rx_time"] = 100.4
+    clock[0] = 100.5
+    monitor.monitor()
+    expect(views[-1]["severity"] == "OK",
+           "three recovery frames restore healthy state")
+
+    metrics["last_stm32_rx_time"] = 100.4
+    clock[0] = 105.5
+    monitor.monitor()
+    expect(views[-1]["code"] == "STM32_RX_TIMEOUT",
+           "five seconds without traffic is a fault")
+
     sticky_bus = FakeBus(raw_status=0x00000008)
     metrics.update({
         "last_stm32_rx_time": 199.9,
