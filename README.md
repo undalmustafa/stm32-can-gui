@@ -3,8 +3,12 @@
 This project is an embedded control and observability system for the
 **NUCLEO-H7A3ZI-Q**. An STM32H7A3 firmware application communicates with a
 Python/PySide6 desktop GUI over Classic CAN, drives configurable cyclic CAN
-traffic, controls board LEDs, accesses a PCA2131 real-time clock over I2C, and
-reports RTC, alarm, CAN, and system health.
+traffic, controls board LEDs, generates a configurable PWM output, accesses a
+PCA2131 real-time clock over I2C, and reports RTC, alarm, CAN, and system
+health.
+
+The protocol layer is generated from a single YAML schema so firmware and GUI
+always share identical constants, identifiers, and status definitions.
 
 The current implementation emphasizes bounded memory, non-blocking state
 machines, explicit wire formats, congestion-aware CAN delivery, fault recovery,
@@ -16,6 +20,7 @@ and debugger-friendly diagnostics.
 - Standard 11-bit and extended 29-bit slot identifiers
 - Configurable cycle time and continuously wrapping 32-bit counters
 - Remote control of two board LEDs
+- Configurable PWM output with runtime frequency and duty-cycle adjustment
 - PCA2131 date/time read and verified write operations
 - PCA2131 alarm configuration with selective comparison fields
 - Alarm status polling, one-shot event reporting, and flag clearing
@@ -29,7 +34,12 @@ and debugger-friendly diagnostics.
 - Boot-time reset-cause capture including independent watchdog resets
 - CRC-protected watchdog failure evidence retained across system resets
 - 64-entry binary RAM event log with sequence numbers and CRC-16
+- CAN-based STM32 event log synchronization with CRC verification
+- Single-source YAML protocol definition with C and Python code generation
 - PySide6 GUI using `python-can` and PEAK PCAN
+- CSV event logging with formula-injection protection
+- Unity-based host C test suite and Python GUI regression tests
+- GitHub Actions CI/CD with automated releases
 
 ## Hardware and Configuration
 
@@ -46,6 +56,9 @@ and debugger-friendly diagnostics.
 | Software TX queue | 16 frames |
 | RTC | PCA2131 at 7-bit I2C address `0x53` |
 | I2C peripheral | I2C1, PB8 SCL and PB9 SDA |
+| PWM timer | TIM2 Channel 1, 1 MHz counter clock |
+| PWM default | 10 kHz, 90% duty cycle |
+| Watchdog | IWDG1, LSI/32 prescaler, ~1000 ms timeout |
 
 Automatic CAN retransmission is enabled. The FDCAN1 interrupt must remain
 enabled and must call `HAL_FDCAN_IRQHandler()` for error and TX-complete
@@ -72,18 +85,35 @@ callbacks to work.
 |   +-> can_recovery        bus-off restart and verification         |
 |   +-> app_diagnostics     periodic RX/TX health snapshot           |
 |   +-> app_log             binary event ring buffer                 |
+|   +-> pwm_control         TIM2 frequency and duty-cycle driver     |
 |                                                                    |
-| STM32 HAL -> FDCAN/I2C/GPIO registers -> transceiver/RTC/LEDs      |
+| watchdog             low-level IWDG1 init, refresh, reset detect   |
+| app_watchdog         health-gated refresh policy and evidence      |
+| app_reset_reason     boot-time RCC reset-cause capture             |
+|                                                                    |
+| STM32 HAL -> FDCAN/I2C/TIM/GPIO -> transceiver/RTC/PWM/LEDs       |
++--------------------------------------------------------------------+
+
++--------------------------- Protocol ------------------------------+
+| protocol/can_protocol.yaml   single-source schema                  |
+|   +-> generate_c.py          -> Core/Inc/can_protocol_generated.h  |
+|   +-> generate_python.py     -> python/can_protocol_generated.py   |
 +--------------------------------------------------------------------+
 ```
 
 ## Repository Structure
 
 ```text
+protocol/
+  can_protocol.yaml         Single-source protocol schema
+  generate_c.py             C header code generator
+  generate_python.py        Python module code generator
+
 Core/Startup/               Cortex-M7 reset handler and vector table
 Core/Src/main.c             Hardware startup and application entry
 Core/Inc|Src/can_app.*      CAN application and RX validation
 Core/Inc|Src/can_protocol.* CAN identifiers and payload codecs
+Core/Inc/can_protocol_generated.h  Auto-generated protocol constants
 Core/Inc|Src/can_transport.* Congestion-aware transmit layer
 Core/Inc|Src/can_recovery.* FDCAN error callbacks and recovery
 Core/Inc|Src/pca2131.*      PCA2131 register driver
@@ -93,11 +123,79 @@ Core/Inc|Src/app_diagnostics.* Aggregated runtime diagnostics
 Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
 Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
+Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
+Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
-python/can_gui.py           Desktop control and monitoring GUI
+
+python/
+  can_gui.py                Desktop application entry point
+  can_protocol_generated.py Auto-generated protocol constants
+  requirements.txt          PySide6 and python-can
+  run_gui.bat               Windows launch script
+  can_gui_app/
+    __init__.py             Package init
+    main_window_view.py     Main window layout and navigation
+    can_session.py          CAN bus session lifecycle
+    can_connection_panel.py Connection and channel selection
+    can_app_controller.py   CAN command dispatch and telemetry
+    can_app_panel.py        Slot/LED/system control panel
+    can_health.py           CAN health monitoring and indicators
+    rtc_controller.py       RTC and alarm state management
+    rtc_panel.py            RTC date/time and alarm UI
+    event_log_panel.py      GUI event log and STM32 log display
+    csv_event_logger.py     Daily CSV event logging
+    stm32_log_sync.py       CAN-based MCU event log synchronization
+    slot_widget.py          Reusable slot configuration widget
+    application_timers.py   Periodic timer management
+    protocol.py             Protocol helpers and definitions
+    theme.py                UI theme and styling constants
+  tests/
+    test_gui_*.py           12 automated GUI regression tests
+
+tests/
+  CMakeLists.txt            CMake build for Unity C tests
+  Makefile                  Make build for Unity C tests
+  test_can_protocol.c       Protocol encoding/decoding tests
+  test_can_transport.c      TX queue policy tests
+  test_pca2131_validation.c Calendar and alarm validation tests
+  stubs/                    HAL stubs for host compilation
+  unity/                    Unity test framework
+
+docs/
+  WATCHDOG_ROADMAP.md       Watchdog validation plan and results
+
+.github/
+  workflows/ci.yml          CI: watchdog tests, firmware build, GUI tests
+  workflows/release.yml     CD: tagged release with artifacts
+  dependabot.yml            Monthly dependency monitoring
+
 can_gui.ioc                 STM32CubeMX configuration
+Makefile                    GNU Make firmware build
 ```
+
+## Protocol Code Generator
+
+The `protocol/can_protocol.yaml` schema is the single source of truth for all
+CAN identifiers, command codes, status codes, bit flags, and field definitions.
+Two generators consume this schema:
+
+- `generate_c.py` produces `Core/Inc/can_protocol_generated.h` with C macros
+  and enums (`CAN_Protocol_Command_t`, `CAN_Protocol_RtcStatusCode_t`,
+  `CAN_Protocol_RtcAlarmEventCode_t`)
+- `generate_python.py` produces `python/can_protocol_generated.py` with Python
+  constants, dictionaries (`RTC_STATUS_DEFINITIONS`), and sets
+  (`RTC_COMMUNICATION_FAULT_CODES`)
+
+To regenerate after editing the schema:
+
+```bash
+python protocol/generate_c.py
+python protocol/generate_python.py
+```
+
+Both generated files are committed to the repository so the project builds
+without running the generators.
 
 ## Startup and Runtime
 
@@ -108,14 +206,15 @@ runtime, `main()` performs:
 2. HAL and SysTick initialization
 3. RCC reset-cause and retained watchdog-evidence capture
 4. 64 MHz clock-tree configuration
-5. GPIO, FDCAN1, I2C1, and IWDG1 hardware initialization
-6. RAM event-log initialization and `SYSTEM_BOOT` record creation
-7. CAN application, transport, filter, notification, and diagnostics setup
-8. Non-blocking PCA2131 initialization scheduling
-9. Initial system-status publication
-10. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
-11. Board LED, push-button, and COM initialization
-12. Entry into the cooperative superloop
+5. GPIO, FDCAN1, I2C1, TIM2, and IWDG1 hardware initialization
+6. PWM output initialization (TIM2 Channel 1 at 1 MHz, default 10 kHz/90%)
+7. RAM event-log initialization and `SYSTEM_BOOT` record creation
+8. CAN application, transport, filter, notification, and diagnostics setup
+9. Non-blocking PCA2131 initialization scheduling
+10. Initial system-status publication
+11. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
+12. Board LED, push-button, and COM initialization
+13. Entry into the cooperative superloop
 
 The main loop repeatedly calls `CAN_App_Process()`:
 
@@ -130,16 +229,40 @@ CAN_Transport_Process()
 App_Diagnostics_Process()
 ```
 
+After each application cycle, the main loop registers a heartbeat check-in and
+the watchdog evaluates the health-gate policy.
+
 There is no RTOS. Services use `HAL_GetTick()` deadlines and return without
 deliberate blocking. I2C HAL calls are synchronous with a 10 ms timeout, so they
 remain the principal bounded blocking operations in the superloop.
 
-The watchdog evaluates progress every 250 ms and refreshes IWDG1 only after the
-main loop, CAN application, and RTC service have all checked in. Its nominal
-timeout is 4 seconds; target timing characterization remains required before
-production sign-off. CubeMX owns the `hiwdg1` handle and peripheral setup;
-`app_watchdog` owns only the health gate and refresh policy. See
-`docs/WATCHDOG_ROADMAP.md` for the tracked validation plan.
+## PWM Control
+
+The PWM module drives TIM2 Channel 1 with a configurable counter clock
+(typically 1 MHz). It supports:
+
+- Dynamic frequency adjustment from 1 Hz to 1 MHz
+- Duty cycle from 0% to 100%
+- Non-blocking register updates via ARR and CCR1 (take effect at the next
+  timer update event without stopping the output)
+- Frequency rounding to minimize error against the counter clock
+
+A global `volatile PWM_Control_State_t g_pwmControlState` exposes operational
+state, requested versus actual frequency, tick counts, and error codes for
+real-time inspection in STM32CubeIDE Live Expressions.
+
+## Watchdog Architecture
+
+The watchdog system has two layers:
+
+**Low-level driver** (`watchdog.h/c`): Direct IWDG1 hardware control using
+LSI/32 prescaler with a reload of 999 (~1000 ms timeout). Provides `Init`,
+`Refresh`, and `Was_Reset_By_Watchdog` operations.
+
+**Health-gated policy** (`app_watchdog.h/c`): Evaluates progress every 250 ms
+and refreshes IWDG1 only after the main loop, CAN application, and RTC service
+have all checked in. Its nominal timeout is 4 seconds; target timing
+characterization is documented in `docs/WATCHDOG_ROADMAP.md`.
 
 Before each refresh decision, the watchdog stores its latest health state in
 backup SRAM. The record uses a CRC-32 and last-written commit marker. On boot it
@@ -168,6 +291,8 @@ bytes**. Multi-byte integers are little-endian.
 | MCU -> GUI | `0x556` | Standard | RTC date/time and health |
 | MCU -> GUI | `0x557` | Standard | Slot and LED state |
 | MCU -> GUI | `0x558` | Standard | RTC alarm event |
+| MCU -> GUI | `0x55A` | Standard | Log info response |
+| MCU -> GUI | `0x55B` | Standard | Cyclic heartbeat |
 
 FDCAN hardware uses an exact-mask extended filter for `0x1894AABB` and rejects
 unmatched standard, extended, and remote frames. Software still validates ID,
@@ -185,6 +310,8 @@ frame type, Classic/FD format, DLC, command, reserved fields, and value ranges.
 | `0x20` | Set RTC time |
 | `0x21` | Set RTC date and time |
 | `0x22` | Configure RTC alarm comparisons |
+| `0x30` | Get event log info |
+| `0x31` | Read event log by sequence number |
 
 ### Slot Configuration: `0x01` / `0x02`
 
@@ -247,6 +374,19 @@ weekday `0x10`. Disabled fields are encoded into PCA2131 alarm registers with
 the alarm-disable bit set. The driver converts the API's 24-hour value to the
 RTC's active 12-hour or 24-hour register format.
 
+### Event Log Commands: `0x30` / `0x31`
+
+The GUI can read the MCU's 64-entry RAM event log over CAN:
+
+- `0x30` requests log metadata (entry count, sequence range, overwrite count)
+- `0x31` requests a specific log entry by sequence number
+
+Responses are sent as multi-frame fragments on IDs `0x70`–`0x84`. Error
+responses use `0xF0`. Each record is reassembled and verified against CRC-16
+(`0x1021` polynomial), magic marker (`0x4C4F4731`), and commit marker
+(`0xA55A`). The GUI implements an automatic retry state machine for reliable
+synchronization.
+
 ### RTC Status: `0x551`
 
 ```text
@@ -290,6 +430,12 @@ The firmware polls the PCA2131 alarm flag every 100 ms when the RTC is ready
 and at least one alarm comparison is enabled. It sends one high-priority event
 for an active flag, then clears the flag. A failed transmission or flag-clear
 operation is counted in alarm diagnostics.
+
+### Heartbeat: `0x55B`
+
+A cyclic heartbeat frame is sent periodically to indicate the MCU is alive and
+responsive. The GUI uses this to track connection health and detect
+communication loss.
 
 ## CAN Application and RX Diagnostics
 
@@ -419,9 +565,46 @@ evidence, rejected CAN frames, error-passive, bus-off, recovery success, and
 distinct recovery failures. Event codes for RTC, alarm, queue, and timestamp
 logging are defined but are not all wired to producers yet.
 
+## STM32 Event Log Synchronization
+
+The GUI can download and display the MCU's full event log over CAN using
+`stm32_log_sync.py`. The protocol uses two commands:
+
+- `CMD_LOG_GET_INFO` (`0x30`): requests log metadata
+- `CMD_LOG_READ_SEQUENCE` (`0x31`): requests a record by sequence number
+
+Telemetry responses arrive as multi-frame fragments on IDs `0x70`–`0x72` (log
+info) and `0x80`–`0x84` (log records). Error responses use `0xF0`.
+
+Each downloaded record is verified against CRC-16 (`0x1021`), magic marker
+(`0x4C4F4731`), and commit marker (`0xA55A`). The synchronization engine
+implements an automatic state machine with retry handling and writes results to
+timestamped CSV files (`stm32_events_%Y%m%d_%H%M%S_%f.csv`).
+
 ## Desktop GUI
 
-The GUI in `python/can_gui.py` provides:
+The GUI is organized as a `can_gui_app` Python package with modular
+panels and controllers:
+
+| Module | Purpose |
+|---|---|
+| `main_window_view.py` | Main window layout, navigation, and page switching |
+| `can_session.py` | CAN bus session lifecycle management |
+| `can_connection_panel.py` | PCAN channel and bitrate connection UI |
+| `can_app_controller.py` | Command dispatch and telemetry decoding |
+| `can_app_panel.py` | Slot configuration, counter, LED, and system control |
+| `can_health.py` | CAN health monitoring, frame rates, and error indicators |
+| `rtc_controller.py` | RTC and alarm state management |
+| `rtc_panel.py` | RTC date/time display, update, and alarm configuration |
+| `event_log_panel.py` | GUI event history and STM32 log display with filtering |
+| `csv_event_logger.py` | Daily CSV event logging with injection protection |
+| `stm32_log_sync.py` | CAN-based MCU event log synchronization |
+| `slot_widget.py` | Reusable slot configuration widget |
+| `application_timers.py` | Periodic timer management |
+| `protocol.py` | Protocol helpers and constants |
+| `theme.py` | UI theme and styling |
+
+Key features:
 
 - PCAN channel and bitrate connection
 - PCAN controller health monitoring
@@ -432,13 +615,16 @@ The GUI in `python/can_gui.py` provides:
 - Alarm comparison-field configuration and disable command
 - Alarm write-status and event display
 - System slot and LED status
+- STM32 event log download with CRC verification
 - Task-oriented Control, Live Data, and Logs & Errors pages
-- Filterable recent GUI event and error history
+- Filterable recent GUI event and error history with severity badges
 - Persistent CAN connection and health status across every page
 - Plain-language CAN, RTC, and log health summaries with technical tooltips
+- Daily CSV event logging with formula-injection protection
 
 The GUI defaults to `PCAN_USBBUS1` at `500000` bit/s. It accepts application
-telemetry only from standard IDs `0x551`, `0x556`, `0x557`, and `0x558`.
+telemetry only from standard IDs `0x551`, `0x556`, `0x557`, `0x558`, `0x55A`,
+and `0x55B`.
 
 ## Build and Run
 
@@ -455,7 +641,7 @@ telemetry only from standard IDs `0x551`, `0x556`, `0x557`, and `0x558`.
 For a command-line release build, install GNU Arm Embedded Toolchain and GNU
 Make, then run:
 
-```powershell
+```bash
 make CONFIG=release --jobs=2
 ```
 
@@ -465,13 +651,47 @@ defined.
 
 ### GUI
 
-```powershell
+```bash
 python -m pip install PySide6 python-can
-python .\python\can_gui.py
+python python/can_gui.py
 ```
 
 A PEAK PCAN adapter and its platform driver are required for the configured
 `interface="pcan"` backend.
+
+On Windows, a launch script is provided:
+
+```powershell
+.\python\run_gui.bat
+```
+
+### Running Tests
+
+**C firmware tests** (requires a host C compiler and Unity):
+
+```bash
+cd tests
+make
+```
+
+Or with CMake:
+
+```bash
+cd tests
+cmake -B build && cmake --build build && ctest --test-dir build
+```
+
+**Python GUI tests**:
+
+```bash
+python -m pytest python/tests/
+```
+
+**Host watchdog policy tests**:
+
+```bash
+python tests/host/run_watchdog_tests.py
+```
 
 ### Watchdog CAN Stress
 
@@ -479,9 +699,8 @@ For target watchdog timing tests, close the GUI and run the controlled PCAN
 command generator. It sends valid alternating LED commands and drains STM32
 responses so sustained receive processing can be measured without manual input.
 
-```powershell
-.\python\.venv\Scripts\python.exe .\python\watchdog_can_stress.py `
-  --duration 120 --period-ms 1
+```bash
+python python/watchdog_can_stress.py --duration 120 --period-ms 1
 ```
 
 The defaults are `PCAN_USBBUS1`, `500000` bit/s, and LED 1. The final summary
@@ -491,20 +710,27 @@ reports achieved transmit/receive rates and missed host scheduling periods.
 
 GitHub Actions runs independent CI jobs on pushes and pull requests:
 
-- host-side watchdog policy tests
-- a release firmware build using GNU Arm Embedded Toolchain
-- Python syntax validation and all GUI regression scripts
+- **`watchdog-tests`**: executes host watchdog policy tests on Python 3.13 /
+  Ubuntu 24.04
+- **`firmware`**: builds Debug and Release firmware using `gcc-arm-none-eabi`;
+  verifies Debug includes fault-injection hooks while Release excludes them;
+  retains build artifacts (`.elf`, `.hex`, `.bin`, `.map`) for 14 days
+- **`gui`**: validates Python syntax via `compileall` and runs all GUI
+  regression test scripts
 
-Firmware artifacts are retained with each CI run. Pushing a tag whose name
-starts with `v` runs the same verification, builds the firmware, packages the
-Python application, generates SHA-256 checksums, and publishes a GitHub
-release. GitHub Actions dependencies are monitored monthly by Dependabot.
+Pushing a tag whose name starts with `v` triggers the release workflow, which
+runs the same verification, builds Release firmware, packages the Python GUI
+as `can_gui-python.zip`, generates SHA-256 checksums, and publishes a GitHub
+release using `gh release create`.
+
+GitHub Actions dependencies are monitored monthly by Dependabot.
 
 ## Engineering Constraints and Next Steps
 
-- C and Python duplicate protocol constants. Generate both from one schema.
-- Add host unit tests for codecs, calendar/alarm validation, queue policy,
-  ring-buffer wrap, CRC vectors, and tick wraparound.
+- ~~C and Python duplicate protocol constants.~~ ✅ Generated from
+  `protocol/can_protocol.yaml`.
+- ~~Add host unit tests for codecs, calendar/alarm validation, queue policy.~~
+  ✅ Unity C test suite and Python GUI regression tests added.
 - Add hardware-in-loop tests for I2C NACK, alarm mismatch, missing CAN ACK,
   error-passive, bus-off, repeated recovery failure, and TX verification.
 - Complete the timing and target fault-injection work in
@@ -515,4 +741,3 @@ release. GitHub Actions dependencies are monitored monthly by Dependabot.
 - Add a versioned persistent Flash backend with page scanning, wear management,
   cache handling, and power-loss-safe commit rules.
 - Add an explicit application-protocol version and compatibility handshake.
-
