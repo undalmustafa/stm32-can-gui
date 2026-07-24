@@ -2,10 +2,9 @@
 
 ## Overview
 
-Add full GUI control of the existing PWM output (TIM2 CH1 on PA0) and a new
-input capture module for measuring external signal frequency and duty cycle.
-The user will be able to adjust PWM parameters from the desktop GUI in
-real-time and see live measurements from the input capture channel.
+This roadmap covers GUI control of the PWM output (TIM2 CH1 on PA0), input
+capture measurement of frequency and duty cycle, and the closed-loop built-in
+test that joins PWM, capture, and CAN telemetry.
 
 ---
 
@@ -14,12 +13,13 @@ real-time and see live measurements from the input capture channel.
 | Item | Status |
 |---|---|
 | PWM output driver (`pwm_control.c`) | ✅ Working — TIM2 CH1, PA0, 1 MHz clock |
-| Default output | 10 kHz, 90% duty cycle (hardcoded in `main.c`) |
-| GUI control | ❌ No CAN commands or GUI panel exist |
-| Input capture | ❌ Not implemented |
-| CAN protocol definitions | ❌ No PWM entries in `can_protocol.yaml` |
+| Default output | ✅ 10 kHz, 90% duty cycle |
+| GUI control | ✅ PWM & Capture panel with live telemetry |
+| Input capture | ✅ TIM3 PWM input on PA6 |
+| Built-in test | ✅ MCU-managed 10-point closed-loop sequence |
+| CAN protocol definitions | ✅ Commands and telemetry generated from YAML |
 
-**Available timers**: TIM1, TIM3, TIM4, TIM5, TIM8, TIM12–TIM17 (all unused)
+**Other available timers**: TIM1, TIM4, TIM5, TIM8, TIM12–TIM17
 
 ---
 
@@ -261,25 +261,35 @@ input_capture_status:
 
 ---
 
-## Phase 5 — Loopback Self-Test & Polish
+## Phase 5 — Loopback Built-In Test & Polish
 
 > **Goal**: Wire PA0 (PWM out) to PA6 (input capture in) for a closed-loop
-> self-test where the GUI controls PWM output and immediately sees the
-> measurement.
+> self-test where the MCU controls and evaluates PWM while the GUI initiates
+> the test and displays progress.
 
 ### 5.1 Features
 
-- Loopback verification: output matches measurement within tolerance
-- Frequency sweep test mode (GUI button)
+- Live loopback verification: output matches measurement within tolerance
+- Non-blocking MCU state machine independent of GUI/CAN timing
+- Frequency points at 1 kHz, 10 kHz, 100 kHz, and 500 kHz
+- Duty points at 10%, 25%, 50%, 75%, and 90% at 10 kHz
+- Signal-loss check after stopping PWM
+- 2% frequency and 2 percentage-point duty tolerances
+- Previous PWM state restoration after pass, failure, or cancellation
+- CAN start/cancel command plus status and per-point result telemetry
 - Error/mismatch highlighting in the GUI
 - Documentation update (`README.md`, connection diagram)
 
 ### 5.2 Deliverables
 
-- [x] Loopback self-test mode in GUI
-- [x] Frequency sweep with pass/fail report
+- [x] Live loopback comparison in GUI
+- [x] MCU-managed 10-point built-in test with pass/fail report
+- [x] Start/cancel controls and live progress display
+- [x] CAN command `0x41`, status `0x055E`, and result `0x055F`
+- [x] PWM state restoration after terminal outcomes
 - [x] README updated with PWM and input capture sections
-- [x] CI tests for protocol/controller and GUI modules
+- [x] Host tests for firmware state machine and protocol encoding
+- [x] Tests for GUI protocol/controller and panel rendering
 
 ---
 

@@ -22,7 +22,7 @@ and debugger-friendly diagnostics.
 - Remote control of two board LEDs
 - Configurable PWM output with runtime frequency and duty-cycle adjustment
 - TIM3 PWM input capture with live frequency and duty-cycle telemetry
-- GUI loopback sweep with synchronized pass/fail evaluation
+- MCU-managed PWM/input-capture built-in test with CAN progress reporting
 - PCA2131 date/time read and verified write operations
 - PCA2131 alarm configuration with selective comparison fields
 - Alarm status polling, one-shot event reporting, and flag clearing
@@ -92,6 +92,7 @@ callbacks to work.
 |   +-> app_log             binary event ring buffer                 |
 |   +-> pwm_control         TIM2 frequency and duty-cycle driver     |
 |   +-> input_capture       TIM3 frequency and duty measurement     |
+|   +-> pwm_self_test       non-blocking closed-loop test sequencer  |
 |                                                                    |
 | watchdog             low-level IWDG1 init, refresh, reset detect   |
 | app_watchdog         health-gated refresh policy and evidence      |
@@ -131,6 +132,7 @@ Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
 Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
 Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
+Core/Inc|Src/pwm_self_test.* Closed-loop PWM/capture built-in test
 Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
@@ -158,7 +160,7 @@ python/
     protocol.py             Protocol helpers and definitions
     theme.py                UI theme and styling constants
   tests/
-    test_gui_*.py           12 automated GUI regression tests
+    test_gui_*.py           13 automated GUI regression tests
 
 tests/
   CMakeLists.txt            CMake build for Unity C tests
@@ -166,6 +168,7 @@ tests/
   test_can_protocol.c       Protocol encoding/decoding tests
   test_can_transport.c      TX queue policy tests
   test_pca2131_validation.c Calendar and alarm validation tests
+  test_pwm_self_test.c      PWM/capture built-in-test state-machine tests
   stubs/                    HAL stubs for host compilation
   unity/                    Unity test framework
 
@@ -217,11 +220,12 @@ runtime, `main()` performs:
 6. PWM output initialization (TIM2 Channel 1 at 1 MHz, default 10 kHz/90%)
 7. RAM event-log initialization and `SYSTEM_BOOT` record creation
 8. CAN application, transport, filter, notification, and diagnostics setup
-9. Non-blocking PCA2131 initialization scheduling
-10. Initial system-status publication
-11. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
-12. Board LED, push-button, and COM initialization
-13. Entry into the cooperative superloop
+9. PWM/input-capture built-in-test state initialization
+10. Non-blocking PCA2131 initialization scheduling
+11. Initial system-status publication
+12. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
+13. Board LED, push-button, and COM initialization
+14. Entry into the cooperative superloop
 
 The main loop repeatedly calls `CAN_App_Process()`:
 
@@ -296,19 +300,33 @@ D32 / PA0 / TIM2_CH1 ───── D12 / PA6 / TIM3_CH1
 Do not drive PA6 above 3.3 V. Remove shields or SPI devices that may drive D12,
 and do not attach an external generator while the D32–D12 jumper is installed.
 
-### GUI loopback test
+### Built-in loopback test
 
 Open **PWM & Capture** in the GUI. Live measurements are compared with the
 reported output using a 2% frequency and 2 percentage-point duty tolerance.
-**Run Frequency Sweep** checks 1 kHz, 10 kHz, 100 kHz, and 500 kHz and reports
-the number of passing points.
+Select **Start Built-In Test** to ask the MCU to own the PWM output and evaluate
+the capture locally. The GUI is only the initiator and result display, so CAN
+and desktop scheduling delays do not affect the measurement window. Manual PWM
+controls remain disabled while the test is running, and **Cancel Test** stops
+the sequence safely.
 
-The automated sweep uses 50% duty at every point because it is representable
-across the full range. At 500 kHz, the 1 MHz PWM counter has only two ticks per
-period; a request such as 90% quantizes to 100% and removes the falling edge
-needed for duty-cycle capture. Each sweep point waits 1.5 seconds so the new PWM
-status and capture telemetry are evaluated from the same measurement window.
-The original GUI frequency, duty, and running state are restored afterward.
+The non-blocking firmware sequence allows 300 ms for every point:
+
+| Points | Output | Check |
+|---:|---|---|
+| 1–4 | 1 kHz, 10 kHz, 100 kHz, 500 kHz at 50% | Frequency and duty |
+| 5–9 | 10 kHz at 10%, 25%, 50%, 75%, 90% | Duty-cycle capture |
+| 10 | PWM stopped | Signal-loss detection |
+
+A point passes when frequency is within 2% and duty is within 2 percentage
+points. The signal-loss point passes only after input capture reports no
+signal. The test publishes progress and every point result over CAN, reports
+the first failure in the GUI, and restores the PWM frequency, duty, and running
+state that existed before the test.
+
+At 500 kHz, the 1 MHz PWM counter has only two ticks per period, so 50% is used
+for the frequency endpoint. A request such as 90% would quantize to 100% and
+remove the falling edge required for duty-cycle capture.
 
 ### Capture calculation
 
@@ -335,13 +353,14 @@ The following path has been exercised on the NUCLEO-H7A3ZI-Q:
 - PA0/D32 PWM output observed with an oscilloscope
 - D32-to-D12 loopback detection on TIM3
 - Input frequency and duty telemetry on CAN ID `0x055D`
-- Synchronized GUI frequency sweep
+- Closed-loop frequency checks at 1 kHz, 10 kHz, 100 kHz, and 500 kHz
 - Linux SocketCAN GUI connection
 
-Independent asynchronous signal-generator characterization is still pending.
-That test should cover non-round frequencies such as 12.345 kHz and determine
-whether automatic TIM3 counter-clock ranging is needed for better accuracy at
-the upper end of the capture range.
+Target validation of the new MCU-managed 10-point built-in test is pending
+after flashing this revision. Independent asynchronous signal-generator
+characterization is also pending. That test should cover non-round frequencies
+such as 12.345 kHz and determine whether automatic TIM3 counter-clock ranging
+is needed for better accuracy at the upper end of the capture range.
 
 ## Watchdog Architecture
 
@@ -385,6 +404,10 @@ bytes**. Multi-byte integers are little-endian.
 | MCU -> GUI | `0x558` | Standard | RTC alarm event |
 | MCU -> GUI | `0x55A` | Standard | Log info response |
 | MCU -> GUI | `0x55B` | Standard | Cyclic heartbeat |
+| MCU -> GUI | `0x55C` | Standard | PWM output status |
+| MCU -> GUI | `0x55D` | Standard | Input-capture measurement |
+| MCU -> GUI | `0x55E` | Standard | PWM built-in-test status |
+| MCU -> GUI | `0x55F` | Standard | PWM built-in-test point result |
 
 FDCAN hardware uses an exact-mask extended filter for `0x1894AABB` and rejects
 unmatched standard, extended, and remote frames. Software still validates ID,
@@ -404,6 +427,8 @@ frame type, Classic/FD format, DLC, command, reserved fields, and value ranges.
 | `0x22` | Configure RTC alarm comparisons |
 | `0x30` | Get event log info |
 | `0x31` | Read event log by sequence number |
+| `0x40` | Set or stop PWM output |
+| `0x41` | Start or cancel PWM built-in test |
 
 ### Slot Configuration: `0x01` / `0x02`
 
@@ -478,6 +503,47 @@ responses use `0xF0`. Each record is reassembled and verified against CRC-16
 (`0x1021` polynomial), magic marker (`0x4C4F4731`), and commit marker
 (`0xA55A`). The GUI implements an automatic retry state machine for reliable
 synchronization.
+
+### PWM Command: `0x40`
+
+```text
+Byte 0     command
+Bytes 1-4 requested frequency in hertz, uint32 little-endian
+Byte 5     requested duty percent
+Bytes 6-7 reserved, zero
+```
+
+A frequency of zero stops the output. Otherwise, valid frequencies are
+1 Hz–1 MHz and duty is 0–100%.
+
+### PWM Built-In Test: `0x41`, `0x55E`, `0x55F`
+
+The command payload is `[0x41, action, 0, 0, 0, 0, 0, 0]`, where action `1`
+starts the fixed 10-point test and action `0` cancels it.
+
+Status frames on `0x55E` contain:
+
+```text
+Byte 0     state: 0 idle, 1 running, 2 passed, 3 failed,
+                    4 cancelled, 5 control error
+Byte 1     current point
+Byte 2     total points
+Byte 3     passed points
+Bytes 4-7 current expected frequency, uint32 little-endian
+```
+
+Each completed point produces a high-priority result on `0x55F`:
+
+```text
+Byte 0     point number
+Byte 1     passed (0 or 1)
+Byte 2     expected duty percent
+Byte 3     measured duty percent
+Bytes 4-7 measured frequency, uint32 little-endian
+```
+
+The fixed profile defines each point's expected frequency, so it does not need
+to be repeated in the result frame.
 
 ### RTC Status: `0x551`
 
