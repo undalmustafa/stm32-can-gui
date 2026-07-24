@@ -1,5 +1,6 @@
 #include "pwm_self_test.h"
 
+#include "app_log.h"
 #include "input_capture.h"
 #include "main.h"
 #include "pwm_control.h"
@@ -40,7 +41,36 @@ static PWM_SelfTest_Phase_t self_test_phase;
 static PWM_Control_State_t saved_pwm_state;
 static uint8_t point_index;
 static uint8_t failed_points;
+static uint16_t failed_point_mask;
 static uint32_t phase_started_at;
+
+static void PWM_SelfTest_LogTerminalResult(void)
+{
+    App_Log_Severity_t severity = APP_LOG_SEVERITY_INFO;
+    uint32_t summary;
+
+    if (self_test_state.state == PWM_SELF_TEST_STATE_FAILED)
+    {
+        severity = APP_LOG_SEVERITY_WARNING;
+    }
+    else if (self_test_state.state == PWM_SELF_TEST_STATE_ERROR)
+    {
+        severity = APP_LOG_SEVERITY_FAULT;
+    }
+
+    summary =
+        ((uint32_t)self_test_state.state) |
+        ((uint32_t)self_test_state.passed_points << 8) |
+        ((uint32_t)self_test_state.total_points << 16) |
+        ((uint32_t)failed_points << 24);
+
+    (void)App_Log_Push(
+        APP_LOG_SOURCE_PWM,
+        severity,
+        APP_LOG_EVENT_PWM_SELF_TEST_COMPLETED,
+        summary,
+        (uint32_t)failed_point_mask);
+}
 
 static uint32_t PWM_SelfTest_AbsoluteDifference(
     uint32_t first,
@@ -169,6 +199,7 @@ static void PWM_SelfTest_RecordPoint(void)
     else
     {
         failed_points++;
+        failed_point_mask |= (uint16_t)(1UL << point_index);
     }
 }
 
@@ -190,6 +221,7 @@ PWM_SelfTest_ResultCode_t PWM_SelfTest_Start(void)
     saved_pwm_state = PWM_Control_GetState();
     point_index = 0U;
     failed_points = 0U;
+    failed_point_mask = 0U;
     self_test_state.state = PWM_SELF_TEST_STATE_RUNNING;
     self_test_state.current_point = 1U;
     self_test_state.total_points = PWM_SELF_TEST_TOTAL_POINTS;
@@ -212,6 +244,7 @@ void PWM_SelfTest_Cancel(void)
         (PWM_SelfTest_RestoreOutput() == PWM_SELF_TEST_OK)
         ? PWM_SELF_TEST_STATE_CANCELLED
         : PWM_SELF_TEST_STATE_ERROR;
+    PWM_SelfTest_LogTerminalResult();
 }
 
 void PWM_SelfTest_Process(void)
@@ -231,6 +264,7 @@ void PWM_SelfTest_Process(void)
             self_test_state.state = PWM_SELF_TEST_STATE_ERROR;
             self_test_phase = PWM_SELF_TEST_PHASE_IDLE;
             (void)PWM_SelfTest_RestoreOutput();
+            PWM_SelfTest_LogTerminalResult();
             return;
         }
 
@@ -261,6 +295,7 @@ void PWM_SelfTest_Process(void)
                 ? PWM_SELF_TEST_STATE_PASSED
                 : PWM_SELF_TEST_STATE_FAILED;
         }
+        PWM_SelfTest_LogTerminalResult();
         return;
     }
 

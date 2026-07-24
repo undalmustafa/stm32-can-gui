@@ -360,11 +360,12 @@ The following path has been exercised on the NUCLEO-H7A3ZI-Q:
 - Closed-loop frequency checks at 1 kHz, 10 kHz, 100 kHz, and 500 kHz
 - Linux SocketCAN GUI connection
 
-Target validation of the new MCU-managed 10-point built-in test is pending
-after flashing this revision. Independent asynchronous signal-generator
-characterization is also pending. That test should cover non-round frequencies
-such as 12.345 kHz and determine whether automatic TIM3 counter-clock ranging
-is needed for better accuracy at the upper end of the capture range.
+The MCU-managed 10-point built-in test has also been exercised successfully on
+the physical D32-to-D12 loopback. Independent asynchronous signal-generator
+characterization is still pending. That test should cover non-round
+frequencies such as 12.345 kHz and determine whether automatic TIM3
+counter-clock ranging is needed for better accuracy at the upper end of the
+capture range.
 
 ## Watchdog Architecture
 
@@ -497,7 +498,7 @@ RTC's active 12-hour or 24-hour register format.
 
 ### Event Log Commands: `0x30` / `0x31`
 
-The GUI can read the MCU's 64-entry RAM event log over CAN:
+The GUI can read the MCU's 64-entry retained event log over CAN:
 
 - `0x30` requests log metadata (entry count, sequence range, overwrite count)
 - `0x31` requests a specific log entry by sequence number
@@ -547,7 +548,10 @@ Bytes 4-7 measured frequency, uint32 little-endian
 ```
 
 The fixed profile defines each point's expected frequency, so it does not need
-to be repeated in the result frame.
+to be repeated in the result frame. PASS, FAIL, CANCELLED, and control-error
+outcomes are also written to the retained event log with passed/total counts
+and a ten-bit failed-point mask, so previous runs remain available after an MCU
+reset and can be downloaded to the GUI's STM32 event CSV.
 
 ### RTC Status: `0x551`
 
@@ -746,6 +750,7 @@ and sticky issue flags for:
 - CAN TX HAL error
 - TX queue overflow
 - TX queue stuck
+- CAN RX processing-budget exhaustion
 
 Sticky flags preserve evidence after a transient fault has disappeared. The
 module currently does not include RTC, alarm, or recovery statistics in the
@@ -753,8 +758,8 @@ combined snapshot; those modules expose separate getter APIs.
 
 ## Binary Event Log
 
-`app_log` implements a 64-entry RAM ring buffer. Each record is compile-time
-checked to be exactly 32 bytes:
+`app_log` implements a 64-entry ring buffer in the STM32H7 backup SRAM. Each
+record is compile-time checked to be exactly 32 bytes:
 
 ```text
 magic, sequence, uptime_ms, optional RTC epoch,
@@ -764,17 +769,24 @@ CRC-16, commit marker
 
 CRC-16 uses initial value `0xFFFF` and polynomial `0x1021`. The commit marker is
 `0xA55A`. Interrupts are briefly masked with PRIMASK while shared ring state is
-updated. Once full, new records overwrite the oldest and increment an overwrite
-counter.
+updated. The destination marker is invalidated before a record copy and written
+last, so a reset during an update cannot make a partial record valid. At boot,
+firmware validates all retained records and reconstructs the newest contiguous
+sequence. Retained slots are cache-line aligned, written as complete 32-bit ECC
+words, and explicitly cleaned from the Cortex-M7 data cache before the commit
+returns. Once full, new records overwrite the oldest.
 
-The current backend is RAM and is cleared at every boot. The 32-byte format,
-magic, CRC, and commit marker prepare for a future Flash implementation but do
-not currently provide persistence.
+The retained log survives software, watchdog, and reset-pin resets without
+internal-Flash erase cycles. It survives loss of main power only when the
+board's VBAT domain remains powered and the backup regulator can retain
+BKPSRAM; without VBAT, unplugging the board clears the history. The linker
+reserves 2 KiB for the log alongside the smaller watchdog-evidence record
+inside the 4 KiB backup SRAM.
 
-Currently generated log events include system boot, retained watchdog reset
-evidence, rejected CAN frames, error-passive, bus-off, recovery success, and
-distinct recovery failures. Event codes for RTC, alarm, queue, and timestamp
-logging are defined but are not all wired to producers yet.
+Current log events include system boot, retained watchdog reset evidence,
+rejected CAN frames, RX-budget saturation, error-passive, bus-off, recovery
+results, RTC/alarm activity, queue faults, timestamps, and terminal PWM
+built-in-test summaries.
 
 ## STM32 Event Log Synchronization
 

@@ -20,7 +20,7 @@ typedef struct
 
 #if defined(__GNUC__)
 #define APP_WATCHDOG_RETAINED_SECTION \
-    __attribute__((section(".watchdog_retained"), used, aligned(8)))
+    __attribute__((section(".watchdog_retained"), used, aligned(32)))
 #else
 #define APP_WATCHDOG_RETAINED_SECTION
 #endif
@@ -98,6 +98,16 @@ static HAL_StatusTypeDef App_Watchdog_Evidence_EnableStorage(void)
 #endif
 }
 
+static void App_Watchdog_Evidence_CleanStorage(void)
+{
+#if !defined(APP_WATCHDOG_HOST_TEST)
+    SCB_CleanDCache_by_Addr(
+        (uint32_t *)&app_watchdog_retained_record,
+        (int32_t)sizeof(app_watchdog_retained_record));
+    __DSB();
+#endif
+}
+
 static void App_Watchdog_Evidence_Commit(
     const App_Watchdog_RetainedRecord_t *record)
 {
@@ -114,6 +124,7 @@ static void App_Watchdog_Evidence_Commit(
 #if !defined(APP_WATCHDOG_HOST_TEST)
     __DMB();
 #endif
+    App_Watchdog_Evidence_CleanStorage();
 }
 
 void App_Watchdog_Evidence_CaptureBoot(uint8_t was_iwdg_reset)
@@ -170,6 +181,7 @@ void App_Watchdog_Evidence_CaptureBoot(uint8_t was_iwdg_reset)
     }
 
     app_watchdog_retained_record.commit_marker = 0U;
+    App_Watchdog_Evidence_CleanStorage();
 }
 
 void App_Watchdog_Evidence_Record(

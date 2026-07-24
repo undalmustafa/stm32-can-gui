@@ -290,6 +290,7 @@ input_capture_status:
 - [x] README updated with PWM and input capture sections
 - [x] Host tests for firmware state machine and protocol encoding
 - [x] Tests for GUI protocol/controller and panel rendering
+- [x] Terminal built-in-test results retained across MCU resets and synced to CSV
 
 ---
 

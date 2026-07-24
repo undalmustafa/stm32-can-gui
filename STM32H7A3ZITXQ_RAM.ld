@@ -174,9 +174,16 @@ SECTIONS
   /* Preserved across system resets; never initialized by startup code. */
   .watchdog_retained (NOLOAD) :
   {
-    . = ALIGN(8);
+    . = ALIGN(32);
     KEEP(*(.watchdog_retained))
-    . = ALIGN(8);
+    . = ALIGN(32);
+  } >BKPSRAM
+
+  .app_log_retained (NOLOAD) :
+  {
+    . = ALIGN(32);
+    KEEP(*(.app_log_retained))
+    . = ALIGN(32);
   } >BKPSRAM
 
   /* User_heap_stack section, used to check that there is enough "RAM" Ram  type memory left */
@@ -200,6 +207,7 @@ SECTIONS
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
 
-  ASSERT(SIZEOF(.watchdog_retained) <= LENGTH(BKPSRAM),
-         "watchdog retained record exceeds backup SRAM")
+  ASSERT((SIZEOF(.watchdog_retained) + SIZEOF(.app_log_retained))
+         <= LENGTH(BKPSRAM),
+         "retained records exceed backup SRAM")
 }

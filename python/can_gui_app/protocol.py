@@ -171,6 +171,7 @@ STM32_LOG_EVENT_NAMES = {
     0x0402: "TIMESTAMP_2",
     0x0403: "TIMESTAMP_3",
     0x0404: "TIMESTAMP_4",
+    0x0500: "PWM_SELF_TEST_COMPLETED",
 }
 
 
@@ -203,6 +204,23 @@ def decode_stm32_log_event_detail(event_code: int,
     if event_code == 0x0108:
         return f"NEW_HITS={int(data_0)}; TOTAL_HITS={int(data_1)}"
 
+    if event_code == 0x0500:
+        state_names = {
+            2: "PASSED",
+            3: "FAILED",
+            4: "CANCELLED",
+            5: "ERROR",
+        }
+        state = int(data_0) & 0xFF
+        passed = (int(data_0) >> 8) & 0xFF
+        total = (int(data_0) >> 16) & 0xFF
+        failed = (int(data_0) >> 24) & 0xFF
+        return (
+            f"STATE={state_names.get(state, f'UNKNOWN_{state}')}; "
+            f"PASSED={passed}/{total}; FAILED={failed}; "
+            f"FAILED_POINT_MASK=0x{int(data_1) & 0xFFFF:04X}"
+        )
+
     return ""
 
 STM32_LOG_SOURCE_NAMES = {
@@ -211,6 +229,7 @@ STM32_LOG_SOURCE_NAMES = {
     2: "RTC",
     3: "ALARM",
     4: "TIMESTAMP",
+    5: "PWM",
 }
 
 STM32_LOG_SEVERITY_NAMES = {

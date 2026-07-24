@@ -13,7 +13,8 @@ typedef enum
     APP_LOG_SOURCE_CAN,
     APP_LOG_SOURCE_RTC,
     APP_LOG_SOURCE_ALARM,
-    APP_LOG_SOURCE_TIMESTAMP
+    APP_LOG_SOURCE_TIMESTAMP,
+    APP_LOG_SOURCE_PWM
 } App_Log_Source_t;
 
 typedef enum
@@ -52,7 +53,9 @@ typedef enum
     APP_LOG_EVENT_TIMESTAMP_1 = 0x0401U,
     APP_LOG_EVENT_TIMESTAMP_2 = 0x0402U,
     APP_LOG_EVENT_TIMESTAMP_3 = 0x0403U,
-    APP_LOG_EVENT_TIMESTAMP_4 = 0x0404U
+    APP_LOG_EVENT_TIMESTAMP_4 = 0x0404U,
+
+    APP_LOG_EVENT_PWM_SELF_TEST_COMPLETED = 0x0500U
 } App_Log_EventCode_t;
 
 /*
@@ -74,6 +77,12 @@ typedef struct
     uint16_t commit_marker;
 } App_Log_Record_t;
 
+typedef union
+{
+    App_Log_Record_t record;
+    uint32_t words[sizeof(App_Log_Record_t) / sizeof(uint32_t)];
+} App_Log_StorageSlot_t;
+
 typedef struct
 {
     uint32_t write_count;
@@ -85,6 +94,9 @@ typedef struct
     uint16_t head_index;
     uint16_t tail_index;
     uint16_t last_event_code;
+    uint16_t recovered_count;
+    uint16_t invalid_retained_count;
+    uint8_t storage_ready;
 } App_Log_Debug_t;
 
 typedef struct
@@ -99,7 +111,7 @@ typedef struct
 } App_Log_Info_t;
 
 /* Exposed for debugger inspection. Application code must use the API. */
-extern App_Log_Record_t g_appLogRecords[APP_LOG_RAM_CAPACITY];
+extern App_Log_StorageSlot_t g_appLogRecords[APP_LOG_RAM_CAPACITY];
 extern volatile App_Log_Debug_t g_appLogDebug;
 
 void App_Log_Init(void);

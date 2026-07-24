@@ -81,6 +81,18 @@ def main():
         "NEW_HITS=3; TOTAL_HITS=17",
         "firmware RX saturation counts are decoded",
     )
+    expect(
+        protocol.decode_stm32_log_event_detail(
+            0x0500,
+            3 | (9 << 8) | (10 << 16) | (1 << 24),
+            1 << 2,
+        ) ==
+        "STATE=FAILED; PASSED=9/10; FAILED=1; "
+        "FAILED_POINT_MASK=0x0004",
+        "persistent PWM built-in-test summary is decoded",
+    )
+    expect(protocol.STM32_LOG_SOURCE_NAMES[5] == "PWM",
+           "persistent PWM events use a dedicated source")
 
     print("PASS: GUI protocol constants and pure helpers")
 
