@@ -43,10 +43,45 @@ def main():
             "edge_count": 123,
         },
     )
-    expect(panel.loopback_result.text() == "Loopback matched",
+    expect("Loopback matched:" in panel.loopback_result.text(),
            "loopback status accepts measurements within tolerance")
     expect(panel.duty_bar.value() == 40,
            "capture duty is shown by the visual indicator")
+
+    panel.render_status(
+        {"running": True, "frequency_hz": 100_000, "duty_percent": 40},
+        {
+            "signal_detected": True,
+            "frequency_hz": 10_000,
+            "duty_percent": 40,
+            "edge_count": 124,
+        },
+    )
+    expect("Loopback settling:" in panel.loopback_result.text(),
+           "one stale capture sample is treated as telemetry settling")
+
+    panel.start_sweep()
+    expect(commands[-1] == (1_000, 50, True),
+           "sweep uses 50 percent duty at its first point")
+    for frequency in panel.SWEEP_FREQUENCIES:
+        panel.render_status(
+            {
+                "running": True,
+                "frequency_hz": frequency,
+                "duty_percent": 50,
+            },
+            {
+                "signal_detected": True,
+                "frequency_hz": frequency,
+                "duty_percent": 50,
+                "edge_count": 200,
+            },
+        )
+        panel._advance_sweep()
+    expect("PASS: 4/4" in panel.sweep_result.text(),
+           "settled sweep measurements produce a complete pass report")
+    expect(all(result["passed"] for result in panel._sweep_results),
+           "each sweep point is evaluated once at the end of its window")
     app.processEvents()
     print("PASS: GUI PWM panel controls and loopback rendering")
 

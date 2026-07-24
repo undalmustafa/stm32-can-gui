@@ -17,12 +17,26 @@ class PwmPanel:
         self._syncing = False
         self._sweep_index = -1
         self._sweep_results = []
+        self._sweep_running = False
+        self._mismatch_observations = 0
+        self._latest_pwm_status = {
+            "running": False, "frequency_hz": 0, "duty_percent": 0
+        }
+        self._latest_capture_status = {
+            "signal_detected": False,
+            "frequency_hz": 0,
+            "duty_percent": 0,
+            "edge_count": 0,
+        }
         self.control_group = self._build_controls()
         self.status_group = self._build_status()
         self.capture_group = self._build_capture()
         self.loopback_group = self._build_loopback()
         self.sweep_timer = QTimer()
-        self.sweep_timer.setInterval(750)
+        # Status and capture telemetry are each published every 500 ms.
+        # Three telemetry periods prevent comparing a new target with the
+        # previous target's capture sample.
+        self.sweep_timer.setInterval(1500)
         self.sweep_timer.timeout.connect(self._advance_sweep)
 
     def _build_controls(self):
@@ -121,11 +135,13 @@ class PwmPanel:
         group = QGroupBox("Loopback Self-Test")
         layout = QVBoxLayout(group)
         self.loopback_result = QLabel(
-            "Connect PA0 to PA6, then run the sweep."
+            "Connect D32 (PA0) to D12 (PA6)."
         )
+        self.sweep_result = QLabel("No sweep run yet.")
         self.sweep_button = QPushButton("Run Frequency Sweep")
         self.sweep_button.clicked.connect(self.start_sweep)
         layout.addWidget(self.loopback_result)
+        layout.addWidget(self.sweep_result)
         layout.addWidget(self.sweep_button)
         return group
 
@@ -157,29 +173,87 @@ class PwmPanel:
     def start_sweep(self):
         self._sweep_index = -1
         self._sweep_results = []
+        self._sweep_running = True
+        self._pre_sweep_frequency = self.frequency_spin.value()
+        self._pre_sweep_duty = self.duty_spin.value()
+        self._pre_sweep_running = self._latest_pwm_status["running"]
+        # Fifty percent is representable across the complete capture range.
+        # High requested duties quantize to 100% at 500 kHz, eliminating the
+        # falling edge required by PWM-input duty measurement.
+        self.duty_spin.setValue(50)
         self.sweep_button.setEnabled(False)
-        self.loopback_result.setText("Sweep running…")
+        self.sweep_result.setText("Sweep starting at 1 kHz / 50%…")
         self._advance_sweep()
         self.sweep_timer.start()
 
     def _advance_sweep(self):
+        if self._sweep_index >= 0:
+            self._record_sweep_result(
+                self.SWEEP_FREQUENCIES[self._sweep_index]
+            )
+
         self._sweep_index += 1
         if self._sweep_index >= len(self.SWEEP_FREQUENCIES):
             self.sweep_timer.stop()
+            self._sweep_running = False
             self.sweep_button.setEnabled(True)
-            passed = sum(self._sweep_results)
+            passed = sum(result["passed"] for result in self._sweep_results)
             total = len(self.SWEEP_FREQUENCIES)
-            self.loopback_result.setText(
+            failed = [
+                result for result in self._sweep_results
+                if not result["passed"]
+            ]
+            detail = ""
+            if failed:
+                first = failed[0]
+                detail = (
+                    f"; first failure {first['expected']:,} Hz → "
+                    f"{first['measured']:,} Hz/{first['duty']}%"
+                )
+            self.sweep_result.setText(
                 f"{'PASS' if passed == total else 'FAIL'}: "
-                f"{passed}/{total} frequencies within tolerance"
+                f"{passed}/{total} frequencies within tolerance{detail}"
             )
+            self.frequency_spin.setValue(self._pre_sweep_frequency)
+            self.duty_spin.setValue(self._pre_sweep_duty)
+            self._send(self._pre_sweep_running)
             return
-        self.frequency_spin.setValue(
-            self.SWEEP_FREQUENCIES[self._sweep_index]
+        target = self.SWEEP_FREQUENCIES[self._sweep_index]
+        self.frequency_spin.setValue(target)
+        self.sweep_result.setText(
+            f"Sweep {self._sweep_index + 1}/{len(self.SWEEP_FREQUENCIES)}: "
+            f"waiting for {target:,} Hz / 50% telemetry…"
         )
         self._send(True)
 
+    @staticmethod
+    def _within_frequency_tolerance(measured, expected):
+        return abs(measured - expected) <= max(2, expected * 0.02)
+
+    def _record_sweep_result(self, expected):
+        pwm = self._latest_pwm_status
+        capture = self._latest_capture_status
+        passed = (
+            pwm["running"]
+            and capture["signal_detected"]
+            and self._within_frequency_tolerance(
+                pwm["frequency_hz"], expected
+            )
+            and self._within_frequency_tolerance(
+                capture["frequency_hz"], expected
+            )
+            and abs(capture["duty_percent"] - pwm["duty_percent"]) <= 2
+        )
+        self._sweep_results.append({
+            "expected": expected,
+            "measured": capture["frequency_hz"],
+            "duty": capture["duty_percent"],
+            "passed": passed,
+        })
+
     def render_status(self, pwm_status, input_capture_status):
+        self._latest_pwm_status = dict(pwm_status)
+        self._latest_capture_status = dict(input_capture_status)
         running = pwm_status["running"]
         measured = input_capture_status["frequency_hz"]
         detected = input_capture_status["signal_detected"]
@@ -199,19 +273,28 @@ class PwmPanel:
         if running and detected:
             expected = pwm_status["frequency_hz"]
             matched = (
-                abs(measured - expected) <= max(2, expected * 0.02)
+                self._within_frequency_tolerance(measured, expected)
                 and abs(input_capture_status["duty_percent"]
                         - pwm_status["duty_percent"]) <= 2
             )
+            if matched:
+                self._mismatch_observations = 0
+                state = "matched"
+            else:
+                self._mismatch_observations += 1
+                state = (
+                    "settling"
+                    if self._mismatch_observations < 3
+                    else "mismatch"
+                )
             self.loopback_result.setText(
-                "Loopback matched" if matched else "Loopback mismatch"
+                f"Loopback {state}: output {expected:,} Hz/"
+                f"{pwm_status['duty_percent']}%, capture {measured:,} Hz/"
+                f"{input_capture_status['duty_percent']}%"
             )
-            if 0 <= self._sweep_index < len(self.SWEEP_FREQUENCIES):
-                if len(self._sweep_results) <= self._sweep_index:
-                    sweep_expected = self.SWEEP_FREQUENCIES[self._sweep_index]
-                    self._sweep_results.append(
-                        abs(measured - sweep_expected)
-                        <= max(2, sweep_expected * 0.02)
-                        and abs(input_capture_status["duty_percent"]
-                                - self.duty_spin.value()) <= 2
-                    )
+        elif running:
+            self._mismatch_observations = 0
+            self.loopback_result.setText("PWM running; waiting for capture…")
+        else:
+            self._mismatch_observations = 0
+            self.loopback_result.setText("PWM stopped.")
