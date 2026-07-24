@@ -118,3 +118,32 @@ PWM_Control_Result_t PWM_Control_Set(
 
     return PWM_Control_RecordResult(PWM_CONTROL_OK);
 }
+
+PWM_Control_Result_t PWM_Control_Stop(void)
+{
+    if ((g_pwmControlState.initialized == 0U) ||
+        (pwm_timer == NULL))
+    {
+        return PWM_Control_RecordResult(
+            PWM_CONTROL_ERROR_NOT_INITIALIZED);
+    }
+
+    if (g_pwmControlState.running == 0U)
+    {
+        return PWM_Control_RecordResult(PWM_CONTROL_OK);
+    }
+
+    if (HAL_TIM_PWM_Stop(pwm_timer, pwm_channel) != HAL_OK)
+    {
+        return PWM_Control_RecordResult(PWM_CONTROL_ERROR_HAL);
+    }
+
+    g_pwmControlState.running = 0U;
+
+    return PWM_Control_RecordResult(PWM_CONTROL_OK);
+}
+
+PWM_Control_State_t PWM_Control_GetState(void)
+{
+    return (PWM_Control_State_t)g_pwmControlState;
+}

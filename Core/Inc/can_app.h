@@ -36,4 +36,6 @@ void CAN_Process_TxSlots(void);
 void CAN_Send_System_Status(void);
 void System_Status_Process(void);
 
+void CAN_Send_Pwm_Status(void);
+
 #endif /* CAN_APP_H */

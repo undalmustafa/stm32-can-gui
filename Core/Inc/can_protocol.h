@@ -12,6 +12,7 @@
 #define CAN_PROTOCOL_RTC_ALARM_EVENT_TX_ID     0x558U
 #define CAN_PROTOCOL_LOG_RESPONSE_TX_ID        0x55AU
 #define CAN_PROTOCOL_LOG_HEARTBEAT_TX_ID       0x55BU
+#define CAN_PROTOCOL_PWM_STATUS_TX_ID          0x055CU
 
 #define CAN_PROTOCOL_LOG_VERSION               1U
 #define CAN_PROTOCOL_LOG_FRAGMENT_DATA_SIZE    7U
@@ -48,7 +49,8 @@ typedef enum
     CAN_PROTOCOL_CMD_RTC_SET_DATETIME = 0x21U,
     CAN_PROTOCOL_CMD_RTC_SET_ALARM = 0x22U,
     CAN_PROTOCOL_CMD_LOG_GET_INFO = 0x30U,
-    CAN_PROTOCOL_CMD_LOG_READ_SEQUENCE = 0x31U
+    CAN_PROTOCOL_CMD_LOG_READ_SEQUENCE = 0x31U,
+    CAN_PROTOCOL_CMD_PWM_SET = 0x40U
 } CAN_Protocol_Command_t;
 
 typedef enum
@@ -146,6 +148,13 @@ typedef struct
     uint8_t alive_counter;
 } CAN_Protocol_LogHeartbeat_t;
 
+typedef struct
+{
+    uint8_t running;
+    uint8_t duty_percent;
+    uint32_t actual_frequency_hz;
+} CAN_Protocol_PwmStatus_t;
+
 uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
@@ -176,6 +185,10 @@ void CAN_Protocol_EncodeSystemStatus(
 
 void CAN_Protocol_EncodeLogHeartbeat(
     const CAN_Protocol_LogHeartbeat_t *heartbeat,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodePwmStatus(
+    const CAN_Protocol_PwmStatus_t *pwm_status,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 #endif /* CAN_PROTOCOL_H */

@@ -226,3 +226,14 @@ void CAN_Protocol_EncodeLogHeartbeat(
     payload[6] = heartbeat->record_count;
     payload[7] = heartbeat->alive_counter;
 }
+
+void CAN_Protocol_EncodePwmStatus(
+    const CAN_Protocol_PwmStatus_t *pwm_status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = pwm_status->running;
+    payload[1] = pwm_status->duty_percent;
+    CAN_Protocol_WriteU32LE(&payload[2], pwm_status->actual_frequency_hz);
+    payload[6] = 0U;
+    payload[7] = 0U;
+}

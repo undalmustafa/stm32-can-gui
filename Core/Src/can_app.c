@@ -8,7 +8,7 @@
 #include "app_log.h"
 #include "app_watchdog.h"
 #include "app_log_can.h"
-
+#include "pwm_control.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
 
 extern FDCAN_HandleTypeDef hfdcan1;
@@ -196,6 +196,29 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
             }
 
             return CAN_COMMAND_VALID;
+
+        case CAN_PROTOCOL_CMD_PWM_SET:
+        {
+            uint32_t freq = CAN_Protocol_ReadU32LE(&data[1]);
+
+            if ((freq != 0U) &&
+                ((freq < 1U) || (freq > 1000000U)))
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            if (data[5] > 100U)
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            if ((data[6] != 0U) || (data[7] != 0U))
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            return CAN_COMMAND_VALID;
+        }
 
         default:
             return CAN_COMMAND_UNKNOWN;
@@ -567,6 +590,35 @@ void CAN_Process_Rx_Command(void)
                     CAN_Protocol_ReadU32LE(&RxData[1]));
                 break;
 
+            case CAN_PROTOCOL_CMD_PWM_SET:
+            {
+                uint32_t freq = CAN_Protocol_ReadU32LE(&RxData[1]);
+                uint8_t duty = RxData[5];
+
+                if (freq == 0U)
+                {
+                    PWM_Control_Stop();
+                }
+                else
+                {
+                    if (g_pwmControlState.running == 0U)
+                    {
+                        /*
+                         * Re-start PWM if it was stopped. Init is
+                         * already done in main(); just restart output.
+                         */
+                        extern TIM_HandleTypeDef htim2;
+                        HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+                        g_pwmControlState.running = 1U;
+                    }
+
+                    PWM_Control_Set(freq, duty);
+                }
+
+                CAN_Send_Pwm_Status();
+                break;
+            }
+
             default:
                 break;
         }
@@ -688,6 +740,7 @@ void System_Status_Process(void)
     {
         last_system_status_time = now;
         CAN_Send_System_Status();
+        CAN_Send_Pwm_Status();
     }
 }
 void CAN_Send_System_Status(void)
@@ -707,6 +760,22 @@ void CAN_Send_System_Status(void)
                                           txData);
 }
 
+void CAN_Send_Pwm_Status(void)
+{
+    CAN_Protocol_PwmStatus_t pwm_status;
+    uint8_t txData[8] = {0};
+    PWM_Control_State_t state = PWM_Control_GetState();
+
+    pwm_status.running = state.running;
+    pwm_status.duty_percent = state.duty_percent;
+    pwm_status.actual_frequency_hz = state.actual_frequency_hz;
+
+    CAN_Protocol_EncodePwmStatus(&pwm_status, txData);
+
+    (void)CAN_Transport_SendClassicLatest(CAN_PROTOCOL_PWM_STATUS_TX_ID,
+                                          CAN_TRANSPORT_ID_STANDARD,
+                                          txData);
+}
 
 void CAN_Process_TxSlots(void)
 {
