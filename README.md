@@ -21,6 +21,8 @@ and debugger-friendly diagnostics.
 - Configurable cycle time and continuously wrapping 32-bit counters
 - Remote control of two board LEDs
 - Configurable PWM output with runtime frequency and duty-cycle adjustment
+- TIM3 PWM input capture with live frequency and duty-cycle telemetry
+- GUI loopback sweep with synchronized pass/fail evaluation
 - PCA2131 date/time read and verified write operations
 - PCA2131 alarm configuration with selective comparison fields
 - Alarm status polling, one-shot event reporting, and flag clearing
@@ -57,7 +59,10 @@ and debugger-friendly diagnostics.
 | RTC | PCA2131 at 7-bit I2C address `0x53` |
 | I2C peripheral | I2C1, PB8 SCL and PB9 SDA |
 | PWM timer | TIM2 Channel 1, 1 MHz counter clock |
+| PWM output pin | PA0, ST Zio D32 (CN10 pin 29) |
 | PWM default | 10 kHz, 90% duty cycle |
+| Input capture | TIM3 Channel 1 on PA6, ST Zio D12 (CN7 pin 12) |
+| Capture counter/range | 1 MHz, approximately 16 Hz–500 kHz |
 | Watchdog | IWDG1, LSI/32 prescaler, ~1000 ms timeout |
 
 Automatic CAN retransmission is enabled. The FDCAN1 interrupt must remain
@@ -86,6 +91,7 @@ callbacks to work.
 |   +-> app_diagnostics     periodic RX/TX health snapshot           |
 |   +-> app_log             binary event ring buffer                 |
 |   +-> pwm_control         TIM2 frequency and duty-cycle driver     |
+|   +-> input_capture       TIM3 frequency and duty measurement     |
 |                                                                    |
 | watchdog             low-level IWDG1 init, refresh, reset detect   |
 | app_watchdog         health-gated refresh policy and evidence      |
@@ -124,6 +130,7 @@ Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
 Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
 Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
+Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
 Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
@@ -271,17 +278,70 @@ capture registers rather than servicing every edge in an ISR, keeping the
 application responsive at high input frequencies. With a 16-bit timer, the
 practical measurement range is approximately 16 Hz–500 kHz.
 
-For a closed-loop check, connect the pins with one jumper:
+### NUCLEO-H7A3ZI-Q pin mapping
+
+Use the board's `D32` and `D12` labels:
+
+| Function | MCU pin | Board connector |
+|---|---|---|
+| PWM output | PA0 / TIM2_CH1 | D32, CN10 pin 29 |
+| Capture input | PA6 / TIM3_CH1 | D12, CN7 pin 12 |
+
+For a closed-loop check, connect the ST Zio pins with one jumper:
 
 ```text
-PA0 (TIM2_CH1 PWM output) ───── PA6 (TIM3_CH1 capture input)
+D32 / PA0 / TIM2_CH1 ───── D12 / PA6 / TIM3_CH1
 ```
+
+Do not drive PA6 above 3.3 V. Remove shields or SPI devices that may drive D12,
+and do not attach an external generator while the D32–D12 jumper is installed.
+
+### GUI loopback test
 
 Open **PWM & Capture** in the GUI. Live measurements are compared with the
 reported output using a 2% frequency and 2 percentage-point duty tolerance.
 **Run Frequency Sweep** checks 1 kHz, 10 kHz, 100 kHz, and 500 kHz and reports
-the number of passing points. Do not drive PA6 from an external source while
-the PA0–PA6 jumper is installed.
+the number of passing points.
+
+The automated sweep uses 50% duty at every point because it is representable
+across the full range. At 500 kHz, the 1 MHz PWM counter has only two ticks per
+period; a request such as 90% quantizes to 100% and removes the falling edge
+needed for duty-cycle capture. Each sweep point waits 1.5 seconds so the new PWM
+status and capture telemetry are evaluated from the same measurement window.
+The original GUI frequency, duty, and running state are restored afterward.
+
+### Capture calculation
+
+TIM3 operates in reset-mode PWM input. Its captured terminal count is
+zero-based: a ten-tick period is stored as `9`, and a five-tick high pulse is
+stored as `4`. The driver converts both values to elapsed counts before
+calculating:
+
+```text
+period_ticks = CCR1 + 1
+pulse_ticks  = CCR2 + 1
+frequency_hz = 1,000,000 / period_ticks
+duty_percent = pulse_ticks * 100 / period_ticks
+```
+
+This correction was verified on the physical loopback after the uncorrected
+100 kHz measurement reported 111,111 Hz and 44% instead of 100,000 Hz and 50%.
+
+### Hardware validation status
+
+The following path has been exercised on the NUCLEO-H7A3ZI-Q:
+
+- GUI PWM command and `0x055C` readback
+- PA0/D32 PWM output observed with an oscilloscope
+- D32-to-D12 loopback detection on TIM3
+- Input frequency and duty telemetry on CAN ID `0x055D`
+- Synchronized GUI frequency sweep
+- Linux SocketCAN GUI connection
+
+Independent asynchronous signal-generator characterization is still pending.
+That test should cover non-round frequencies such as 12.345 kHz and determine
+whether automatic TIM3 counter-clock ranging is needed for better accuracy at
+the upper end of the capture range.
 
 ## Watchdog Architecture
 
