@@ -115,6 +115,7 @@ protocol/
   can_protocol.yaml         Single-source protocol schema
   generate_c.py             C header code generator
   generate_python.py        Python module code generator
+  requirements.txt          Pinned generator dependency
 
 Core/Startup/               Cortex-M7 reset handler and vector table
 Core/Src/main.c             Hardware startup and application entry
@@ -205,7 +206,10 @@ python protocol/generate_python.py
 ```
 
 Both generated files are committed to the repository so the project builds
-without running the generators.
+without running the generators. Firmware includes the generated header through
+`can_protocol.h`, and the GUI protocol helpers import the generated Python
+module. CI regenerates both outputs and fails if either committed file has
+drifted from the schema.
 
 ## Startup and Runtime
 
@@ -901,8 +905,8 @@ GitHub Actions dependencies are monitored monthly by Dependabot.
 
 ## Engineering Constraints and Next Steps
 
-- ~~C and Python duplicate protocol constants.~~ ✅ Generated from
-  `protocol/can_protocol.yaml`.
+- ~~C and Python duplicate protocol constants.~~ ✅ Both consumers use files
+  generated from `protocol/can_protocol.yaml`, with CI drift detection.
 - ~~Add host unit tests for codecs, calendar/alarm validation, queue policy.~~
   ✅ Unity C test suite and Python GUI regression tests added.
 - Add hardware-in-loop tests for I2C NACK, alarm mismatch, missing CAN ACK,

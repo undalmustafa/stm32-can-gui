@@ -10,6 +10,7 @@ if not (GUI_DIRECTORY / "can_gui_app").is_dir():
 
 sys.path.insert(0, str(GUI_DIRECTORY))
 
+import can_protocol_generated as generated  # noqa: E402
 from can_gui_app import protocol  # noqa: E402
 
 
@@ -33,6 +34,14 @@ def main():
            "PWM built-in-test result ID is defined")
     expect(protocol.CMD_PWM_SELF_TEST == 0x41,
            "PWM built-in-test command is defined")
+    expect(protocol.GUI_COMMAND_ID_EXT == generated.GUI_COMMAND_ID_EXT,
+           "GUI imports its command ID from the generated protocol")
+    expect(protocol.CMD_LOG_GET_INFO == generated.CMD_LOG_GET_INFO,
+           "GUI imports log commands from the generated protocol")
+    expect(protocol.STM32_LOG_RESPONSE_RX_ID == generated.LOG_RESPONSE_TX_ID,
+           "GUI RX aliases use generated firmware TX identifiers")
+    expect(protocol.RTC_STATUS_DEFINITIONS == generated.RTC_STATUS_DEFINITIONS,
+           "GUI imports RTC status definitions from the generated protocol")
     expect(protocol.RTC_ALARM_EVENT_RX_ID == 0x558,
            "RTC alarm event ID remains unchanged")
     expect(protocol.STM32_LOG_RESPONSE_RX_ID == 0x55A,

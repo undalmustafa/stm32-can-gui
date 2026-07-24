@@ -79,6 +79,18 @@ identifiers:
     direction: mcu_to_gui
     description: "PWM built-in self-test point result"
 
+  log_response:
+    id: 0x055A
+    type: standard
+    direction: mcu_to_gui
+    description: "STM32 event-log response fragments"
+
+  log_heartbeat:
+    id: 0x055B
+    type: standard
+    direction: mcu_to_gui
+    description: "STM32 event-log heartbeat"
+
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)
 # ---------------------------------------------------------------------------
@@ -122,6 +134,14 @@ commands:
   pwm_self_test:
     code: 0x41
     description: "Start or cancel the PWM built-in self-test"
+
+  log_get_info:
+    code: 0x30
+    description: "Request STM32 event-log metadata"
+
+  log_read_sequence:
+    code: 0x31
+    description: "Request one STM32 event-log record by sequence"
 
 # ---------------------------------------------------------------------------
 # RTC Status Codes (byte 0 of 0x551 telemetry)
