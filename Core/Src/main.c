@@ -30,6 +30,7 @@
 #include "pwm_control.h"
 #include "input_capture.h"
 #include "pwm_self_test.h"
+#include "tic12400_probe.h"
 
 /* USER CODE END Includes */
 
@@ -58,6 +59,8 @@ I2C_HandleTypeDef hi2c1;
 
 IWDG_HandleTypeDef hiwdg1;
 
+SPI_HandleTypeDef hspi3;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
@@ -70,6 +73,7 @@ static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_FDCAN1_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_SPI3_Init(void);
 static void MX_IWDG1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
@@ -117,6 +121,7 @@ int main(void)
   MX_GPIO_Init();
   MX_FDCAN1_Init();
   MX_I2C1_Init();
+  MX_SPI3_Init();
   MX_IWDG1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -137,6 +142,7 @@ int main(void)
   {
       Error_Handler();
   }
+  TIC12400_Probe_Init(&hspi3);
   PWM_SelfTest_Init();
   App_ResetReason_Snapshot_t reset_reason;
   App_ResetReason_GetSnapshot(&reset_reason);
@@ -369,6 +375,45 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief SPI3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI3_Init(void)
+{
+  hspi3.Instance = SPI3;
+  hspi3.Init.Mode = SPI_MODE_MASTER;
+  hspi3.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi3.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi3.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi3.Init.NSS = SPI_NSS_SOFT;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi3.Init.CRCPolynomial = 0x7U;
+  hspi3.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi3.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  hspi3.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
+  hspi3.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
+  hspi3.Init.TxCRCInitializationPattern =
+      SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+  hspi3.Init.RxCRCInitializationPattern =
+      SPI_CRC_INITIALIZATION_ALL_ZERO_PATTERN;
+  hspi3.Init.MasterSSIdleness = SPI_MASTER_SS_IDLENESS_00CYCLE;
+  hspi3.Init.MasterInterDataIdleness =
+      SPI_MASTER_INTERDATA_IDLENESS_00CYCLE;
+  hspi3.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
+  hspi3.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_ENABLE;
+  hspi3.Init.IOSwap = SPI_IO_SWAP_DISABLE;
+  if (HAL_SPI_Init(&hspi3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
   * @brief IWDG1 Initialization Function
   * @param None
   * @retval None
@@ -522,6 +567,8 @@ static void MX_TIM3_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
   /* USER CODE BEGIN MX_GPIO_Init_1 */
 
   /* USER CODE END MX_GPIO_Init_1 */
@@ -532,6 +579,29 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+
+  /* Safe inactive levels before enabling the output drivers. */
+  HAL_GPIO_WritePin(TIC12400_CS_GPIO_Port,
+                    TIC12400_CS_Pin,
+                    GPIO_PIN_SET);
+  HAL_GPIO_WritePin(TIC12400_RESET_GPIO_Port,
+                    TIC12400_RESET_Pin,
+                    GPIO_PIN_RESET);
+
+  GPIO_InitStruct.Pin = TIC12400_RESET_Pin | TIC12400_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = TIC12400_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(TIC12400_INT_GPIO_Port, &GPIO_InitStruct);
+
+  HAL_NVIC_SetPriority(TIC12400_INT_EXTI_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIC12400_INT_EXTI_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

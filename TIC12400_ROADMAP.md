@@ -197,9 +197,9 @@ or switch-topology ambiguity.
 
 ## Phase 1 - SPI and Device Bring-Up
 
-- [ ] Add SPI3 and GPIO configuration to `can_gui.ioc`.
-- [ ] Enable the STM32 HAL SPI module and generated initialization.
-- [ ] Configure manual CS, INT EXTI, and active-high RESET output behavior.
+- [x] Add SPI3 and GPIO configuration to `can_gui.ioc`.
+- [x] Enable the STM32 HAL SPI module and generated-equivalent initialization.
+- [x] Configure manual CS, INT EXTI, and active-high RESET output behavior.
 - [ ] Verify mode 1, 2 MHz, MSB-first, 32-clock transactions on an oscilloscope
       or logic analyzer.
 - [ ] Read `DEVICE_ID` and confirm TIC12400-Q1 major/minor ID `0x20`.
@@ -208,6 +208,22 @@ or switch-topology ambiguity.
 
 Exit criterion: 1000 repeated device-ID reads complete without STM32 HAL,
 TIC12400 SPI, or parity errors.
+
+### Phase 1 debugger check
+
+Set a breakpoint immediately after `TIC12400_Probe_Init(&hspi3)` in `main.c`,
+then inspect `g_tic12400_probe`:
+
+- `online = 1`, `result = TIC12400_RESULT_OK`, and `device_id = 0x20`
+  confirm that SPI communication and the device identity are valid.
+- `tx_frame = 0x02000000` is the odd-parity `DEVICE_ID` read command.
+- `por_observed = 1` confirms the reset/POR path. `int_status` preserves the
+  clear-on-read `INT_STAT` value for inspection.
+- `status.spi_fail = 0`, `status.parity_fail = 0`, and `hal_error = 0` are
+  required for a clean transaction.
+
+The probe is intentionally nonfatal: an absent or unpowered TIC12400 records
+the failure here without stopping PWM, input capture, CAN, or the watchdog.
 
 ## Phase 2 - Production-Quality TIC12400 Driver
 

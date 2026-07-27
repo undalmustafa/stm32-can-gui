@@ -70,6 +70,13 @@ void Error_Handler(void);
 #define PH0_MCU_GPIO_Port GPIOH
 #define PH1_MCU_Pin GPIO_PIN_1
 #define PH1_MCU_GPIO_Port GPIOH
+#define TIC12400_RESET_Pin GPIO_PIN_2
+#define TIC12400_RESET_GPIO_Port GPIOA
+#define TIC12400_CS_Pin GPIO_PIN_4
+#define TIC12400_CS_GPIO_Port GPIOA
+#define TIC12400_INT_Pin GPIO_PIN_6
+#define TIC12400_INT_GPIO_Port GPIOG
+#define TIC12400_INT_EXTI_IRQn EXTI9_5_IRQn
 
 /* USER CODE BEGIN Private defines */
 
