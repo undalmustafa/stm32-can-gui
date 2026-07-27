@@ -76,24 +76,26 @@ Deferred until the direct-input implementation is accepted:
 
 ## Proposed Hardware Interface
 
-The current project does not enable SPI. The SPI1 MISO option on PA6 conflicts
-with TIM3 input capture, so the provisional interface uses SPI3 on otherwise
-unused STM32 GPIOs exposed by the NUCLEO-H7A3ZI-Q connectors:
+The SPI1 MISO option on PA6 conflicts with TIM3 input capture, so the interface
+uses SPI3 on otherwise unused STM32 GPIOs exposed by the NUCLEO-H7A3ZI-Q
+connectors. PC10, PC11, and PC12 avoid the PB3/SWO solder-bridge routing:
 
 | TIC12400-Q1 signal | STM32 pin | Nucleo connector | Configuration |
 |---|---|---|---|
-| SI / MOSI | PB5 | CN7 pin 13 | SPI3 MOSI |
-| SCLK | PB3 | CN7 pin 15 | SPI3 SCK |
+| SI / MOSI | PC12 | CN8 pin 10 | SPI3 MOSI |
+| SCLK | PC10 | CN8 pin 6 | SPI3 SCK |
 | CS | PA4 | CN7 pin 17 | Software-controlled GPIO output |
-| SO / MISO | PB4 | CN7 pin 19 | SPI3 MISO |
+| SO / MISO | PC11 | CN8 pin 8 | SPI3 MISO |
 | INT | PG6 | CN10 pin 13 | GPIO EXTI, falling edge, 3.3 V pull-up |
 | RESET | PA2 | CN10 pin 11 | GPIO output, low during normal operation |
 | VDD | - | Nucleo 3V3 rail | 3.0-5.5 V allowed; project uses 3.3 V |
 | DGND/AGND | - | Nucleo GND | Common ground |
 | VS | - | External protected supply | 4.5-35 V allowed; begin testing at 12 V |
 
-PB3 is also capable of SWO trace output. SPI3 use keeps normal SWD debugging on
-PA13/PA14 available, but SWO trace must remain disabled while PB3 is SCLK.
+This SPI3 route leaves normal SWD debugging on PA13/PA14 and SWO on PB3
+untouched. The alternative PB3/PB4/PB5 SPI3 route is not used because exposing
+PB3 as SCLK exclusively on CN7 requires Nucleo solder-bridge configuration
+SB49 ON and SB50 OFF.
 
 The selected VDD is 3.3 V because the STM32H7 GPIO operates at 3.3 V. VDD must
 be present during every SPI transaction. VS is a separate protected device
