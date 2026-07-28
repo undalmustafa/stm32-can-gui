@@ -143,6 +143,7 @@ Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
 Core/Inc|Src/pwm_self_test.* Closed-loop PWM/capture built-in test
 Core/Inc|Src/tic12400.*     TIC12400-Q1 SPI driver
 Core/Inc|Src/tic12400_probe.* Initialization and raw ADC monitoring service
+Core/Inc|Src/tic12400_recovery.* Offline detection and retry-backoff policy
 Core/Inc|Src/tic12400_switch.* Debounced binary switch-state filter
 Core/Inc|Src/tic12400_can.* TIC12400 health and switch-state telemetry
 Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
@@ -915,6 +916,14 @@ snapshot, generation, SPI, or characterization information to end users.
 
 The accepted bench measurements are retained in
 `docs/tic12400_characterization_20260728.csv`.
+
+If a service batch fails, firmware invalidates the switch snapshot immediately,
+so PWM and the configurable CAN slots enter their fail-safe state without
+waiting for recovery. Three consecutive failures mark the TIC12400 offline.
+Firmware then resets, validates, configures, and restarts the module
+automatically, retrying after 500 ms and doubling the delay up to 8 seconds.
+The end-user page shows `Switch module unavailable — retrying` during this
+period and never presents the last switch bitmap as current data.
 
 ### Physical control policy
 

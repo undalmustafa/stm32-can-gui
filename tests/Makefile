@@ -7,6 +7,8 @@ TEST_PCA2131_SRC = test_pca2131_validation.c ../Core/Src/pca2131.c stubs/pca2131
 TEST_TIC12400_SRC = test_tic12400.c ../Core/Src/tic12400.c unity/unity.c
 TEST_TIC12400_SWITCH_SRC = test_tic12400_switch.c \
 	../Core/Src/tic12400_switch.c unity/unity.c
+TEST_TIC12400_RECOVERY_SRC = test_tic12400_recovery.c \
+	../Core/Src/tic12400_recovery.c unity/unity.c
 TEST_APP_CONTROL_POLICY_SRC = test_app_control_policy.c \
 	../Core/Src/app_control_policy.c unity/unity.c
 TEST_APP_CONTROL_SRC = test_app_control.c \
@@ -22,6 +24,7 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_pca2131 \
 	$(BUILD_DIR)/test_tic12400 \
 	$(BUILD_DIR)/test_tic12400_switch \
+	$(BUILD_DIR)/test_tic12400_recovery \
 	$(BUILD_DIR)/test_app_control_policy \
 	$(BUILD_DIR)/test_app_control \
 	$(BUILD_DIR)/test_transport \
@@ -48,6 +51,9 @@ $(BUILD_DIR)/test_tic12400: $(TEST_TIC12400_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_tic12400_switch: $(TEST_TIC12400_SWITCH_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_tic12400_recovery: $(TEST_TIC12400_RECOVERY_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 $(BUILD_DIR)/test_app_control_policy: $(TEST_APP_CONTROL_POLICY_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
@@ -71,6 +77,7 @@ test: all
 	$(BUILD_DIR)/test_pca2131
 	$(BUILD_DIR)/test_tic12400
 	$(BUILD_DIR)/test_tic12400_switch
+	$(BUILD_DIR)/test_tic12400_recovery
 	$(BUILD_DIR)/test_app_control_policy
 	$(BUILD_DIR)/test_app_control
 	$(BUILD_DIR)/test_transport

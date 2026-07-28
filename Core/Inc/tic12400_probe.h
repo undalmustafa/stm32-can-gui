@@ -52,6 +52,11 @@ typedef struct
     uint32_t last_service_failure_tx_frame;
     uint32_t last_service_failure_rx_frame;
     uint32_t last_service_failure_hal_error;
+    uint32_t consecutive_service_failures;
+    uint32_t offline_events;
+    uint32_t reinitialization_attempts;
+    uint32_t reinitialization_successes;
+    uint32_t reinitialization_delay_ms;
     uint32_t adc_sample_batches;
     uint32_t ssc_events;
     uint32_t closed_switch_bitmap;
@@ -78,6 +83,7 @@ typedef struct
     uint8_t interrupt_pending;
     uint8_t recovery_attempted;
     uint8_t recovery_succeeded;
+    uint8_t reinitialization_pending;
     uint8_t validation_passed;
     uint8_t configuration_completed;
     uint8_t configuration_passed;

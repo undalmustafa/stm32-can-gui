@@ -1,6 +1,7 @@
 #include "tic12400_probe.h"
 
 #include "main.h"
+#include "tic12400_recovery.h"
 #include "tic12400_switch.h"
 
 #define TIC12400_PROBE_VALIDATION_READS 1000U
@@ -16,9 +17,128 @@
 
 volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
+typedef struct
+{
+    uint32_t attempts;
+    uint32_t interrupt_count;
+    uint32_t service_attempts;
+    uint32_t service_failures;
+    uint32_t first_service_failure_attempt;
+    uint32_t first_service_failure_tx_frame;
+    uint32_t first_service_failure_rx_frame;
+    uint32_t first_service_failure_hal_error;
+    uint32_t last_service_failure_attempt;
+    uint32_t last_service_failure_tx_frame;
+    uint32_t last_service_failure_rx_frame;
+    uint32_t last_service_failure_hal_error;
+    uint32_t last_nonzero_int_status;
+    uint32_t ssc_events;
+    uint32_t switch_change_events;
+    TIC12400_Result_t first_service_failure_result;
+    TIC12400_Result_t last_service_failure_result;
+} TIC12400_ProbeLifetimeDiagnostics_t;
+
 static TIC12400_Device_t tic12400_device;
+static TIC12400_RecoveryState_t tic12400_recovery_state;
 static TIC12400_SwitchFilter_t tic12400_switch_filter;
 static uint32_t tic12400_last_service_tick;
+
+static void TIC12400_ProbeSyncRecoverySnapshot(void)
+{
+    g_tic12400_probe.consecutive_service_failures =
+        tic12400_recovery_state.consecutive_failures;
+    g_tic12400_probe.offline_events =
+        tic12400_recovery_state.offline_events;
+    g_tic12400_probe.reinitialization_attempts =
+        tic12400_recovery_state.reinitialization_attempts;
+    g_tic12400_probe.reinitialization_successes =
+        tic12400_recovery_state.reinitialization_successes;
+    g_tic12400_probe.reinitialization_delay_ms =
+        tic12400_recovery_state.retry_delay_ms;
+    g_tic12400_probe.reinitialization_pending =
+        tic12400_recovery_state.reinitialization_pending;
+}
+
+static void TIC12400_ProbeResetAttemptSnapshot(void)
+{
+    TIC12400_ProbeLifetimeDiagnostics_t previous;
+
+    HAL_NVIC_DisableIRQ(TIC12400_INT_EXTI_IRQn);
+    previous.attempts = g_tic12400_probe.attempts;
+    previous.interrupt_count =
+        g_tic12400_probe.interrupt_count;
+    previous.service_attempts =
+        g_tic12400_probe.service_attempts;
+    previous.service_failures =
+        g_tic12400_probe.service_failures;
+    previous.first_service_failure_attempt =
+        g_tic12400_probe.first_service_failure_attempt;
+    previous.first_service_failure_tx_frame =
+        g_tic12400_probe.first_service_failure_tx_frame;
+    previous.first_service_failure_rx_frame =
+        g_tic12400_probe.first_service_failure_rx_frame;
+    previous.first_service_failure_hal_error =
+        g_tic12400_probe.first_service_failure_hal_error;
+    previous.first_service_failure_result =
+        g_tic12400_probe.first_service_failure_result;
+    previous.last_service_failure_attempt =
+        g_tic12400_probe.last_service_failure_attempt;
+    previous.last_service_failure_tx_frame =
+        g_tic12400_probe.last_service_failure_tx_frame;
+    previous.last_service_failure_rx_frame =
+        g_tic12400_probe.last_service_failure_rx_frame;
+    previous.last_service_failure_hal_error =
+        g_tic12400_probe.last_service_failure_hal_error;
+    previous.last_service_failure_result =
+        g_tic12400_probe.last_service_failure_result;
+    previous.last_nonzero_int_status =
+        g_tic12400_probe.last_nonzero_int_status;
+    previous.ssc_events = g_tic12400_probe.ssc_events;
+    previous.switch_change_events =
+        g_tic12400_probe.switch_change_events;
+
+    g_tic12400_probe = (TIC12400_ProbeSnapshot_t){0};
+    g_tic12400_probe.attempts = previous.attempts + 1U;
+    g_tic12400_probe.interrupt_count = previous.interrupt_count;
+    g_tic12400_probe.service_attempts = previous.service_attempts;
+    g_tic12400_probe.service_failures = previous.service_failures;
+    g_tic12400_probe.first_service_failure_attempt =
+        previous.first_service_failure_attempt;
+    g_tic12400_probe.first_service_failure_tx_frame =
+        previous.first_service_failure_tx_frame;
+    g_tic12400_probe.first_service_failure_rx_frame =
+        previous.first_service_failure_rx_frame;
+    g_tic12400_probe.first_service_failure_hal_error =
+        previous.first_service_failure_hal_error;
+    g_tic12400_probe.first_service_failure_result =
+        previous.first_service_failure_result;
+    g_tic12400_probe.last_service_failure_attempt =
+        previous.last_service_failure_attempt;
+    g_tic12400_probe.last_service_failure_tx_frame =
+        previous.last_service_failure_tx_frame;
+    g_tic12400_probe.last_service_failure_rx_frame =
+        previous.last_service_failure_rx_frame;
+    g_tic12400_probe.last_service_failure_hal_error =
+        previous.last_service_failure_hal_error;
+    g_tic12400_probe.last_service_failure_result =
+        previous.last_service_failure_result;
+    g_tic12400_probe.last_nonzero_int_status =
+        previous.last_nonzero_int_status;
+    g_tic12400_probe.ssc_events = previous.ssc_events;
+    g_tic12400_probe.switch_change_events =
+        previous.switch_change_events;
+    TIC12400_ProbeSyncRecoverySnapshot();
+    HAL_NVIC_EnableIRQ(TIC12400_INT_EXTI_IRQn);
+}
+
+static void TIC12400_ProbeMarkOffline(void)
+{
+    g_tic12400_probe.online = 0U;
+    g_tic12400_probe.monitoring_started = 0U;
+    g_tic12400_probe.switch_state_valid = 0U;
+    g_tic12400_probe.switch_valid_mask = 0U;
+    g_tic12400_probe.interrupt_pending = 0U;
+}
 
 static void TIC12400_ProbeStoreTransaction(
     const TIC12400_Transaction_t *transaction)
@@ -280,7 +400,7 @@ static void TIC12400_ProbeRecordServiceFailure(
         transaction->result;
 }
 
-static void TIC12400_ProbeSampleInputs(void)
+static uint8_t TIC12400_ProbeSampleInputs(void)
 {
     uint8_t channel;
     uint8_t pair_index;
@@ -314,7 +434,7 @@ static void TIC12400_ProbeSampleInputs(void)
     if (interrupt_status.result != TIC12400_RESULT_OK)
     {
         TIC12400_ProbeRecordServiceFailure(&interrupt_status);
-        return;
+        return 0U;
     }
 
     for (pair_index = 0U;
@@ -328,7 +448,7 @@ static void TIC12400_ProbeSampleInputs(void)
         if (adc_status.result != TIC12400_RESULT_OK)
         {
             TIC12400_ProbeRecordServiceFailure(&adc_status);
-            return;
+            return 0U;
         }
 
         pair_readback[pair_index] = adc_status.data;
@@ -406,6 +526,7 @@ static void TIC12400_ProbeSampleInputs(void)
         g_tic12400_probe.switch_change_events++;
     }
     g_tic12400_probe.service_result = TIC12400_RESULT_OK;
+    return 1U;
 }
 
 static void TIC12400_ProbeConfigureInputs(void)
@@ -506,34 +627,24 @@ static void TIC12400_ProbeConfigureInputs(void)
      * then preserve and acknowledge its expected baseline SSC interrupt.
      */
     HAL_Delay(2U);
-    TIC12400_ProbeSampleInputs();
+    (void)TIC12400_ProbeSampleInputs();
     tic12400_last_service_tick = HAL_GetTick();
 }
 
-void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
+static uint8_t TIC12400_ProbeAttemptInitialize(void)
 {
-    uint32_t attempt;
     TIC12400_Result_t reset_result;
     TIC12400_Transaction_t transaction;
     TIC12400_Transaction_t interrupt_status;
 
-    TIC12400_Driver_Init(&tic12400_device,
-                         spi,
-                         TIC12400_CS_GPIO_Port,
-                         TIC12400_CS_Pin,
-                         TIC12400_RESET_GPIO_Port,
-                         TIC12400_RESET_Pin);
-
-    attempt = g_tic12400_probe.attempts + 1U;
-    g_tic12400_probe = (TIC12400_ProbeSnapshot_t){0};
-    g_tic12400_probe.attempts = attempt;
+    TIC12400_ProbeResetAttemptSnapshot();
     TIC12400_SwitchFilter_Init(&tic12400_switch_filter);
 
     reset_result = TIC12400_HardwareReset(&tic12400_device);
     if (reset_result != TIC12400_RESULT_OK)
     {
         g_tic12400_probe.result = reset_result;
-        return;
+        return 0U;
     }
 
     transaction = TIC12400_ReadDeviceId(&tic12400_device);
@@ -591,7 +702,7 @@ void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
 
     if (transaction.result != TIC12400_RESULT_OK)
     {
-        return;
+        return 0U;
     }
 
     /*
@@ -611,7 +722,7 @@ void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
         if (interrupt_status.result != TIC12400_RESULT_OK)
         {
             TIC12400_ProbeStoreTransaction(&interrupt_status);
-            return;
+            return 0U;
         }
         g_tic12400_probe.interrupt_pending = 0U;
     }
@@ -619,17 +730,70 @@ void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
     TIC12400_ProbeValidateCommunication();
     if (g_tic12400_probe.validation_passed != 0U)
     {
-        g_tic12400_probe.online = 1U;
         TIC12400_ProbeConfigureInputs();
+        if (g_tic12400_probe.configuration_passed != 0U)
+        {
+            g_tic12400_probe.online = 1U;
+            return 1U;
+        }
+        g_tic12400_probe.result =
+            g_tic12400_probe.configuration_result;
     }
+
+    return 0U;
+}
+
+void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
+{
+    uint8_t succeeded;
+
+    TIC12400_Driver_Init(&tic12400_device,
+                         spi,
+                         TIC12400_CS_GPIO_Port,
+                         TIC12400_CS_Pin,
+                         TIC12400_RESET_GPIO_Port,
+                         TIC12400_RESET_Pin);
+    TIC12400_Recovery_Init(&tic12400_recovery_state);
+
+    succeeded = TIC12400_ProbeAttemptInitialize();
+    TIC12400_Recovery_RecordInitialResult(
+        &tic12400_recovery_state,
+        HAL_GetTick(),
+        succeeded);
+    if (succeeded == 0U)
+    {
+        TIC12400_ProbeMarkOffline();
+    }
+    TIC12400_ProbeSyncRecoverySnapshot();
 }
 
 void TIC12400_Probe_Process(void)
 {
     uint32_t now;
+    uint8_t succeeded;
+    uint8_t became_offline;
 
     if (g_tic12400_probe.monitoring_started == 0U)
     {
+        now = HAL_GetTick();
+        if (TIC12400_Recovery_ShouldReinitialize(
+                &tic12400_recovery_state,
+                now) == 0U)
+        {
+            return;
+        }
+
+        succeeded = TIC12400_ProbeAttemptInitialize();
+        now = HAL_GetTick();
+        TIC12400_Recovery_RecordReinitializationResult(
+            &tic12400_recovery_state,
+            now,
+            succeeded);
+        if (succeeded == 0U)
+        {
+            TIC12400_ProbeMarkOffline();
+        }
+        TIC12400_ProbeSyncRecoverySnapshot();
         return;
     }
 
@@ -641,7 +805,16 @@ void TIC12400_Probe_Process(void)
         return;
     }
 
-    TIC12400_ProbeSampleInputs();
+    succeeded = TIC12400_ProbeSampleInputs();
+    became_offline = TIC12400_Recovery_RecordServiceResult(
+        &tic12400_recovery_state,
+        now,
+        succeeded);
+    if (became_offline != 0U)
+    {
+        TIC12400_ProbeMarkOffline();
+    }
+    TIC12400_ProbeSyncRecoverySnapshot();
     tic12400_last_service_tick = now;
 }
 

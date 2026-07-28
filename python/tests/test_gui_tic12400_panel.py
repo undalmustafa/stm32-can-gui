@@ -88,10 +88,21 @@ def main():
         [0x41, 0x20, 5, 1, 1, 0, 1, 0],
     ))
     app.processEvents()
-    expect(panel.status_label.text() == "Switch module unavailable",
-           "module fault is never shown as valid switch data")
+    expect(panel.status_label.text() == "Switch module fault",
+           "responding module fault is distinguished from offline recovery")
     expect(panel.channel_table.item(0, 1).text() == "Unavailable",
            "faulted module suppresses stale closed state")
+
+    controller.handle_message(Message(
+        TIC12400_STATUS_RX_ID,
+        [0x40, 0x20, 5, 1, 3, 0, 1, 0],
+    ))
+    app.processEvents()
+    expect(
+        panel.status_label.text() ==
+        "Switch module unavailable — retrying",
+        "offline module reports automatic recovery attempts",
+    )
 
     print("PASS: TIC12400 end-user open/closed rendering")
 

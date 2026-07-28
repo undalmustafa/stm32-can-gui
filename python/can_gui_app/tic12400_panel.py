@@ -80,8 +80,18 @@ class Tic12400Panel:
             self.status_label.setStyleSheet(
                 "color: #2da44e; font-weight: 700;"
             )
+        elif (
+            device_status["received"]
+            and not device_status["online"]
+        ):
+            self.status_label.setText(
+                "Switch module unavailable — retrying"
+            )
+            self.status_label.setStyleSheet(
+                "color: #cf222e; font-weight: 700;"
+            )
         elif device_status["received"] and not device_status["healthy"]:
-            self.status_label.setText("Switch module unavailable")
+            self.status_label.setText("Switch module fault")
             self.status_label.setStyleSheet(
                 "color: #cf222e; font-weight: 700;"
             )

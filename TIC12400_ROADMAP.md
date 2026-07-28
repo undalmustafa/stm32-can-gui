@@ -330,7 +330,7 @@ results, and bench reads match a logic-analyzer decode.
 - [x] Record accepted Left-closed and Center/Right-open ADC ranges for every
       fitted channel.
 - [x] Add three-sample switch-change debounce filtering.
-- [ ] Add device-offline detection, controlled reinitialization, and backoff.
+- [x] Add device-offline detection, controlled reinitialization, and backoff.
 - [x] Add sticky counters and last-error information to runtime diagnostics.
 - [ ] Add retained log events for initialization, reset, configuration failure,
       SPI/parity failure, supply/temperature faults, and switch changes selected
@@ -339,6 +339,25 @@ results, and bench reads match a logic-analyzer decode.
 Exit criterion: all 23 fitted direct channels update correctly, IN12 remains
 disabled, the existing application is not blocked, and a disconnected/reset
 TIC12400 recovers predictably.
+
+### Phase 3 recovery debugger check
+
+With monitoring healthy, switch off the external TIC12400 VS supply while
+leaving VDD, ground, and the SPI wiring unchanged. The first failed sampling
+batch must set
+`switch_state_valid = 0` and a non-OK `service_result`. After three consecutive
+failures, `online = 0`, `monitoring_started = 0`,
+`reinitialization_pending = 1`, `offline_events` increments, and
+`reinitialization_delay_ms = 500`.
+
+Leave the module disconnected long enough to observe
+`reinitialization_attempts` increase and `reinitialization_delay_ms` grow to
+1000, 2000, 4000, and then the 8000 ms cap. Restore VS. A successful attempt
+increments `reinitialization_successes`,
+clears `reinitialization_pending`, and returns `online`,
+`configuration_passed`, `monitoring_started`, and eventually
+`switch_state_valid` to 1 after the three-sample input baseline. CAN, RTC, and
+the main-loop watchdog must remain operational throughout the test.
 
 ## Phase 4 - CAN Protocol
 
@@ -515,6 +534,12 @@ are implemented. The first reviewed control-policy map is also implemented:
 The policy records requested, physical-override, inhibited, and effective
 states separately so the GUI never presents an accepted request as an active
 output.
+
+TIC12400 service data becomes invalid on the first failed sampling batch.
+Three consecutive failed batches mark the module offline and start automatic
+hardware reset, identity validation, configuration, and monitoring recovery.
+Retries begin after 500 ms and use capped exponential backoff up to 8 seconds;
+the rest of the application continues running between attempts.
 
 Low-power polling and advanced diagnostics follow after the binary
 monitoring-and-control path is accepted.
