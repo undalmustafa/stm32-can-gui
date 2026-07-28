@@ -223,6 +223,9 @@ then inspect `g_tic12400_probe`:
   it in `first_rx_frame`/`first_result`, reads `INT_STAT` to clear the fault,
   and retries `DEVICE_ID`. `recovery_attempted = 1` and
   `recovery_succeeded = 1` identify this recovered startup condition.
+- The probe then performs 1000 consecutive `DEVICE_ID` reads. A hardware pass
+  has `validation_target = 1000`, `validation_completed = 1000`,
+  `validation_passed = 1`, and `validation_first_failure_index = 0`.
 - `status.spi_fail = 0`, `status.parity_fail = 0`, and `hal_error = 0` are
   required for a clean transaction.
 

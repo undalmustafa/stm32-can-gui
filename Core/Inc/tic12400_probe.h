@@ -16,8 +16,13 @@ typedef struct
     uint32_t register_data;
     uint32_t int_status;
     uint32_t hal_error;
+    uint32_t validation_target;
+    uint32_t validation_completed;
+    uint32_t validation_first_failure_index;
+    uint32_t validation_first_failure_rx_frame;
     TIC12400_Result_t first_result;
     TIC12400_Result_t clear_result;
+    TIC12400_Result_t validation_first_failure_result;
     TIC12400_Result_t result;
     HAL_StatusTypeDef hal_status;
     TIC12400_StatusFlags_t status;
@@ -27,6 +32,7 @@ typedef struct
     uint8_t interrupt_pending;
     uint8_t recovery_attempted;
     uint8_t recovery_succeeded;
+    uint8_t validation_passed;
 } TIC12400_ProbeSnapshot_t;
 
 extern volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
