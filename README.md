@@ -854,6 +854,7 @@ Key features:
 - System slot and LED status
 - TIC12400 device health, transaction flags, and raw ADC snapshot monitoring
 - All 24 physical TIC12400 inputs shown with IN12 marked `Not fitted`
+- Multi-snapshot Left/Center/Right TIC12400 characterization with CSV export
 - STM32 event log download with CRC verification
 - Task-oriented Control, Live Data, PWM & Capture, TIC12400, and
   Logs & Errors pages
@@ -865,6 +866,23 @@ Key features:
 On Linux the GUI defaults to `socketcan` channel `can0`; on Windows it defaults
 to `pcan` channel `PCAN_USBBUS1`. The nominal bitrate is 500 kbit/s. It accepts
 application telemetry only from the protocol-defined standard identifiers.
+
+### TIC12400 three-position characterization
+
+Open the **TIC12400** page after CAN telemetry is active. For each physical
+position:
+
+1. Move all 23 fitted switches to Left, Center, or Right.
+2. Select the matching capture button.
+3. Keep every switch still while the GUI collects 10 complete ADC snapshots.
+4. Confirm the capture reaches `10/10` and inspect each channel's observed
+   minimum–maximum range.
+
+After all three captures, select **Export CSV**. The file contains the fitted
+flag, observed range, and sample count for every position and channel. IN12 is
+always exported as not fitted with empty ranges. These measurements are
+characterization evidence; the GUI continues to show positions as
+`Uncharacterized` until reviewed thresholds are implemented in firmware.
 
 ### STM32 traffic health
 

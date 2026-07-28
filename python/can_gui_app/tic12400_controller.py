@@ -1,5 +1,7 @@
 """TIC12400 device-status and segmented raw-ADC telemetry controller."""
 
+import csv
+import io
 import time
 
 from .protocol import (
@@ -32,8 +34,12 @@ class Tic12400Controller:
 
     NOT_FITTED_CHANNEL = 12
     COMPLETE_GROUP_MASK = (1 << TIC12400_ADC_GROUP_COUNT) - 1
+    CALIBRATION_POSITIONS = ("left", "center", "right")
 
-    def __init__(self, renderer, clock=None):
+    def __init__(self, renderer, clock=None, calibration_sample_target=10):
+        if calibration_sample_target < 1:
+            raise ValueError("calibration_sample_target must be positive")
+
         self._renderer = renderer
         self._clock = clock or time.monotonic
         self.device_status = {
@@ -80,13 +86,151 @@ class Tic12400Controller:
             "duplicate_groups": 0,
             "last_adc_update_at": None,
         }
+        self.calibration = self._new_calibration_state(
+            calibration_sample_target
+        )
 
     def render(self):
         self._renderer(
             device_status=self.device_status,
             channels=self.channels,
             telemetry=self.telemetry,
+            calibration=self.calibration,
         )
+
+    @classmethod
+    def _new_position_capture(cls):
+        return {
+            "sample_count": 0,
+            "completed": False,
+            "first_generation": None,
+            "last_generation": None,
+            "minimum": [None] * TIC12400_ADC_CHANNEL_COUNT,
+            "maximum": [None] * TIC12400_ADC_CHANNEL_COUNT,
+        }
+
+    @classmethod
+    def _new_calibration_state(cls, sample_target):
+        return {
+            "sample_target": sample_target,
+            "active_position": None,
+            "last_completed_position": None,
+            "last_error": None,
+            "positions": {
+                position: cls._new_position_capture()
+                for position in cls.CALIBRATION_POSITIONS
+            },
+        }
+
+    def start_position_capture(self, position):
+        normalized = str(position).strip().lower()
+        if normalized not in self.CALIBRATION_POSITIONS:
+            raise ValueError(f"invalid TIC12400 position: {position}")
+
+        if not self._calibration_ready():
+            self.calibration["last_error"] = (
+                "Capture requires online, configured, CRC-complete "
+                "TIC12400 ADC monitoring without a service fault."
+            )
+            self.render()
+            return False
+
+        self.calibration["positions"][normalized] = (
+            self._new_position_capture()
+        )
+        self.calibration["active_position"] = normalized
+        self.calibration["last_error"] = None
+        self.render()
+        return True
+
+    def clear_position_captures(self):
+        sample_target = self.calibration["sample_target"]
+        self.calibration = self._new_calibration_state(sample_target)
+        self.render()
+
+    def calibration_csv_text(self):
+        output = io.StringIO(newline="")
+        writer = csv.writer(output, lineterminator="\n")
+        header = ["channel", "fitted"]
+        for position in self.CALIBRATION_POSITIONS:
+            header.extend((
+                f"{position}_minimum",
+                f"{position}_maximum",
+                f"{position}_samples",
+            ))
+        writer.writerow(header)
+
+        for channel in range(TIC12400_ADC_CHANNEL_COUNT):
+            fitted = channel != self.NOT_FITTED_CHANNEL
+            row = [f"IN{channel}", 1 if fitted else 0]
+            for position in self.CALIBRATION_POSITIONS:
+                capture = self.calibration["positions"][position]
+                minimum = capture["minimum"][channel]
+                maximum = capture["maximum"][channel]
+                row.extend((
+                    "" if minimum is None else minimum,
+                    "" if maximum is None else maximum,
+                    capture["sample_count"] if fitted else 0,
+                ))
+            writer.writerow(row)
+
+        return output.getvalue()
+
+    def _calibration_ready(self):
+        return (
+            self.device_status["received"]
+            and self.device_status["online"]
+            and self.device_status["configuration_valid"]
+            and self.device_status["crc_complete"]
+            and self.device_status["monitoring"]
+            and self.device_status["adc_characterization"]
+            and not self.device_status["service_fault"]
+        )
+
+    def _record_calibration_snapshot(self, generation):
+        position = self.calibration["active_position"]
+        if position is None:
+            return
+
+        if not self._calibration_ready():
+            self.calibration["active_position"] = None
+            self.calibration["last_error"] = (
+                "Capture stopped because TIC12400 monitoring is not healthy."
+            )
+            return
+
+        capture = self.calibration["positions"][position]
+        fitted_channels = [
+            channel for channel in self.channels if channel["fitted"]
+        ]
+        if any(
+            channel["generation"] != generation
+            or channel["adc_code"] is None
+            for channel in fitted_channels
+        ):
+            return
+
+        for channel in fitted_channels:
+            index = channel["channel"]
+            code = channel["adc_code"]
+            minimum = capture["minimum"][index]
+            maximum = capture["maximum"][index]
+            capture["minimum"][index] = (
+                code if minimum is None else min(minimum, code)
+            )
+            capture["maximum"][index] = (
+                code if maximum is None else max(maximum, code)
+            )
+
+        if capture["sample_count"] == 0:
+            capture["first_generation"] = generation
+        capture["last_generation"] = generation
+        capture["sample_count"] += 1
+
+        if capture["sample_count"] >= self.calibration["sample_target"]:
+            capture["completed"] = True
+            self.calibration["active_position"] = None
+            self.calibration["last_completed_position"] = position
 
     @staticmethod
     def _is_newer_generation(candidate, current):
@@ -183,6 +327,14 @@ class Tic12400Controller:
             ),
             "updated_at": now,
         }
+        if (self.calibration["active_position"] is not None
+                and not self._calibration_ready()):
+            self.calibration["active_position"] = None
+            self.calibration["last_error"] = (
+                "Capture stopped because TIC12400 monitoring is not healthy."
+            )
+        elif self._calibration_ready():
+            self.calibration["last_error"] = None
         self.render()
 
     def _handle_adc(self, msg):
@@ -220,6 +372,8 @@ class Tic12400Controller:
         group_bit = 1 << group_index
         if self.telemetry["received_group_mask"] & group_bit:
             self.telemetry["duplicate_groups"] += 1
+            self.render()
+            return
         else:
             self.telemetry["received_group_mask"] |= group_bit
             self.telemetry["received_group_count"] += 1
@@ -236,10 +390,15 @@ class Tic12400Controller:
             channel["generation"] = generation
             channel["updated_at"] = now
 
-        if (self.telemetry["received_group_mask"] ==
-                self.COMPLETE_GROUP_MASK):
+        became_complete = (
+            self.telemetry["received_group_mask"] ==
+            self.COMPLETE_GROUP_MASK
+            and not self.telemetry["snapshot_complete"]
+        )
+        if became_complete:
             self.telemetry["snapshot_complete"] = True
             self.telemetry["complete_generation"] = generation
+            self._record_calibration_snapshot(generation)
 
         self.telemetry["last_adc_update_at"] = now
         self.render()

@@ -34,6 +34,12 @@ def main():
         renderer=panel.render,
         clock=lambda: 12.0,
     )
+    capture_requests = []
+    panel.set_calibration_handlers(
+        capture_requested=capture_requests.append,
+        clear_requested=lambda: capture_requests.append("clear"),
+        calibration_csv_requested=lambda: "channel,fitted\n",
+    )
 
     controller.device_status.update({
         "received": True,
@@ -69,9 +75,23 @@ def main():
         "complete_generation": 4,
         "last_adc_update_at": 12.0,
     })
+    left_capture = controller.calibration["positions"]["left"]
+    left_capture.update({
+        "sample_count": 10,
+        "completed": True,
+        "first_generation": 1,
+        "last_generation": 10,
+    })
+    left_capture["minimum"][0] = 38
+    left_capture["maximum"][0] = 42
     controller.render()
     app.processEvents()
 
+    expect(panel.capture_left_button.isEnabled(),
+           "capture becomes available only with healthy ADC monitoring")
+    panel.capture_left_button.click()
+    expect(capture_requests == ["left"],
+           "left capture button invokes its controller callback")
     expect(panel.health_value.text() == "Online / Healthy",
            "healthy device state is rendered")
     expect(panel.device_id_value.text() == "0x20",
@@ -90,6 +110,12 @@ def main():
            "IN22 raw ADC remains distinct from IN0")
     expect("8/8 groups" in panel.snapshot_value.text(),
            "complete segmented snapshot is rendered")
+    expect(panel.channel_table.item(0, 6).text() == "38–42",
+           "captured left-position ADC range is rendered")
+    expect("Left 10/10" in panel.calibration_status.text(),
+           "capture progress summary is rendered")
+    expect(panel.export_calibration_button.isEnabled(),
+           "CSV export becomes available after a capture")
 
     print("PASS: TIC12400 panel raw telemetry rendering")
 

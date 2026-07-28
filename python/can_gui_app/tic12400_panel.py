@@ -1,14 +1,20 @@
-"""Read-only TIC12400 device health and raw ADC telemetry panel."""
+"""TIC12400 device health, raw ADC, and characterization panel."""
 
 import time
+from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHeaderView,
+    QHBoxLayout,
     QLabel,
+    QMessageBox,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -20,9 +26,19 @@ class Tic12400Panel:
 
     def __init__(self, clock=None):
         self._clock = clock or time.monotonic
+        self._capture_requested = None
+        self._clear_requested = None
+        self._calibration_csv_requested = None
         self.overview_group = self._build_overview()
         self.channel_group = self._build_channel_table()
-        self.calibration_group = self._build_calibration_notice()
+        self.calibration_group = self._build_calibration_controls()
+
+    def set_calibration_handlers(
+            self, capture_requested, clear_requested,
+            calibration_csv_requested):
+        self._capture_requested = capture_requested
+        self._clear_requested = clear_requested
+        self._calibration_csv_requested = calibration_csv_requested
 
     def _build_overview(self):
         group = QGroupBox("TIC12400-Q1 Device Overview")
@@ -60,7 +76,7 @@ class Tic12400Panel:
         group = QGroupBox("24 Physical Switch Inputs")
         layout = QVBoxLayout(group)
 
-        self.channel_table = QTableWidget(24, 6)
+        self.channel_table = QTableWidget(24, 9)
         self.channel_table.setHorizontalHeaderLabels((
             "Input",
             "Availability",
@@ -68,6 +84,9 @@ class Tic12400Panel:
             "Raw ADC",
             "Physical Position",
             "Generation",
+            "Left Range",
+            "Center Range",
+            "Right Range",
         ))
         self.channel_table.setEditTriggers(
             QAbstractItemView.EditTrigger.NoEditTriggers
@@ -90,6 +109,9 @@ class Tic12400Panel:
                 "--",
                 "Uncharacterized" if fitted else "Not fitted",
                 "--",
+                "--",
+                "--",
+                "--",
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
@@ -101,19 +123,90 @@ class Tic12400Panel:
         layout.addWidget(self.channel_table)
         return group
 
-    @staticmethod
-    def _build_calibration_notice():
+    def _build_calibration_controls(self):
         group = QGroupBox("Three-Position Characterization")
         layout = QVBoxLayout(group)
         notice = QLabel(
-            "Position thresholds are not configured yet. Move all fitted "
-            "switches to left, center, and right in separate test passes and "
-            "record stable raw ADC values. IN12 is unavailable because its "
-            "carrier resistor is not fitted."
+            "Move all 23 fitted switches to one physical position, then start "
+            "that capture. The GUI records ten complete ADC snapshots and "
+            "shows the observed minimum–maximum range. Keep the switches "
+            "still until capture completes. IN12 is always excluded."
         )
         notice.setWordWrap(True)
+        self.calibration_status = QLabel("No position captures yet.")
+        self.calibration_status.setWordWrap(True)
+
+        self.capture_left_button = QPushButton("Capture Left")
+        self.capture_center_button = QPushButton("Capture Center")
+        self.capture_right_button = QPushButton("Capture Right")
+        self.clear_calibration_button = QPushButton("Clear Captures")
+        self.export_calibration_button = QPushButton("Export CSV…")
+        self.export_calibration_button.setEnabled(False)
+
+        self.capture_left_button.clicked.connect(
+            lambda: self._start_capture("left")
+        )
+        self.capture_center_button.clicked.connect(
+            lambda: self._start_capture("center")
+        )
+        self.capture_right_button.clicked.connect(
+            lambda: self._start_capture("right")
+        )
+        self.clear_calibration_button.clicked.connect(self._clear_captures)
+        self.export_calibration_button.clicked.connect(
+            self._export_calibration
+        )
+
+        capture_buttons = QHBoxLayout()
+        capture_buttons.addWidget(self.capture_left_button)
+        capture_buttons.addWidget(self.capture_center_button)
+        capture_buttons.addWidget(self.capture_right_button)
+
+        action_buttons = QHBoxLayout()
+        action_buttons.addWidget(self.clear_calibration_button)
+        action_buttons.addWidget(self.export_calibration_button)
+        action_buttons.addStretch()
+
         layout.addWidget(notice)
+        layout.addWidget(self.calibration_status)
+        layout.addLayout(capture_buttons)
+        layout.addLayout(action_buttons)
         return group
+
+    def _start_capture(self, position):
+        if self._capture_requested is not None:
+            self._capture_requested(position)
+
+    def _clear_captures(self):
+        if self._clear_requested is not None:
+            self._clear_requested()
+
+    def _export_calibration(self):
+        if self._calibration_csv_requested is None:
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"tic12400_characterization_{timestamp}.csv"
+        filename, _selected_filter = QFileDialog.getSaveFileName(
+            self.calibration_group,
+            "Export TIC12400 Characterization",
+            default_name,
+            "CSV files (*.csv);;All files (*)",
+        )
+        if not filename:
+            return
+
+        try:
+            Path(filename).write_text(
+                self._calibration_csv_requested(),
+                encoding="utf-8",
+            )
+        except OSError as error:
+            QMessageBox.critical(
+                self.calibration_group,
+                "Export Failed",
+                str(error),
+            )
 
     @staticmethod
     def _yes_no(value):
@@ -127,7 +220,66 @@ class Tic12400Panel:
             if active
         ]
 
-    def render(self, device_status, channels, telemetry):
+    @staticmethod
+    def _format_range(capture, channel):
+        minimum = capture["minimum"][channel]
+        maximum = capture["maximum"][channel]
+        if minimum is None or maximum is None:
+            return "--"
+        if minimum == maximum:
+            return str(minimum)
+        return f"{minimum}–{maximum}"
+
+    def _render_calibration(self, calibration, device_status):
+        active = calibration["active_position"]
+        target = calibration["sample_target"]
+        positions = calibration["positions"]
+        if active is not None:
+            count = positions[active]["sample_count"]
+            self.calibration_status.setText(
+                f"Capturing {active.title()}: {count}/{target} complete "
+                "snapshots. Keep every switch still."
+            )
+        elif calibration["last_error"] is not None:
+            self.calibration_status.setText(calibration["last_error"])
+        else:
+            summaries = []
+            for position in ("left", "center", "right"):
+                count = positions[position]["sample_count"]
+                summaries.append(
+                    f"{position.title()} {count}/{target}"
+                )
+            self.calibration_status.setText(
+                "Captured snapshots: " + ", ".join(summaries)
+            )
+
+        capture_buttons = (
+            self.capture_left_button,
+            self.capture_center_button,
+            self.capture_right_button,
+        )
+        capture_ready = bool(
+            device_status["healthy"]
+            and device_status["adc_characterization"]
+        )
+        for button in capture_buttons:
+            button.setEnabled(active is None and capture_ready)
+
+        has_samples = any(
+            capture["sample_count"] > 0
+            for capture in positions.values()
+        )
+        self.export_calibration_button.setEnabled(has_samples)
+
+        for channel in range(24):
+            for column, position in enumerate(
+                    ("left", "center", "right"), start=6):
+                text = self._format_range(
+                    positions[position], channel
+                )
+                self.channel_table.item(channel, column).setText(text)
+
+    def render(self, device_status, channels, telemetry, calibration):
         if not device_status["received"]:
             self.health_value.setText("Waiting for telemetry")
             self.health_value.setStyleSheet("color: #d19a36;")
@@ -220,3 +372,5 @@ class Tic12400Panel:
             self.channel_table.item(row, 3).setText(raw_text)
             self.channel_table.item(row, 4).setText(position)
             self.channel_table.item(row, 5).setText(generation_text)
+
+        self._render_calibration(calibration, device_status)

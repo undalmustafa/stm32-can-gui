@@ -34,6 +34,18 @@ def adc_frame(generation, group, first, second, third):
     return Message(TIC12400_ADC_RX_ID, data)
 
 
+def send_adc_generation(controller, generation, offset):
+    for group in range(8):
+        first_channel = group * 3
+        controller.handle_message(adc_frame(
+            generation,
+            group,
+            offset + first_channel,
+            offset + first_channel + 1,
+            offset + first_channel + 2,
+        ))
+
+
 def main():
     rendered = []
     clock_value = [100.0]
@@ -111,6 +123,8 @@ def main():
            "duplicate group is diagnosed")
     expect(controller.telemetry["received_group_count"] == 1,
            "duplicate group does not inflate completion count")
+    expect(controller.channels[0]["adc_code"] == 0x27,
+           "duplicate group cannot overwrite accepted channel data")
 
     for group in range(1, 8):
         base = group * 3
@@ -146,7 +160,88 @@ def main():
            "invalid group and out-of-range ADC values are diagnosed")
     expect(len(rendered) > 0, "valid status and ADC frames are rendered")
 
-    print("PASS: TIC12400 controller telemetry and stale-state handling")
+    try:
+        controller.start_position_capture("up")
+        raise AssertionError("invalid physical position was accepted")
+    except ValueError:
+        pass
+
+    expect(not controller.start_position_capture("left"),
+           "capture is rejected while device health is faulted")
+    expect(controller.calibration["last_error"] is not None,
+           "rejected capture explains its health prerequisite")
+    controller.handle_message(healthy_status)
+    expect(controller.start_position_capture("left"),
+           "capture starts after healthy monitoring is confirmed")
+    expect(controller.calibration["active_position"] == "left",
+           "left characterization starts explicitly")
+    for group in range(7):
+        first_channel = group * 3
+        controller.handle_message(adc_frame(
+            0x44,
+            group,
+            100 + first_channel,
+            101 + first_channel,
+            102 + first_channel,
+        ))
+    expect(
+        controller.calibration["positions"]["left"]["sample_count"] == 0,
+        "partial ADC generation is not used for characterization",
+    )
+    controller.handle_message(adc_frame(0x44, 7, 121, 122, 123))
+    expect(
+        controller.calibration["positions"]["left"]["sample_count"] == 1,
+        "one complete generation contributes one sample",
+    )
+    controller.handle_message(adc_frame(0x44, 7, 121, 122, 123))
+    expect(
+        controller.calibration["positions"]["left"]["sample_count"] == 1,
+        "duplicate groups do not contribute extra calibration samples",
+    )
+
+    for sample in range(1, 10):
+        send_adc_generation(controller, 0x44 + sample, 100 + sample)
+
+    left = controller.calibration["positions"]["left"]
+    expect(left["completed"], "capture completes at its sample target")
+    expect(left["sample_count"] == 10,
+           "ten complete snapshots are collected")
+    expect(left["minimum"][0] == 100 and left["maximum"][0] == 109,
+           "IN0 observed ADC range is retained")
+    expect(left["minimum"][22] == 122 and left["maximum"][22] == 131,
+           "IN22 observed ADC range remains channel-specific")
+    expect(left["minimum"][12] is None and left["maximum"][12] is None,
+           "IN12 is excluded from characterization")
+    expect(controller.calibration["active_position"] is None,
+           "capture stops automatically at its target")
+
+    csv_text = controller.calibration_csv_text()
+    expect(
+        "channel,fitted,left_minimum,left_maximum,left_samples"
+        in csv_text,
+        "characterization CSV has explicit position columns",
+    )
+    expect("IN0,1,100,109,10" in csv_text,
+           "characterization CSV exports IN0 range and sample count")
+    expect("IN12,0,,,0" in csv_text,
+           "characterization CSV keeps IN12 unavailable")
+
+    controller.start_position_capture("center")
+    expect(
+        controller.calibration["positions"]["left"]["sample_count"] == 10,
+        "starting another position preserves completed captures",
+    )
+    controller.clear_position_captures()
+    expect(controller.calibration["active_position"] is None,
+           "clear stops an active capture")
+    expect(all(
+        capture["sample_count"] == 0
+        for capture in controller.calibration["positions"].values()
+    ), "clear removes all position ranges")
+
+    print(
+        "PASS: TIC12400 telemetry, stale-state, and calibration capture"
+    )
 
 
 if __name__ == "__main__":

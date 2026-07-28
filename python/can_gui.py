@@ -51,6 +51,17 @@ class CanGui(QWidget):
         self.tic12400_controller = Tic12400Controller(
             renderer=self.tic12400_panel.render
         )
+        self.tic12400_panel.set_calibration_handlers(
+            capture_requested=(
+                self.tic12400_controller.start_position_capture
+            ),
+            clear_requested=(
+                self.tic12400_controller.clear_position_captures
+            ),
+            calibration_csv_requested=(
+                self.tic12400_controller.calibration_csv_text
+            ),
+        )
 
         self.can_connection_panel = CanConnectionPanel(
             connect_requested=self.connect_can,

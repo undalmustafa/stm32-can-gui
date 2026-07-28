@@ -457,6 +457,9 @@ confirmed MCU telemetry rather than optimistic button clicks.
 ## Phase 6 - ADC, Resistor-Coded Switches, and Low-Power Polling
 
 - [x] Read all 23 fitted raw ADC channels into a coherent firmware snapshot.
+- [x] Add a GUI characterization workflow that collects ten complete
+      generations per physical position, rejects partial/duplicate snapshots,
+      displays per-channel minimum/maximum codes, and exports CSV.
 - [ ] Capture left, center, and right codes from the actual carrier switches.
 - [ ] Define named resistor-ladder profiles and expected ADC ranges.
 - [ ] Calculate thresholds with component tolerance, wetting-current tolerance,
@@ -505,7 +508,9 @@ The SPI, identity, register readback, hardware CRC, and fitted-channel mask are
 working. Continue with the actual three-position carrier in this order:
 
 1. Read all 23 fitted inputs in ADC mode at 1 mA wetting current.
-2. Capture stable `adc_raw` arrays with all switches left, center, and right.
+2. In the GUI TIC12400 page, move all fitted switches left and select
+   **Capture Left**. Keep them still until 10/10 complete snapshots are shown.
+   Repeat with **Capture Center** and **Capture Right**, then export the CSV.
 3. Derive per-channel boundaries with margin from the measured ranges.
 4. Implement explicit left/center/right/invalid states and debounce.
 5. Enable the corresponding ADC threshold interrupts.
