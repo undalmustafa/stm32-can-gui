@@ -6,9 +6,11 @@
 #define TIC12400_PROBE_FALLBACK_POLL_MS  50U
 
 #define TIC12400_CONFIG_TRIGGER           (1UL << 11)
-#define TIC12400_IN0_ENABLE               (1UL << 0)
-#define TIC12400_IN0_IN1_WETTING_1_MA     0x000001UL
-#define TIC12400_IN0_BOTH_EDGES           0x000003UL
+#define TIC12400_BOARD_FITTED_INPUT_MASK   0xFFEFFFUL
+#define TIC12400_ALL_WC_CFG0_1_MA          0x249249UL
+#define TIC12400_ALL_WC_CFG1_1_MA          0x049249UL
+#define TIC12400_COMP1_BOTH_EDGES          0xFFFFFFUL
+#define TIC12400_COMP2_BOTH_EDGES_NO_IN12  0xFFFFFCUL
 #define TIC12400_INT_ENABLE_SSC            (1UL << 2)
 #define TIC12400_INT_STATUS_SSC            (1UL << 3)
 
@@ -16,6 +18,19 @@ volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
 static TIC12400_Device_t tic12400_device;
 static uint32_t tic12400_last_service_tick;
+
+static uint8_t TIC12400_ProbeCountBits(uint32_t value)
+{
+    uint8_t count = 0U;
+
+    while (value != 0U)
+    {
+        count = (uint8_t)(count + (uint8_t)(value & 1U));
+        value >>= 1U;
+    }
+
+    return count;
+}
 
 static void TIC12400_ProbeStoreTransaction(
     const TIC12400_Transaction_t *transaction)
@@ -147,9 +162,10 @@ static void TIC12400_ProbeRecordServiceFailure(
         transaction->result;
 }
 
-static void TIC12400_ProbeSampleInput0(void)
+static void TIC12400_ProbeSampleInputs(void)
 {
-    uint8_t previous_above_threshold;
+    uint32_t changed_inputs;
+    uint32_t previous_comparator_bitmap;
     TIC12400_Transaction_t interrupt_status;
     TIC12400_Transaction_t comparator_status;
 
@@ -191,35 +207,49 @@ static void TIC12400_ProbeSampleInput0(void)
         return;
     }
 
-    previous_above_threshold =
-        g_tic12400_probe.in0_above_threshold;
-    g_tic12400_probe.comparator_bitmap = comparator_status.data;
+    previous_comparator_bitmap =
+        g_tic12400_probe.comparator_bitmap;
+    g_tic12400_probe.comparator_bitmap =
+        comparator_status.data & TIC12400_BOARD_FITTED_INPUT_MASK;
+    g_tic12400_probe.closed_switch_bitmap =
+        (~g_tic12400_probe.comparator_bitmap) &
+        TIC12400_BOARD_FITTED_INPUT_MASK;
     g_tic12400_probe.in0_above_threshold =
-        ((comparator_status.data & TIC12400_IN0_ENABLE) != 0U) ?
+        ((g_tic12400_probe.comparator_bitmap & 1U) != 0U) ?
         1U : 0U;
     g_tic12400_probe.in0_closed =
-        (g_tic12400_probe.in0_above_threshold == 0U) ? 1U : 0U;
+        ((g_tic12400_probe.closed_switch_bitmap & 1U) != 0U) ?
+        1U : 0U;
     g_tic12400_probe.switch_samples++;
 
-    if ((g_tic12400_probe.baseline_established != 0U) &&
-        (previous_above_threshold !=
-         g_tic12400_probe.in0_above_threshold))
+    if (g_tic12400_probe.baseline_established != 0U)
     {
-        g_tic12400_probe.switch_changes++;
+        changed_inputs =
+            (previous_comparator_bitmap ^
+             g_tic12400_probe.comparator_bitmap) &
+            TIC12400_BOARD_FITTED_INPUT_MASK;
+        if (changed_inputs != 0U)
+        {
+            g_tic12400_probe.last_change_mask = changed_inputs;
+            g_tic12400_probe.switch_changes +=
+                TIC12400_ProbeCountBits(changed_inputs);
+        }
     }
 
     g_tic12400_probe.baseline_established = 1U;
     g_tic12400_probe.service_result = TIC12400_RESULT_OK;
 }
 
-static void TIC12400_ProbeConfigureInput0(void)
+static void TIC12400_ProbeConfigureInputs(void)
 {
     g_tic12400_probe.configuration_result = TIC12400_RESULT_OK;
+    g_tic12400_probe.enabled_input_mask =
+        TIC12400_BOARD_FITTED_INPUT_MASK;
 
     /*
      * The reset defaults already select comparator mode and a current source,
      * but write and verify them explicitly so the debugger proves the complete
-     * IN0 test configuration.
+     * fitted-input test configuration.
      */
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_CONFIG,
@@ -244,22 +274,36 @@ static void TIC12400_ProbeConfigureInput0(void)
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_WC_CFG0,
-            TIC12400_IN0_IN1_WETTING_1_MA,
+            TIC12400_ALL_WC_CFG0_1_MA,
             &g_tic12400_probe.wc_cfg0_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
+            TIC12400_REGISTER_WC_CFG1,
+            TIC12400_ALL_WC_CFG1_1_MA,
+            &g_tic12400_probe.wc_cfg1_readback) == 0U)
+    {
+        return;
+    }
+    if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_IN_EN,
-            TIC12400_IN0_ENABLE,
+            TIC12400_BOARD_FITTED_INPUT_MASK,
             &g_tic12400_probe.in_en_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_INT_EN_COMP1,
-            TIC12400_IN0_BOTH_EDGES,
+            TIC12400_COMP1_BOTH_EDGES,
             &g_tic12400_probe.int_en_comp1_readback) == 0U)
+    {
+        return;
+    }
+    if (TIC12400_ProbeWriteAndVerify(
+            TIC12400_REGISTER_INT_EN_COMP2,
+            TIC12400_COMP2_BOTH_EDGES_NO_IN12,
+            &g_tic12400_probe.int_en_comp2_readback) == 0U)
     {
         return;
     }
@@ -287,7 +331,7 @@ static void TIC12400_ProbeConfigureInput0(void)
      * then preserve and acknowledge its expected baseline SSC interrupt.
      */
     HAL_Delay(2U);
-    TIC12400_ProbeSampleInput0();
+    TIC12400_ProbeSampleInputs();
     tic12400_last_service_tick = HAL_GetTick();
 }
 
@@ -400,7 +444,7 @@ void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
     if (g_tic12400_probe.validation_passed != 0U)
     {
         g_tic12400_probe.online = 1U;
-        TIC12400_ProbeConfigureInput0();
+        TIC12400_ProbeConfigureInputs();
     }
 }
 
@@ -421,7 +465,7 @@ void TIC12400_Probe_Process(void)
         return;
     }
 
-    TIC12400_ProbeSampleInput0();
+    TIC12400_ProbeSampleInputs();
     tic12400_last_service_tick = now;
 }
 

@@ -103,7 +103,7 @@ supply within the 4.5-35 V operating range; it must not be connected to the
 Nucleo 3.3 V rail. The initial 12 V bench point represents the intended
 automotive use case, not the only supported VS voltage.
 
-SPI will initially run at 2 MHz for timing margin, with clock polarity low,
+SPI will initially run at 1 MHz for breadboard timing margin, with clock polarity low,
 second-edge sampling (SPI mode 1), MSB first, software chip select, and exactly
 32 clocks per transaction.
 
@@ -234,36 +234,40 @@ then inspect `g_tic12400_probe`:
 The probe is intentionally nonfatal: an absent or unpowered TIC12400 records
 the failure here without stopping PWM, input capture, CAN, or the watchdog.
 
-### IN0 live switch check
+### 23-channel live switch check
 
 After the 1000-read SPI validation passes, the probe performs a small functional
-test using only IN0:
+test using every fitted carrier input:
 
 - Comparator mode, current-source mode, and continuous monitoring.
-- IN0 enabled; all other inputs, including IN12, remain disabled.
-- 1 mA wetting current for the IN0/IN1 pair. IN1 remains disabled.
-- Rising and falling comparator edges enabled for IN0.
+- IN0 through IN11 and IN13 through IN23 enabled.
+- IN12 permanently disabled by the board mask `0xFFEFFF`.
+- 1 mA wetting current selected for every fitted input.
+- Rising and falling comparator edges enabled for every fitted input.
 - Static active-low INT assertion enabled for switch-state changes.
 - Every written register is read back before `TRIGGER` starts monitoring.
 
 This carrier already has 24 onboard slide switches and their input-conditioning
 components. Do not add a jumper or external voltage to an IN pin. Operate the
-onboard switch that the carrier schematic or readable silkscreen identifies as
-IN0. The current probe enables only IN0; IN1 through IN23, including the
-unfitted IN12 path, remain disabled.
+onboard switches directly. The IN12 switch is physically present but its
+carrier resistor is not fitted, so firmware intentionally ignores bit 12.
 
 Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
 
-- `configuration_write_count = 8`, `configuration_completed = 1`,
+- `configuration_write_count = 10`, `configuration_completed = 1`,
   `configuration_passed = 1`, and `monitoring_started = 1`.
 - Readbacks must be `config = 0x800`, `mode = 0`, `cs_select = 0`,
-  `wc_cfg0 = 1`, `in_en = 1`, `int_en_comp1 = 3`, and
-  `int_en_cfg0 = 4`.
+  `wc_cfg0 = 0x249249`, `wc_cfg1 = 0x049249`,
+  `in_en = 0xFFEFFF`, `int_en_comp1 = 0xFFFFFF`,
+  `int_en_comp2 = 0xFFFFFC`, and `int_en_cfg0 = 4`.
+- `enabled_input_mask = 0xFFEFFF`; bit 12 must always remain zero in
+  `comparator_bitmap`, `closed_switch_bitmap`, and `last_change_mask`.
 - `baseline_established = 1`, `service_result = TIC12400_RESULT_OK`, and
   `service_failures = 0`.
-- Switch open: `in0_above_threshold = 1` and `in0_closed = 0`.
-- Switch connected to ground: `in0_above_threshold = 0` and `in0_closed = 1`.
-- Each open/closed transition increments `switch_changes`.
+- `comparator_bitmap` contains one for each fitted input above its threshold.
+  `closed_switch_bitmap` contains one for each detected ground-closed switch.
+- Each physical transition updates `last_change_mask` with the corresponding
+  channel bit and increments `switch_changes`.
   `last_nonzero_int_status` should contain SSC bit 3 (`0x8`), and
   `interrupt_count`/`ssc_events` should advance.
 
@@ -271,10 +275,11 @@ The main loop services the active-low INT without doing SPI work in the ISR and
 also samples every 50 ms as a bounded fallback. If configuration fails,
 `configuration_failure_address`, `configuration_expected`,
 `configuration_actual`, and `configuration_result` identify the first failure.
-The driver holds CS high for 2 us after every transfer, exceeding the
-data-sheet minimum 1.5 us inter-frame delay. Runtime SPI failures are retained
-in the `first_service_failure_*` and `last_service_failure_*` fields instead of
-being hidden when a later transaction succeeds.
+The driver provides 1 us of CS setup and hold margin and holds CS high for 5 us
+after every transfer, exceeding the data-sheet 100 ns setup/hold and 1.5 us
+inter-frame minima. Runtime SPI failures are retained in the
+`first_service_failure_*` and `last_service_failure_*` fields instead of being
+hidden when a later transaction succeeds.
 
 ## Phase 2 - Production-Quality TIC12400 Driver
 

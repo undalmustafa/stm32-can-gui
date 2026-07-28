@@ -3,7 +3,9 @@
 #include <stddef.h>
 
 #define TIC12400_SPI_TIMEOUT_MS            10U
-#define TIC12400_INTERFRAME_DELAY_US        2U
+#define TIC12400_CS_SETUP_DELAY_US          1U
+#define TIC12400_CS_HOLD_DELAY_US           1U
+#define TIC12400_INTERFRAME_DELAY_US        5U
 #define TIC12400_FRAME_WRITE_MASK          (1UL << 31)
 #define TIC12400_FRAME_ADDRESS_SHIFT       25U
 #define TIC12400_FRAME_DATA_SHIFT          1U
@@ -76,7 +78,7 @@ static void TIC12400_DecodeStatus(
         ((frame & TIC12400_STATUS_POR_MASK) != 0U) ? 1U : 0U;
 }
 
-static void TIC12400_WaitInterframe(void)
+static void TIC12400_WaitMicroseconds(uint32_t microseconds)
 {
 #if defined(DWT) && defined(CoreDebug) && \
     defined(DWT_CTRL_CYCCNTENA_Msk)
@@ -103,13 +105,14 @@ static void TIC12400_WaitInterframe(void)
     }
 
     cycles_per_us = (SystemCoreClock + 999999UL) / 1000000UL;
-    required_cycles = cycles_per_us *
-                      TIC12400_INTERFRAME_DELAY_US;
+    required_cycles = cycles_per_us * microseconds;
     start = DWT->CYCCNT;
     while ((uint32_t)(DWT->CYCCNT - start) < required_cycles)
     {
-        /* Busy wait for the TIC12400 minimum CS-high interval. */
+        /* Busy wait for the requested TIC12400 transaction margin. */
     }
+#else
+    (void)microseconds;
 #endif
 }
 
@@ -137,16 +140,18 @@ static TIC12400_Transaction_t TIC12400_ExchangeFrame(
     HAL_GPIO_WritePin(device->chip_select_port,
                       device->chip_select_pin,
                       GPIO_PIN_RESET);
+    TIC12400_WaitMicroseconds(TIC12400_CS_SETUP_DELAY_US);
     transaction.hal_status = HAL_SPI_TransmitReceive(
         device->spi,
         tx_bytes,
         rx_bytes,
         4U,
         TIC12400_SPI_TIMEOUT_MS);
+    TIC12400_WaitMicroseconds(TIC12400_CS_HOLD_DELAY_US);
     HAL_GPIO_WritePin(device->chip_select_port,
                       device->chip_select_pin,
                       GPIO_PIN_SET);
-    TIC12400_WaitInterframe();
+    TIC12400_WaitMicroseconds(TIC12400_INTERFRAME_DELAY_US);
 
     if (transaction.hal_status != HAL_OK)
     {

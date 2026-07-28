@@ -28,10 +28,15 @@ typedef struct
     uint32_t in_en_readback;
     uint32_t cs_select_readback;
     uint32_t wc_cfg0_readback;
+    uint32_t wc_cfg1_readback;
     uint32_t int_en_comp1_readback;
+    uint32_t int_en_comp2_readback;
     uint32_t int_en_cfg0_readback;
     uint32_t mode_readback;
+    uint32_t enabled_input_mask;
     uint32_t comparator_bitmap;
+    uint32_t closed_switch_bitmap;
+    uint32_t last_change_mask;
     uint32_t last_int_status;
     uint32_t last_nonzero_int_status;
     uint32_t service_attempts;
