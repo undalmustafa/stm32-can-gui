@@ -15,12 +15,14 @@ class MainWindowView:
     """Assemble already-owned feature panels into the main window."""
 
     def __init__(self, can_connection_panel, event_log_panel,
-                 can_app_panel, rtc_panel, pwm_panel=None):
+                 can_app_panel, rtc_panel, pwm_panel=None,
+                 tic12400_panel=None):
         self.can_connection_panel = can_connection_panel
         self.event_log_panel = event_log_panel
         self.can_app_panel = can_app_panel
         self.rtc_panel = rtc_panel
         self.pwm_panel = pwm_panel
+        self.tic12400_panel = tic12400_panel
 
         self.header = self._build_header()
         self.tabs = QTabWidget()
@@ -34,6 +36,9 @@ class MainWindowView:
         if self.pwm_panel is not None:
             self.pwm_page = self._build_pwm_page()
             self.tabs.addTab(self.pwm_page, "PWM & Capture")
+        if self.tic12400_panel is not None:
+            self.tic12400_page = self._build_tic12400_page()
+            self.tabs.addTab(self.tic12400_page, "TIC12400")
         self.tabs.addTab(self.logs_page, "Logs & Errors")
 
         self.root_layout = QVBoxLayout()
@@ -140,5 +145,18 @@ class MainWindowView:
         layout.addWidget(self.pwm_panel.status_group, 1, 0)
         layout.addWidget(self.pwm_panel.capture_group, 1, 1)
         layout.addWidget(self.pwm_panel.loopback_group, 2, 0, 1, 2)
+        layout.setRowStretch(3, 1)
+        return self._scroll_page(content)
+
+    def _build_tic12400_page(self):
+        content = QWidget()
+        layout = QGridLayout(content)
+        layout.setContentsMargins(4, 8, 4, 8)
+        layout.setHorizontalSpacing(10)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.addWidget(self.tic12400_panel.overview_group, 0, 0)
+        layout.addWidget(self.tic12400_panel.channel_group, 1, 0)
+        layout.addWidget(self.tic12400_panel.calibration_group, 2, 0)
         layout.setRowStretch(3, 1)
         return self._scroll_page(content)

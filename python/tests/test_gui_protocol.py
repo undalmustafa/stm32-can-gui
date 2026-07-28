@@ -44,6 +44,10 @@ def main():
            "TIC12400 ADC group count is generated")
     expect(protocol.TIC12400_ADC_CODE_MAX == 1023,
            "TIC12400 ADC code limit is generated")
+    expect(protocol.TIC12400_RESULT_NAMES[0x00] == "OK",
+           "TIC12400 successful service result is named")
+    expect(protocol.TIC12400_RESULT_NAMES[0x05] == "DEVICE_SPI_ERROR",
+           "TIC12400 SPI service failure is named")
     expect(protocol.CMD_PWM_SELF_TEST == 0x41,
            "PWM built-in-test command is defined")
     expect(protocol.GUI_COMMAND_ID_EXT == generated.GUI_COMMAND_ID_EXT,

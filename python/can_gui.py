@@ -21,6 +21,8 @@ from can_gui_app.rtc_controller import RtcController
 from can_gui_app.rtc_panel import RtcPanel
 from can_gui_app.pwm_panel import PwmPanel
 from can_gui_app.theme import apply_application_theme
+from can_gui_app.tic12400_controller import Tic12400Controller
+from can_gui_app.tic12400_panel import Tic12400Panel
 
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox
 
@@ -44,6 +46,10 @@ class CanGui(QWidget):
         self.pwm_panel = PwmPanel(
             command_requested=self.send_pwm_command,
             self_test_requested=self.send_pwm_self_test,
+        )
+        self.tic12400_panel = Tic12400Panel()
+        self.tic12400_controller = Tic12400Controller(
+            renderer=self.tic12400_panel.render
         )
 
         self.can_connection_panel = CanConnectionPanel(
@@ -96,10 +102,12 @@ class CanGui(QWidget):
             can_app_panel=self.can_app_panel,
             rtc_panel=self.rtc_panel,
             pwm_panel=self.pwm_panel,
+            tic12400_panel=self.tic12400_panel,
         )
         self.setLayout(self.window_view.root_layout)
 
         self.can_app_controller.render_status()
+        self.tic12400_controller.render()
         self.event_log_panel.update_event_status()
         self.event_log_panel.update_stm32_status()
 
@@ -215,6 +223,9 @@ class CanGui(QWidget):
             return
 
         if self.can_app_controller.handle_message(msg):
+            return
+
+        if self.tic12400_controller.handle_message(msg):
             return
 
         if msg.arbitration_id in {

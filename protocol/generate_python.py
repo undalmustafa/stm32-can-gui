@@ -119,6 +119,11 @@ def generate_python_module(yaml_path, out_path):
             out.write(
                 f"TIC12400_TRANSACTION_{name} = 0x{(1 << bit):02X}\n"
             )
+        out.write("TIC12400_RESULT_NAMES = {\n")
+        for key, val in data.get("tic12400_result_codes", {}).items():
+            code = val["code"]
+            out.write(f"    0x{code:02X}: {key.upper()!r},\n")
+        out.write("}\n")
         out.write("\n")
 
         out.write("# RTC Status Definitions\n")

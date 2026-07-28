@@ -134,6 +134,9 @@ Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
 Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
 Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
 Core/Inc|Src/pwm_self_test.* Closed-loop PWM/capture built-in test
+Core/Inc|Src/tic12400.*     TIC12400-Q1 SPI driver
+Core/Inc|Src/tic12400_probe.* Initialization and raw ADC monitoring service
+Core/Inc|Src/tic12400_can.* Segmented TIC12400 CAN telemetry
 Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
@@ -153,6 +156,8 @@ python/
     can_health.py           CAN health monitoring and indicators
     rtc_controller.py       RTC and alarm state management
     rtc_panel.py            RTC date/time and alarm UI
+    tic12400_controller.py  TIC12400 status and raw ADC decoding
+    tic12400_panel.py       TIC12400 device and 24-channel telemetry UI
     event_log_panel.py      GUI event log and STM32 log display
     csv_event_logger.py     Daily CSV event logging
     stm32_log_sync.py       CAN-based MCU event log synchronization
@@ -161,7 +166,7 @@ python/
     protocol.py             Protocol helpers and definitions
     theme.py                UI theme and styling constants
   tests/
-    test_gui_*.py           13 automated GUI regression tests
+    test_gui_*.py           15 automated GUI regression tests
 
 tests/
   CMakeLists.txt            CMake build for Unity C tests
@@ -404,6 +409,8 @@ bytes**. Multi-byte integers are little-endian.
 |---|---:|---|---|
 | GUI -> MCU | `0x1894AABB` | Extended | All commands |
 | MCU -> GUI | `0x551` | Standard | RTC operation status |
+| MCU -> GUI | `0x552` | Standard | TIC12400 device status |
+| MCU -> GUI | `0x553` | Standard | TIC12400 segmented raw ADC snapshot |
 | MCU -> GUI | `0x556` | Standard | RTC date/time and health |
 | MCU -> GUI | `0x557` | Standard | Slot and LED state |
 | MCU -> GUI | `0x558` | Standard | RTC alarm event |
@@ -824,6 +831,8 @@ panels and controllers:
 | `can_health.py` | CAN health monitoring, frame rates, and error indicators |
 | `rtc_controller.py` | RTC and alarm state management |
 | `rtc_panel.py` | RTC date/time display, update, and alarm configuration |
+| `tic12400_controller.py` | TIC12400 status and segmented ADC decoding |
+| `tic12400_panel.py` | Read-only device health and 24-input ADC display |
 | `event_log_panel.py` | GUI event history and STM32 log display with filtering |
 | `csv_event_logger.py` | Daily CSV event logging with injection protection |
 | `stm32_log_sync.py` | CAN-based MCU event log synchronization |
@@ -843,8 +852,11 @@ Key features:
 - Alarm comparison-field configuration and disable command
 - Alarm write-status and event display
 - System slot and LED status
+- TIC12400 device health, transaction flags, and raw ADC snapshot monitoring
+- All 24 physical TIC12400 inputs shown with IN12 marked `Not fitted`
 - STM32 event log download with CRC verification
-- Task-oriented Control, Live Data, and Logs & Errors pages
+- Task-oriented Control, Live Data, PWM & Capture, TIC12400, and
+  Logs & Errors pages
 - Filterable recent GUI event and error history with severity badges
 - Persistent CAN connection and health status across every page
 - Plain-language CAN, RTC, and log health summaries with technical tooltips

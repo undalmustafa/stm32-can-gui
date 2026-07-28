@@ -28,6 +28,39 @@ static uint16_t TIC12400_CAN_SaturateU16(uint32_t value)
     return (value > 0xFFFFU) ? 0xFFFFU : (uint16_t)value;
 }
 
+static uint8_t TIC12400_CAN_MapResult(TIC12400_Result_t result)
+{
+    switch (result)
+    {
+        case TIC12400_RESULT_OK:
+            return CAN_PROTOCOL_TIC12400_RESULT_OK;
+        case TIC12400_RESULT_INVALID_ARGUMENT:
+            return CAN_PROTOCOL_TIC12400_RESULT_INVALID_ARGUMENT;
+        case TIC12400_RESULT_INVALID_ADDRESS:
+            return CAN_PROTOCOL_TIC12400_RESULT_INVALID_ADDRESS;
+        case TIC12400_RESULT_HAL_ERROR:
+            return CAN_PROTOCOL_TIC12400_RESULT_HAL_ERROR;
+        case TIC12400_RESULT_RESPONSE_PARITY_ERROR:
+            return CAN_PROTOCOL_TIC12400_RESULT_RESPONSE_PARITY_ERROR;
+        case TIC12400_RESULT_DEVICE_SPI_ERROR:
+            return CAN_PROTOCOL_TIC12400_RESULT_DEVICE_SPI_ERROR;
+        case TIC12400_RESULT_DEVICE_PARITY_ERROR:
+            return CAN_PROTOCOL_TIC12400_RESULT_DEVICE_PARITY_ERROR;
+        case TIC12400_RESULT_DEVICE_ID_MISMATCH:
+            return CAN_PROTOCOL_TIC12400_RESULT_DEVICE_ID_MISMATCH;
+        case TIC12400_RESULT_INVALID_DATA:
+            return CAN_PROTOCOL_TIC12400_RESULT_INVALID_DATA;
+        case TIC12400_RESULT_REGISTER_VERIFY_MISMATCH:
+            return CAN_PROTOCOL_TIC12400_RESULT_REGISTER_VERIFY_MISMATCH;
+        case TIC12400_RESULT_CRC_TIMEOUT:
+            return CAN_PROTOCOL_TIC12400_RESULT_CRC_TIMEOUT;
+        case TIC12400_RESULT_CRC_COMPLETION_MISSING:
+            return CAN_PROTOCOL_TIC12400_RESULT_CRC_COMPLETION_MISSING;
+        default:
+            return CAN_PROTOCOL_TIC12400_RESULT_UNKNOWN;
+    }
+}
+
 static void TIC12400_CAN_RecordResult(
     CAN_Transport_Result_t result,
     volatile uint32_t *accepted_counter)
@@ -63,16 +96,16 @@ static void TIC12400_CAN_SendStatus(void)
 
     if (g_tic12400_probe.monitoring_started != 0U)
     {
-        status.service_result =
-            (uint8_t)g_tic12400_probe.service_result;
+        status.service_result = TIC12400_CAN_MapResult(
+            g_tic12400_probe.service_result);
     }
     else
     {
-        status.service_result =
-            (uint8_t)g_tic12400_probe.result;
+        status.service_result = TIC12400_CAN_MapResult(
+            g_tic12400_probe.result);
     }
     status.service_fault =
-        (status.service_result != (uint8_t)TIC12400_RESULT_OK) ?
+        (status.service_result != CAN_PROTOCOL_TIC12400_RESULT_OK) ?
         1U : 0U;
 
     status.spi_fail = g_tic12400_probe.status.spi_fail;

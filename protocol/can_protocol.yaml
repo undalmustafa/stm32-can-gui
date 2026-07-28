@@ -435,3 +435,31 @@ tic12400_transaction_flags:
     bit: 5
   power_on_reset:
     bit: 6
+
+tic12400_result_codes:
+  ok:
+    code: 0x00
+  invalid_argument:
+    code: 0x01
+  invalid_address:
+    code: 0x02
+  hal_error:
+    code: 0x03
+  response_parity_error:
+    code: 0x04
+  device_spi_error:
+    code: 0x05
+  device_parity_error:
+    code: 0x06
+  device_id_mismatch:
+    code: 0x07
+  invalid_data:
+    code: 0x08
+  register_verify_mismatch:
+    code: 0x09
+  crc_timeout:
+    code: 0x0A
+  crc_completion_missing:
+    code: 0x0B
+  unknown:
+    code: 0xFF

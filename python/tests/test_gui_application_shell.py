@@ -221,6 +221,34 @@ def main():
         "recent_events",
     ], "Logs & Errors owns logging controls, status and recent events")
 
+    tic12400 = Panel()
+    tic12400.overview_group = widget("tic12400_overview")
+    tic12400.channel_group = widget("tic12400_channels")
+    tic12400.calibration_group = widget("tic12400_calibration")
+    view_with_tic12400 = MainWindowView(
+        connection,
+        event_log,
+        can_app,
+        rtc,
+        tic12400_panel=tic12400,
+    )
+    expect(
+        [title for _page, title in view_with_tic12400.tabs.tabs] == [
+            "Control", "Live Data", "TIC12400", "Logs & Errors"
+        ],
+        "TIC12400 telemetry is composed as an optional dedicated page",
+    )
+    tic12400_scroll = view_with_tic12400.tic12400_page.layout.items[0]
+    tic12400_names = [
+        getattr(item, "name", item)
+        for item in tic12400_scroll.widget.layout.items
+    ]
+    expect(tic12400_names == [
+        "tic12400_overview",
+        "tic12400_channels",
+        "tic12400_calibration",
+    ], "TIC12400 page contains overview, channels, and calibration")
+
     timer_calls = []
     timers = ApplicationTimers(
         can_rx_poll=lambda: timer_calls.append("rx"),

@@ -128,6 +128,13 @@ def generate_c_header(yaml_path, out_path):
                 f"#define CAN_PROTOCOL_TIC12400_TRANSACTION_{name} "
                 f"0x{(1 << bit):02X}U\n"
             )
+        for key, val in data.get("tic12400_result_codes", {}).items():
+            name = key.upper()
+            code = val["code"]
+            out.write(
+                f"#define CAN_PROTOCOL_TIC12400_RESULT_{name} "
+                f"0x{code:02X}U\n"
+            )
         out.write("\n")
 
         out.write("/* Command Codes */\n")

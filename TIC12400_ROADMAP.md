@@ -442,11 +442,13 @@ Each channel shows:
 - Last INT status and decoded fault.
 - Recent TIC12400 events integrated with the existing Logs & Errors page.
 
-- [ ] Add `tic12400_controller.py`.
-- [ ] Add `tic12400_panel.py`.
-- [ ] Compose the page through `main_window_view.py`.
-- [ ] Route CAN telemetry through the top-level application.
-- [ ] Add controller, panel, protocol, rendering, and stale-state tests.
+- [x] Add `tic12400_controller.py`.
+- [x] Add a read-only `tic12400_panel.py` for device status and raw ADC
+      characterization.
+- [x] Compose the page through `main_window_view.py`.
+- [x] Route CAN telemetry through the top-level application.
+- [x] Add controller, panel, protocol, rendering, and stale-state tests for
+      the implemented read-only telemetry path.
 
 Exit criterion: the GUI can configure and observe every supported channel
 without exposing invalid combinations, and displayed state always comes from
