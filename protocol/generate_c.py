@@ -113,6 +113,23 @@ def generate_c_header(yaml_path, out_path):
             "#define CAN_PROTOCOL_TIC12400_ADC_CODE_MAX "
             f"{tic12400_transport.get('adc_code_max', 1023)}U\n"
         )
+        out.write(
+            "#define CAN_PROTOCOL_TIC12400_SWITCH_CLOSED_MAX_ADC_CODE "
+            f"{tic12400_transport.get(
+                'switch_closed_max_adc_code', 512)}U\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_TIC12400_SWITCH_DEBOUNCE_SAMPLES "
+            f"{tic12400_transport.get(
+                'switch_debounce_samples', 3)}U\n"
+        )
+        for key, val in data.get("tic12400_switch_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"#define CAN_PROTOCOL_TIC12400_SWITCH_{name} "
+                f"0x{(1 << bit):02X}U\n"
+            )
         for key, val in data.get("tic12400_status_flags", {}).items():
             name = key.upper()
             bit = val["bit"]

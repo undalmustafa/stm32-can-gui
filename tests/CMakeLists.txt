@@ -29,6 +29,13 @@ target_link_libraries(test_pca2131_validation unity)
 add_executable(test_tic12400 test_tic12400.c ../Core/Src/tic12400.c)
 target_link_libraries(test_tic12400 unity)
 
+add_executable(
+    test_tic12400_switch
+    test_tic12400_switch.c
+    ../Core/Src/tic12400_switch.c
+)
+target_link_libraries(test_tic12400_switch unity)
+
 add_executable(test_can_transport test_can_transport.c ../Core/Src/can_transport.c)
 target_link_libraries(test_can_transport unity)
 
@@ -48,6 +55,7 @@ enable_testing()
 add_test(NAME test_can_protocol COMMAND test_can_protocol)
 add_test(NAME test_pca2131_validation COMMAND test_pca2131_validation)
 add_test(NAME test_tic12400 COMMAND test_tic12400)
+add_test(NAME test_tic12400_switch COMMAND test_tic12400_switch)
 add_test(NAME test_can_transport COMMAND test_can_transport)
 add_test(NAME test_pwm_self_test COMMAND test_pwm_self_test)
 add_test(NAME test_can_command_guard COMMAND test_can_command_guard)

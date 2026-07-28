@@ -109,6 +109,12 @@ identifiers:
     direction: mcu_to_gui
     description: "Segmented TIC12400 raw ADC snapshot"
 
+  tic12400_switch_state:
+    id: 0x0554
+    type: standard
+    direction: mcu_to_gui
+    description: "Debounced TIC12400 open/closed switch state"
+
 command_transport:
   sequence_mask: 0x000000FF
   session_mask: 0x0000FF00
@@ -403,6 +409,12 @@ tic12400_transport:
   adc_codes_per_frame: 3
   adc_group_count: 8
   adc_code_max: 1023
+  switch_closed_max_adc_code: 512
+  switch_debounce_samples: 3
+
+tic12400_switch_flags:
+  data_valid:
+    bit: 0
 
 tic12400_status_flags:
   online:

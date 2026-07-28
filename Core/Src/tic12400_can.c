@@ -2,26 +2,28 @@
 
 #include "can_protocol.h"
 #include "tic12400_probe.h"
+#include "tic12400_switch.h"
 
 #define TIC12400_CAN_STATUS_PERIOD_MS 500U
-#define TIC12400_CAN_ADC_FRAME_PERIOD_MS 40U
+#define TIC12400_CAN_SWITCH_PERIOD_MS 500U
 
 _Static_assert(
     CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT ==
-    TIC12400_ADC_CHANNEL_COUNT,
+    TIC12400_SWITCH_CHANNEL_COUNT,
     "TIC12400 protocol and driver channel counts must match");
 _Static_assert(
-    (CAN_PROTOCOL_TIC12400_ADC_GROUP_COUNT *
-     CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME) ==
-    CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT,
-    "TIC12400 ADC groups must cover every channel");
+    CAN_PROTOCOL_TIC12400_SWITCH_CLOSED_MAX_ADC_CODE ==
+    TIC12400_SWITCH_CLOSED_MAX_ADC_CODE,
+    "TIC12400 closed threshold must match the CAN contract");
+_Static_assert(
+    CAN_PROTOCOL_TIC12400_SWITCH_DEBOUNCE_SAMPLES ==
+    TIC12400_SWITCH_DEBOUNCE_SAMPLES,
+    "TIC12400 debounce count must match the CAN contract");
 
 volatile TIC12400_CanSnapshot_t g_tic12400_can;
 
 static uint32_t tic12400_can_last_status_tick;
-static uint32_t tic12400_can_last_adc_tick;
-static uint16_t tic12400_can_adc_snapshot[
-    CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT];
+static uint32_t tic12400_can_last_switch_tick;
 
 static uint16_t TIC12400_CAN_SaturateU16(uint32_t value)
 {
@@ -134,70 +136,36 @@ static void TIC12400_CAN_SendStatus(void)
         &g_tic12400_can.status_frames_accepted);
 }
 
-static void TIC12400_CAN_CaptureAdcSnapshot(void)
+static void TIC12400_CAN_SendSwitchState(void)
 {
-    uint8_t channel;
-
-    g_tic12400_can.adc_generation++;
-
-    for (channel = 0U;
-         channel < CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT;
-         channel++)
-    {
-        tic12400_can_adc_snapshot[channel] =
-            g_tic12400_probe.adc_raw[channel];
-    }
-}
-
-static void TIC12400_CAN_SendNextAdcGroup(void)
-{
-    CAN_Protocol_Tic12400AdcGroup_t group = {0};
+    CAN_Protocol_Tic12400SwitchState_t state = {0};
+    TIC12400_ProbeSwitchState_t probe_state = {0};
     CAN_Transport_Result_t result;
-    uint8_t code_index;
-    uint8_t first_channel;
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE] = {0};
 
-    if (g_tic12400_can.next_adc_group == 0U)
-    {
-        TIC12400_CAN_CaptureAdcSnapshot();
-    }
+    (void)TIC12400_Probe_GetSwitchState(&probe_state);
+    state.closed_bitmap = probe_state.closed_bitmap;
+    state.valid_mask = probe_state.valid_mask;
+    state.generation = probe_state.generation;
+    state.data_valid = probe_state.data_valid;
 
-    group.generation = g_tic12400_can.adc_generation;
-    group.group_index = g_tic12400_can.next_adc_group;
-    first_channel = (uint8_t)(
-        group.group_index *
-        CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME);
-
-    for (code_index = 0U;
-         code_index < CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME;
-         code_index++)
-    {
-        group.adc_code[code_index] =
-            tic12400_can_adc_snapshot[first_channel + code_index];
-    }
-
-    CAN_Protocol_EncodeTic12400AdcGroup(&group, payload);
+    CAN_Protocol_EncodeTic12400SwitchState(&state, payload);
     result = CAN_Transport_SendClassicLatest(
-        CAN_PROTOCOL_TIC12400_ADC_TX_ID,
+        CAN_PROTOCOL_TIC12400_SWITCH_STATE_TX_ID,
         CAN_TRANSPORT_ID_STANDARD,
         payload);
     TIC12400_CAN_RecordResult(
         result,
-        &g_tic12400_can.adc_frames_accepted);
-
-    g_tic12400_can.next_adc_group++;
-    if (g_tic12400_can.next_adc_group >=
-        CAN_PROTOCOL_TIC12400_ADC_GROUP_COUNT)
-    {
-        g_tic12400_can.next_adc_group = 0U;
-    }
+        &g_tic12400_can.switch_frames_accepted);
+    g_tic12400_can.last_switch_generation =
+        state.generation;
 }
 
 void TIC12400_CAN_Init(void)
 {
     g_tic12400_can = (TIC12400_CanSnapshot_t){0};
     tic12400_can_last_status_tick = HAL_GetTick();
-    tic12400_can_last_adc_tick = HAL_GetTick();
+    tic12400_can_last_switch_tick = HAL_GetTick();
 }
 
 void TIC12400_CAN_Process(void)
@@ -211,14 +179,15 @@ void TIC12400_CAN_Process(void)
         TIC12400_CAN_SendStatus();
     }
 
-    if ((g_tic12400_probe.adc_characterization_active == 0U) ||
-        (g_tic12400_probe.adc_sample_batches == 0U) ||
-        ((now - tic12400_can_last_adc_tick) <
-         TIC12400_CAN_ADC_FRAME_PERIOD_MS))
+    if ((g_tic12400_probe.adc_sample_batches == 0U) ||
+        (((now - tic12400_can_last_switch_tick) <
+          TIC12400_CAN_SWITCH_PERIOD_MS) &&
+         (g_tic12400_probe.switch_state_generation ==
+          g_tic12400_can.last_switch_generation)))
     {
         return;
     }
 
-    tic12400_can_last_adc_tick = now;
-    TIC12400_CAN_SendNextAdcGroup();
+    tic12400_can_last_switch_tick = now;
+    TIC12400_CAN_SendSwitchState();
 }

@@ -378,3 +378,21 @@ void CAN_Protocol_EncodeTic12400AdcGroup(
                 CAN_PROTOCOL_TIC12400_ADC_CODE_MAX));
     }
 }
+
+void CAN_Protocol_EncodeTic12400SwitchState(
+    const CAN_Protocol_Tic12400SwitchState_t *state,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    uint32_t closed = state->closed_bitmap & 0x00FFFFFFUL;
+    uint32_t valid = state->valid_mask & 0x00FFFFFFUL;
+
+    payload[0] = (uint8_t)closed;
+    payload[1] = (uint8_t)(closed >> 8);
+    payload[2] = (uint8_t)(closed >> 16);
+    payload[3] = (uint8_t)valid;
+    payload[4] = (uint8_t)(valid >> 8);
+    payload[5] = (uint8_t)(valid >> 16);
+    payload[6] = state->generation;
+    payload[7] = (state->data_valid != 0U) ?
+        CAN_PROTOCOL_TIC12400_SWITCH_DATA_VALID : 0U;
+}

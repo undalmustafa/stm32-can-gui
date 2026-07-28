@@ -1,6 +1,7 @@
 #include "tic12400_probe.h"
 
 #include "main.h"
+#include "tic12400_switch.h"
 
 #define TIC12400_PROBE_VALIDATION_READS 1000U
 #define TIC12400_PROBE_FALLBACK_POLL_MS  50U
@@ -16,6 +17,7 @@
 volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
 static TIC12400_Device_t tic12400_device;
+static TIC12400_SwitchFilter_t tic12400_switch_filter;
 static uint32_t tic12400_last_service_tick;
 
 static void TIC12400_ProbeStoreTransaction(
@@ -384,6 +386,25 @@ static void TIC12400_ProbeSampleInputs(void)
 
     g_tic12400_probe.adc_sample_batches++;
     g_tic12400_probe.baseline_established = 1U;
+    (void)TIC12400_SwitchFilter_Update(
+        &tic12400_switch_filter,
+        adc_sample,
+        TIC12400_BOARD_FITTED_INPUT_MASK);
+    g_tic12400_probe.closed_switch_bitmap =
+        tic12400_switch_filter.stable_closed_mask;
+    g_tic12400_probe.switch_valid_mask =
+        tic12400_switch_filter.valid_mask;
+    g_tic12400_probe.switch_state_generation =
+        tic12400_switch_filter.generation;
+    g_tic12400_probe.switch_state_valid =
+        (tic12400_switch_filter.valid_mask ==
+         TIC12400_BOARD_FITTED_INPUT_MASK) ? 1U : 0U;
+    if (tic12400_switch_filter.last_change_mask != 0U)
+    {
+        g_tic12400_probe.last_switch_change_mask =
+            tic12400_switch_filter.last_change_mask;
+        g_tic12400_probe.switch_change_events++;
+    }
     g_tic12400_probe.service_result = TIC12400_RESULT_OK;
 }
 
@@ -506,6 +527,7 @@ void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
     attempt = g_tic12400_probe.attempts + 1U;
     g_tic12400_probe = (TIC12400_ProbeSnapshot_t){0};
     g_tic12400_probe.attempts = attempt;
+    TIC12400_SwitchFilter_Init(&tic12400_switch_filter);
 
     reset_result = TIC12400_HardwareReset(&tic12400_device);
     if (reset_result != TIC12400_RESULT_OK)
@@ -627,6 +649,30 @@ void TIC12400_Probe_NotifyInterruptFromIsr(void)
 {
     g_tic12400_probe.interrupt_count++;
     g_tic12400_probe.interrupt_pending = 1U;
+}
+
+uint8_t TIC12400_Probe_GetSwitchState(
+    TIC12400_ProbeSwitchState_t *state)
+{
+    if (state == NULL)
+    {
+        return 0U;
+    }
+
+    state->closed_bitmap =
+        g_tic12400_probe.closed_switch_bitmap;
+    state->valid_mask =
+        g_tic12400_probe.switch_valid_mask;
+    state->last_change_mask =
+        g_tic12400_probe.last_switch_change_mask;
+    state->generation =
+        g_tic12400_probe.switch_state_generation;
+    state->data_valid =
+        ((g_tic12400_probe.switch_state_valid != 0U) &&
+         (g_tic12400_probe.monitoring_started != 0U) &&
+         (g_tic12400_probe.service_result ==
+          TIC12400_RESULT_OK)) ? 1U : 0U;
+    return state->data_valid;
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t gpio_pin)

@@ -36,6 +36,12 @@ def main():
            "TIC12400 status ID is generated")
     expect(protocol.TIC12400_ADC_RX_ID == 0x553,
            "TIC12400 ADC ID is generated")
+    expect(protocol.TIC12400_SWITCH_STATE_RX_ID == 0x554,
+           "TIC12400 switch-state ID is generated")
+    expect(generated.TIC12400_SWITCH_CLOSED_MAX_ADC_CODE == 512,
+           "TIC12400 binary threshold is generated")
+    expect(generated.TIC12400_SWITCH_DEBOUNCE_SAMPLES == 3,
+           "TIC12400 debounce count is generated")
     expect(protocol.TIC12400_ADC_CHANNEL_COUNT == 24,
            "TIC12400 channel count is generated")
     expect(protocol.TIC12400_ADC_CODES_PER_FRAME == 3,

@@ -138,6 +138,14 @@ typedef struct
     uint16_t adc_code[CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME];
 } CAN_Protocol_Tic12400AdcGroup_t;
 
+typedef struct
+{
+    uint32_t closed_bitmap;
+    uint32_t valid_mask;
+    uint8_t generation;
+    uint8_t data_valid;
+} CAN_Protocol_Tic12400SwitchState_t;
+
 uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
@@ -193,6 +201,10 @@ void CAN_Protocol_EncodeTic12400Status(
 
 void CAN_Protocol_EncodeTic12400AdcGroup(
     const CAN_Protocol_Tic12400AdcGroup_t *group,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodeTic12400SwitchState(
+    const CAN_Protocol_Tic12400SwitchState_t *state,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 #endif /* CAN_PROTOCOL_H */

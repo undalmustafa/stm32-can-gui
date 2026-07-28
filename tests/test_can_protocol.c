@@ -178,6 +178,30 @@ void test_EncodeTic12400AdcGroup_matches_wire_format(void)
     TEST_ASSERT_EQUAL_UINT8(0x03U, payload[7]);
 }
 
+void test_EncodeTic12400SwitchState_matches_wire_format(void)
+{
+    CAN_Protocol_Tic12400SwitchState_t state = {
+        .closed_bitmap = 0x00A1B2C3UL,
+        .valid_mask = 0x00FFEFFFUL,
+        .generation = 0x42U,
+        .data_valid = 1U,
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodeTic12400SwitchState(&state, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(0xC3U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(0xB2U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(0xA1U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(0xFFU, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0xEFU, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0xFFU, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x42U, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(
+        CAN_PROTOCOL_TIC12400_SWITCH_DATA_VALID,
+        payload[7]);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -193,5 +217,6 @@ int main(void)
     RUN_TEST(test_EncodePwmSelfTestResult_matches_wire_format);
     RUN_TEST(test_EncodeTic12400Status_matches_wire_format);
     RUN_TEST(test_EncodeTic12400AdcGroup_matches_wire_format);
+    RUN_TEST(test_EncodeTic12400SwitchState_matches_wire_format);
     return UNITY_END();
 }

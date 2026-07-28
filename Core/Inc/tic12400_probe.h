@@ -54,6 +54,10 @@ typedef struct
     uint32_t last_service_failure_hal_error;
     uint32_t adc_sample_batches;
     uint32_t ssc_events;
+    uint32_t closed_switch_bitmap;
+    uint32_t switch_valid_mask;
+    uint32_t last_switch_change_mask;
+    uint32_t switch_change_events;
     uint16_t adc_raw[TIC12400_ADC_CHANNEL_COUNT];
     uint16_t adc_min[TIC12400_ADC_CHANNEL_COUNT];
     uint16_t adc_max[TIC12400_ADC_CHANNEL_COUNT];
@@ -82,12 +86,25 @@ typedef struct
     uint8_t adc_characterization_active;
     uint8_t monitoring_started;
     uint8_t baseline_established;
+    uint8_t switch_state_generation;
+    uint8_t switch_state_valid;
 } TIC12400_ProbeSnapshot_t;
+
+typedef struct
+{
+    uint32_t closed_bitmap;
+    uint32_t valid_mask;
+    uint32_t last_change_mask;
+    uint8_t generation;
+    uint8_t data_valid;
+} TIC12400_ProbeSwitchState_t;
 
 extern volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
 void TIC12400_Probe_Init(SPI_HandleTypeDef *spi);
 void TIC12400_Probe_Process(void);
 void TIC12400_Probe_NotifyInterruptFromIsr(void);
+uint8_t TIC12400_Probe_GetSwitchState(
+    TIC12400_ProbeSwitchState_t *state);
 
 #endif /* TIC12400_PROBE_H */

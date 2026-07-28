@@ -20,6 +20,17 @@ sys.path.insert(0, str(GUI_DIRECTORY))
 
 from can_gui_app.tic12400_controller import Tic12400Controller  # noqa: E402
 from can_gui_app.tic12400_panel import Tic12400Panel  # noqa: E402
+from can_gui_app.protocol import (  # noqa: E402
+    TIC12400_STATUS_RX_ID,
+    TIC12400_SWITCH_DATA_VALID,
+    TIC12400_SWITCH_STATE_RX_ID,
+)
+
+
+class Message:
+    def __init__(self, arbitration_id, data):
+        self.arbitration_id = arbitration_id
+        self.data = data
 
 
 def expect(condition, description):
@@ -29,95 +40,60 @@ def expect(condition, description):
 
 def main():
     app = QApplication.instance() or QApplication([])
-    panel = Tic12400Panel(clock=lambda: 12.5)
+    panel = Tic12400Panel()
     controller = Tic12400Controller(
         renderer=panel.render,
         clock=lambda: 12.0,
     )
-    capture_requests = []
-    panel.set_calibration_handlers(
-        capture_requested=capture_requests.append,
-        clear_requested=lambda: capture_requests.append("clear"),
-        calibration_csv_requested=lambda: "channel,fitted\n",
-    )
-
-    controller.device_status.update({
-        "received": True,
-        "healthy": True,
-        "online": True,
-        "configuration_valid": True,
-        "crc_complete": True,
-        "monitoring": True,
-        "adc_characterization": True,
-        "por_observed": True,
-        "device_id": 0x20,
-        "service_result": 0,
-        "service_result_name": "OK",
-        "service_failures": 0,
-        "last_nonzero_int_status": 8,
-        "updated_at": 12.0,
-    })
-    controller.channels[0].update({
-        "adc_code": 0x27,
-        "generation": 4,
-        "updated_at": 12.0,
-    })
-    controller.channels[22].update({
-        "adc_code": 0x03,
-        "generation": 4,
-        "updated_at": 12.0,
-    })
-    controller.telemetry.update({
-        "generation": 4,
-        "received_group_mask": 0xFF,
-        "received_group_count": 8,
-        "snapshot_complete": True,
-        "complete_generation": 4,
-        "last_adc_update_at": 12.0,
-    })
-    left_capture = controller.calibration["positions"]["left"]
-    left_capture.update({
-        "sample_count": 10,
-        "completed": True,
-        "first_generation": 1,
-        "last_generation": 10,
-    })
-    left_capture["minimum"][0] = 38
-    left_capture["maximum"][0] = 42
     controller.render()
+    expect(panel.status_label.text() == "Waiting for switch data…",
+           "panel starts without guessing switch states")
+
+    controller.handle_message(Message(
+        TIC12400_STATUS_RX_ID,
+        [0x3F, 0x20, 0, 0, 0, 0, 8, 0],
+    ))
+    closed = (1 << 0) | (1 << 22)
+    valid = 0xFFEFFF
+    controller.handle_message(Message(
+        TIC12400_SWITCH_STATE_RX_ID,
+        [
+            closed & 0xFF,
+            (closed >> 8) & 0xFF,
+            (closed >> 16) & 0xFF,
+            valid & 0xFF,
+            (valid >> 8) & 0xFF,
+            (valid >> 16) & 0xFF,
+            1,
+            TIC12400_SWITCH_DATA_VALID,
+        ],
+    ))
     app.processEvents()
 
-    expect(panel.capture_left_button.isEnabled(),
-           "capture becomes available only with healthy ADC monitoring")
-    panel.capture_left_button.click()
-    expect(capture_requests == ["left"],
-           "left capture button invokes its controller callback")
-    expect(panel.health_value.text() == "Online / Healthy",
-           "healthy device state is rendered")
-    expect(panel.device_id_value.text() == "0x20",
-           "device ID is rendered in hexadecimal")
-    expect("OK (0x00)" == panel.service_result_value.text(),
-           "service result code and name are rendered")
-    expect("0x027" in panel.channel_table.item(0, 3).text(),
-           "IN0 raw ADC is rendered")
-    expect(panel.channel_table.item(0, 4).text() == "Uncharacterized",
-           "unverified physical position remains uncharacterized")
-    expect(panel.channel_table.item(12, 1).text() == "Not fitted",
+    expect(panel.status_label.text() == "Switch monitoring active",
+           "healthy switch monitoring is shown")
+    expect(panel.channel_table.columnCount() == 2,
+           "end-user table contains only switch and state")
+    expect(panel.channel_table.item(0, 1).text() == "CLOSED",
+           "closed input is rendered")
+    expect(panel.channel_table.item(1, 1).text() == "OPEN",
+           "open input is rendered")
+    expect(panel.channel_table.item(12, 1).text() == "Not available",
            "IN12 is visibly unavailable")
-    expect(panel.channel_table.item(12, 3).text() == "--",
-           "IN12 never displays ADC data")
-    expect("0x003" in panel.channel_table.item(22, 3).text(),
-           "IN22 raw ADC remains distinct from IN0")
-    expect("8/8 groups" in panel.snapshot_value.text(),
-           "complete segmented snapshot is rendered")
-    expect(panel.channel_table.item(0, 6).text() == "38–42",
-           "captured left-position ADC range is rendered")
-    expect("Left 10/10" in panel.calibration_status.text(),
-           "capture progress summary is rendered")
-    expect(panel.export_calibration_button.isEnabled(),
-           "CSV export becomes available after a capture")
+    expect(panel.channel_table.item(22, 1).text() == "CLOSED",
+           "high bitmap channels are rendered correctly")
 
-    print("PASS: TIC12400 panel raw telemetry rendering")
+    controller.handle_message(Message(
+        TIC12400_STATUS_RX_ID,
+        [0x41, 0x20, 5, 1, 1, 0, 1, 0],
+    ))
+    app.processEvents()
+    expect(panel.status_label.text() == "Switch module unavailable",
+           "module fault is never shown as valid switch data")
+    expect(panel.channel_table.item(0, 1).text() == "Unavailable",
+           "faulted module suppresses stale closed state")
+
+    print("PASS: TIC12400 end-user open/closed rendering")
 
 
 if __name__ == "__main__":

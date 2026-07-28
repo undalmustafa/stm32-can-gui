@@ -54,11 +54,10 @@ The first usable release will support:
 - The 23 fitted direct inputs: IN0 through IN11 and IN13 through IN23.
 - IN12 permanently unavailable because its required carrier-board resistor is
   not fitted.
-- The carrier's 24 onboard switches have three physical positions. The first
-  characterization step uses ADC mode and raw ADC readback to determine the
-  three electrical ranges for each of the 23 fitted channels.
-- Explicit left, center, right, and invalid/diagnostic channel states after
-  measured thresholds are accepted.
+- The carrier's switches have three physical positions, but measured ADC data
+  proves only two electrical states: Left is closed, while Center and Right
+  are the same open circuit.
+- Explicit debounced `CLOSED`, `OPEN`, and unavailable/diagnostic states.
 - Ground-connected inputs on every fitted channel.
 - Battery-connected inputs only on IN0 through IN9.
 - Per-channel enable, input type, measurement mode, wetting current, threshold
@@ -237,7 +236,7 @@ then inspect `g_tic12400_probe`:
 The probe is intentionally nonfatal: an absent or unpowered TIC12400 records
 the failure here without stopping PWM, input capture, CAN, or the watchdog.
 
-### 23-channel three-position ADC characterization
+### 23-channel binary ADC characterization
 
 After the 1000-read SPI validation passes, the probe performs a small functional
 test using every fitted carrier input:
@@ -246,8 +245,8 @@ test using every fitted carrier input:
 - IN0 through IN11 and IN13 through IN23 enabled.
 - IN12 permanently disabled by the board mask `0xFFEFFF`.
 - 1 mA wetting current selected for every fitted input.
-- ADC threshold interrupts intentionally disabled until the three measured
-  position ranges are known.
+- ADC threshold interrupts intentionally disabled while software filtering is
+  accepted.
 - Every written register is read back before `TRIGGER` starts monitoring.
 
 This carrier already has 24 onboard slide switches and their input-conditioning
@@ -276,9 +275,12 @@ Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
   `adc_min` and `adc_max` retain the observed range for each channel.
   `adc_pair_readback[0]` through `[11]` preserve the 12 packed hardware
   registers. IN12 values remain zero because its validity-mask bit is clear.
-- Put all fitted switches in the left position and capture `adc_raw`, then
-  repeat for center and right. Do not assign semantic thresholds until these
-  three arrays show separated, stable ranges.
+- The accepted 2026-07-28 capture is stored in
+  `docs/tic12400_characterization_20260728.csv`. Left measured code 3 through
+  41; Center and Right both measured full-scale code 1023 on all 23 fitted
+  channels.
+- Firmware classifies code 0 through 512 as `CLOSED` and 513 through 1023 as
+  `OPEN`, then requires three consecutive equal classifications.
 
 The main loop performs no SPI work in the ISR and samples every 50 ms during
 characterization. Each batch is one `INT_STAT` read plus the 12 packed ADC
@@ -325,9 +327,9 @@ results, and bench reads match a logic-analyzer decode.
 - [x] Limit SPI work per main-loop pass so CAN, RTC, PWM, and watchdog services
       cannot be starved.
 - [x] Add bounded raw-ADC characterization for all 23 fitted channels.
-- [ ] Record accepted left, center, and right ADC ranges for every fitted
-      channel.
-- [ ] Add switch-change debounce/filter configuration.
+- [x] Record accepted Left-closed and Center/Right-open ADC ranges for every
+      fitted channel.
+- [x] Add three-sample switch-change debounce filtering.
 - [ ] Add device-offline detection, controlled reinitialization, and backoff.
 - [x] Add sticky counters and last-error information to runtime diagnostics.
 - [ ] Add retained log events for initialization, reset, configuration failure,
@@ -361,20 +363,17 @@ Proposed telemetry groups:
 - Requested channel detail with raw 10-bit ADC value and interpreted state.
 - Configuration/action result.
 
-Implemented characterization telemetry:
+Implemented monitoring telemetry:
 
 - [x] `0x552` device status every 500 ms: state flags, device ID, service
       result, latest transaction flags, saturated service-failure count, and
       the low 16 bits of the last nonzero clear-on-read `INT_STAT`.
-- [x] `0x553` raw ADC groups paced every 40 ms: snapshot generation, group
-      index, and three little-endian 10-bit ADC codes. Eight groups cover
-      IN0 through IN23 while keeping IN12 at zero.
-- [x] Copy one coherent 24-channel firmware snapshot before transmitting a
-      generation.
-- [x] Use replaceable periodic transport so a disconnected or bus-off CAN
-      network cannot fill the queue with stale ADC fragments.
-- [ ] Add interpreted left/center/right/invalid telemetry after hardware
-      thresholds are accepted.
+- [x] `0x554` debounced state: 24-bit closed bitmap, 24-bit validity mask,
+      generation, and data-valid flag. IN12 is always invalid and clear.
+- [x] Transmit state immediately on a stable generation change and every
+      500 ms as a replaceable heartbeat.
+- [x] Stop cyclic `0x553` raw ADC traffic after characterization; the ID
+      remains reserved for engineering diagnostics.
 - [ ] Add configuration, action, and channel-detail commands.
 - [ ] Add high-priority TIC12400 fault events.
 
@@ -413,14 +412,9 @@ Each channel shows:
 
 - IN0 through IN23.
 - IN12 shown as `Not fitted`, unavailable, and not configurable.
-- Enabled/disabled.
-- Ground or battery switch type.
-- Comparator or ADC mode.
-- Left/center/right, invalid, or uncharacterized position.
-- Raw ADC code when applicable.
-- Wetting current.
-- Threshold/profile.
-- Interrupt edge and recent-change indication.
+- Only the confirmed end-user state: `OPEN`, `CLOSED`, or unavailable.
+- Raw ADC, snapshots, generation, SPI details, and characterization controls
+  are intentionally excluded from the end-user page.
 
 ### Configuration
 
@@ -443,12 +437,11 @@ Each channel shows:
 - Recent TIC12400 events integrated with the existing Logs & Errors page.
 
 - [x] Add `tic12400_controller.py`.
-- [x] Add a read-only `tic12400_panel.py` for device status and raw ADC
-      characterization.
+- [x] Add a read-only `tic12400_panel.py` for debounced OPEN/CLOSED state.
 - [x] Compose the page through `main_window_view.py`.
 - [x] Route CAN telemetry through the top-level application.
-- [x] Add controller, panel, protocol, rendering, and stale-state tests for
-      the implemented read-only telemetry path.
+- [x] Add controller, panel, protocol, rendering, bitmap, invalid-data, and
+      stale-state tests for the read-only telemetry path.
 
 Exit criterion: the GUI can configure and observe every supported channel
 without exposing invalid combinations, and displayed state always comes from
@@ -457,15 +450,15 @@ confirmed MCU telemetry rather than optimistic button clicks.
 ## Phase 6 - ADC, Resistor-Coded Switches, and Low-Power Polling
 
 - [x] Read all 23 fitted raw ADC channels into a coherent firmware snapshot.
-- [x] Add a GUI characterization workflow that collects ten complete
-      generations per physical position, rejects partial/duplicate snapshots,
-      displays per-channel minimum/maximum codes, and exports CSV.
-- [ ] Capture left, center, and right codes from the actual carrier switches.
-- [ ] Define named resistor-ladder profiles and expected ADC ranges.
-- [ ] Calculate thresholds with component tolerance, wetting-current tolerance,
-      ground shift, and ADC margin.
+- [x] Use a temporary engineering GUI workflow to collect ten complete
+      generations per physical position, reject partial/duplicate snapshots,
+      display per-channel minimum/maximum codes, and export CSV.
+- [x] Capture Left, Center, and Right codes from the actual carrier switches.
+- [x] Define the measured binary profile: Left closed, Center/Right open.
+- [x] Select a half-scale software threshold with more than 470 ADC codes of
+      measured separation on each side.
 - [ ] Validate shared threshold dependencies across channels.
-- [ ] Display raw ADC code and interpreted switch position.
+- [x] Display only the debounced OPEN/CLOSED switch state to end users.
 - [ ] Add continuous/polling mode selection.
 - [ ] Configure poll period and active time with range checks.
 - [ ] Measure switch detection latency and average supply current.
@@ -504,18 +497,10 @@ features.
 
 ## Current Vertical Slice
 
-The SPI, identity, register readback, hardware CRC, and fitted-channel mask are
-working. Continue with the actual three-position carrier in this order:
+The SPI, identity, configuration CRC, raw ADC acquisition, binary
+characterization, debounce, CAN state telemetry, and simplified end-user GUI
+are implemented. The next application step is to define an explicit, reviewed
+`INx -> system action` map before any switch controls an output or service.
 
-1. Read all 23 fitted inputs in ADC mode at 1 mA wetting current.
-2. In the GUI TIC12400 page, move all fitted switches left and select
-   **Capture Left**. Keep them still until 10/10 complete snapshots are shown.
-   Repeat with **Capture Center** and **Capture Right**, then export the CSV.
-3. Derive per-channel boundaries with margin from the measured ranges.
-4. Implement explicit left/center/right/invalid states and debounce.
-5. Enable the corresponding ADC threshold interrupts.
-6. Publish raw and interpreted channel state over CAN.
-7. Display and configure the channels on the TIC12400 GUI page.
-
-Low-power polling and advanced diagnostics follow after this end-to-end path is
-accepted.
+Low-power polling and advanced diagnostics follow after the binary
+monitoring-and-control path is accepted.

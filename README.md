@@ -136,7 +136,8 @@ Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
 Core/Inc|Src/pwm_self_test.* Closed-loop PWM/capture built-in test
 Core/Inc|Src/tic12400.*     TIC12400-Q1 SPI driver
 Core/Inc|Src/tic12400_probe.* Initialization and raw ADC monitoring service
-Core/Inc|Src/tic12400_can.* Segmented TIC12400 CAN telemetry
+Core/Inc|Src/tic12400_switch.* Debounced binary switch-state filter
+Core/Inc|Src/tic12400_can.* TIC12400 health and switch-state telemetry
 Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
 Core/Src/stm32h7xx_it.c     Interrupt handlers
 Core/Src/stm32h7xx_hal_msp.c Peripheral clocks, GPIO, and NVIC setup
@@ -156,8 +157,8 @@ python/
     can_health.py           CAN health monitoring and indicators
     rtc_controller.py       RTC and alarm state management
     rtc_panel.py            RTC date/time and alarm UI
-    tic12400_controller.py  TIC12400 status and raw ADC decoding
-    tic12400_panel.py       TIC12400 device and 24-channel telemetry UI
+    tic12400_controller.py  TIC12400 health and switch-state decoding
+    tic12400_panel.py       End-user OPEN/CLOSED switch display
     event_log_panel.py      GUI event log and STM32 log display
     csv_event_logger.py     Daily CSV event logging
     stm32_log_sync.py       CAN-based MCU event log synchronization
@@ -172,6 +173,7 @@ tests/
   CMakeLists.txt            CMake build for Unity C tests
   Makefile                  Make build for Unity C tests
   test_can_protocol.c       Protocol encoding/decoding tests
+  test_tic12400_switch.c    Binary threshold and debounce tests
   test_can_transport.c      TX queue policy tests
   test_pca2131_validation.c Calendar and alarm validation tests
   test_pwm_self_test.c      PWM/capture built-in-test state-machine tests
@@ -410,7 +412,8 @@ bytes**. Multi-byte integers are little-endian.
 | GUI -> MCU | `0x1894AABB` | Extended | All commands |
 | MCU -> GUI | `0x551` | Standard | RTC operation status |
 | MCU -> GUI | `0x552` | Standard | TIC12400 device status |
-| MCU -> GUI | `0x553` | Standard | TIC12400 segmented raw ADC snapshot |
+| MCU -> GUI | `0x553` | Standard | Reserved TIC12400 engineering ADC data |
+| MCU -> GUI | `0x554` | Standard | TIC12400 debounced switch states |
 | MCU -> GUI | `0x556` | Standard | RTC date/time and health |
 | MCU -> GUI | `0x557` | Standard | Slot and LED state |
 | MCU -> GUI | `0x558` | Standard | RTC alarm event |
@@ -831,8 +834,8 @@ panels and controllers:
 | `can_health.py` | CAN health monitoring, frame rates, and error indicators |
 | `rtc_controller.py` | RTC and alarm state management |
 | `rtc_panel.py` | RTC date/time display, update, and alarm configuration |
-| `tic12400_controller.py` | TIC12400 status and segmented ADC decoding |
-| `tic12400_panel.py` | Read-only device health and 24-input ADC display |
+| `tic12400_controller.py` | TIC12400 health and switch-bitmap decoding |
+| `tic12400_panel.py` | End-user 24-input OPEN/CLOSED display |
 | `event_log_panel.py` | GUI event history and STM32 log display with filtering |
 | `csv_event_logger.py` | Daily CSV event logging with injection protection |
 | `stm32_log_sync.py` | CAN-based MCU event log synchronization |
@@ -852,9 +855,8 @@ Key features:
 - Alarm comparison-field configuration and disable command
 - Alarm write-status and event display
 - System slot and LED status
-- TIC12400 device health, transaction flags, and raw ADC snapshot monitoring
-- All 24 physical TIC12400 inputs shown with IN12 marked `Not fitted`
-- Multi-snapshot Left/Center/Right TIC12400 characterization with CSV export
+- Debounced TIC12400 OPEN/CLOSED monitoring for all fitted inputs
+- IN12 shown as unavailable because its carrier resistor is not fitted
 - STM32 event log download with CRC verification
 - Task-oriented Control, Live Data, PWM & Capture, TIC12400, and
   Logs & Errors pages
@@ -867,22 +869,16 @@ On Linux the GUI defaults to `socketcan` channel `can0`; on Windows it defaults
 to `pcan` channel `PCAN_USBBUS1`. The nominal bitrate is 500 kbit/s. It accepts
 application telemetry only from the protocol-defined standard identifiers.
 
-### TIC12400 three-position characterization
+### TIC12400 switch display
 
-Open the **TIC12400** page after CAN telemetry is active. For each physical
-position:
+The measured carrier behavior is binary: Left is `CLOSED`; Center and Right
+are both `OPEN`. Firmware classifies and debounces the ADC samples before
+publishing a compact state bitmap on CAN ID `0x554`. The **TIC12400** page
+shows only `OPEN`, `CLOSED`, or unavailable. It does not expose raw ADC,
+snapshot, generation, SPI, or characterization information to end users.
 
-1. Move all 23 fitted switches to Left, Center, or Right.
-2. Select the matching capture button.
-3. Keep every switch still while the GUI collects 10 complete ADC snapshots.
-4. Confirm the capture reaches `10/10` and inspect each channel's observed
-   minimum–maximum range.
-
-After all three captures, select **Export CSV**. The file contains the fitted
-flag, observed range, and sample count for every position and channel. IN12 is
-always exported as not fitted with empty ranges. These measurements are
-characterization evidence; the GUI continues to show positions as
-`Uncharacterized` until reviewed thresholds are implemented in firmware.
+The accepted bench measurements are retained in
+`docs/tic12400_characterization_20260728.csv`.
 
 ### STM32 traffic health
 

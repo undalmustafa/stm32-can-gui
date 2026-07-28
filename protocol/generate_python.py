@@ -106,6 +106,22 @@ def generate_python_module(yaml_path, out_path):
             "TIC12400_ADC_CODE_MAX = "
             f"{tic12400_transport.get('adc_code_max', 1023)}\n"
         )
+        out.write(
+            "TIC12400_SWITCH_CLOSED_MAX_ADC_CODE = "
+            f"{tic12400_transport.get(
+                'switch_closed_max_adc_code', 512)}\n"
+        )
+        out.write(
+            "TIC12400_SWITCH_DEBOUNCE_SAMPLES = "
+            f"{tic12400_transport.get(
+                'switch_debounce_samples', 3)}\n"
+        )
+        for key, val in data.get("tic12400_switch_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"TIC12400_SWITCH_{name} = 0x{(1 << bit):02X}\n"
+            )
         for key, val in data.get("tic12400_status_flags", {}).items():
             name = key.upper()
             bit = val["bit"]

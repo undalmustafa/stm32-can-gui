@@ -222,9 +222,7 @@ def main():
     ], "Logs & Errors owns logging controls, status and recent events")
 
     tic12400 = Panel()
-    tic12400.overview_group = widget("tic12400_overview")
     tic12400.channel_group = widget("tic12400_channels")
-    tic12400.calibration_group = widget("tic12400_calibration")
     view_with_tic12400 = MainWindowView(
         connection,
         event_log,
@@ -244,10 +242,8 @@ def main():
         for item in tic12400_scroll.widget.layout.items
     ]
     expect(tic12400_names == [
-        "tic12400_overview",
         "tic12400_channels",
-        "tic12400_calibration",
-    ], "TIC12400 page contains overview, channels, and calibration")
+    ], "TIC12400 page contains only end-user switch states")
 
     timer_calls = []
     timers = ApplicationTimers(
