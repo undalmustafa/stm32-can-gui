@@ -507,6 +507,10 @@ are implemented. The first reviewed control-policy map is also implemented:
 - IN3 permits GUI-requested CAN Slot 2 operation.
 - Invalid TIC12400 state forces every mapped function off while essential CAN
   transport and diagnostics remain active.
+- TIC sampling and local LED/PWM enforcement run in `app_control`, outside the
+  CAN application. An FDCAN startup failure selects degraded operation instead
+  of stopping the MCU; local services, RTC, input capture, and the watchdog
+  continue.
 
 The policy records requested, physical-permission, blocked, and effective
 states separately so the GUI never presents an accepted request as an active

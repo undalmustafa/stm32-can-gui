@@ -30,7 +30,9 @@ and debugger-friendly diagnostics.
 - Software CAN TX queue with priority, coalescing, and bounded eviction
 - RX validation with per-reason rejection counters and event logging
 - FDCAN error-passive and bus-off observation
-- Multi-phase bus-off recovery with exponential retry backoff
+- Degraded startup when FDCAN is unavailable; local TIC12400, LED, PWM,
+  capture, RTC, and watchdog services continue
+- Multi-phase bus-off recovery with rate-limited retries
 - Recovery verification using an actual TX-complete interrupt
 - Periodic runtime diagnostic snapshots with sticky issue flags
 - Health-gated independent watchdog with main-loop, CAN, and RTC check-ins
@@ -81,20 +83,21 @@ callbacks to work.
 +-------------------------------v-----------------------------------+
 | STM32H7A3 firmware                                                 |
 |                                                                    |
-| can_app          RX validation, command dispatch, slots, LEDs      |
-|   |                                                                |
-|   +-> rtc_app    RTC and alarm policy/state machines               |
-|   |     +-> pca2131       PCA2131 register-level I2C driver        |
-|   |                                                                |
+| app_control      local TIC input and LED/PWM output ownership       |
+|   +-> app_control_policy  physical/GUI request arbitration         |
+|   +-> pwm_control         TIM2 frequency and duty-cycle driver     |
+|   +-> pwm_self_test       non-blocking closed-loop test sequencer  |
+|                                                                    |
+| rtc_app          RTC and alarm policy/state machines               |
+|   +-> pca2131             PCA2131 register-level I2C driver        |
+| input_capture    TIM3 frequency and duty measurement               |
+|                                                                    |
+| can_app          optional RX validation, command dispatch, slots   |
 |   +-> can_protocol        Stable byte layouts and codecs           |
 |   +-> can_transport       TX queue, freshness, priority            |
 |   +-> can_recovery        bus-off restart and verification         |
 |   +-> app_diagnostics     periodic RX/TX health snapshot           |
-|   +-> app_log             binary event ring buffer                 |
-|   +-> app_control_policy  physical/GUI request arbitration         |
-|   +-> pwm_control         TIM2 frequency and duty-cycle driver     |
-|   +-> input_capture       TIM3 frequency and duty measurement     |
-|   +-> pwm_self_test       non-blocking closed-loop test sequencer  |
+| app_log          binary event ring buffer                          |
 |                                                                    |
 | watchdog             low-level IWDG1 init, refresh, reset detect   |
 | app_watchdog         health-gated refresh policy and evidence      |
@@ -133,6 +136,7 @@ Core/Inc|Src/app_diagnostics.* Aggregated runtime diagnostics
 Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
 Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
+Core/Inc|Src/app_control.* Local switch/output service independent of CAN
 Core/Inc|Src/app_control_policy.* Physical/GUI control arbitration
 Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
 Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
@@ -230,24 +234,30 @@ runtime, `main()` performs:
 2. HAL and SysTick initialization
 3. RCC reset-cause and retained watchdog-evidence capture
 4. 64 MHz clock-tree configuration
-5. GPIO, FDCAN1, I2C1, TIM2, and IWDG1 hardware initialization
+5. GPIO, optional FDCAN1, I2C1, SPI3, TIM2/TIM3, and IWDG1 hardware
+   initialization
 6. PWM output initialization (TIM2 Channel 1 at 1 MHz, default 10 kHz/90%)
 7. RAM event-log initialization and `SYSTEM_BOOT` record creation
-8. CAN application, transport, filter, notification, and diagnostics setup
-9. PWM/input-capture built-in-test state initialization
-10. Non-blocking PCA2131 initialization scheduling
-11. Initial system-status publication
-12. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
-13. Board LED, push-button, and COM initialization
-14. Entry into the cooperative superloop
+8. Local control-policy initialization
+9. CAN application, transport, filter, notification, and diagnostics setup;
+   CAN-specific failures select degraded operation instead of stopping startup
+10. PWM/input-capture built-in-test state initialization
+11. Non-blocking PCA2131 initialization scheduling
+12. Initial system-status publication when CAN is available
+13. Watchdog health-policy binding to the CubeMX-owned IWDG1 handle
+14. Board LED, push-button, and COM initialization
+15. Entry into the cooperative superloop
 
-The main loop repeatedly calls `CAN_App_Process()`:
+The cooperative main loop owns the service order:
 
 ```text
+TIC12400_Probe_Process()
+App_Control_Process()
+RTC_Process()
+Input_Capture_Process()
 CAN_Handle_BusOff_Recovery()
 CAN_Transport_Process()
 CAN_Process_Rx_Command()
-RTC_Process()
 System_Status_Process()
 CAN_Process_TxSlots()
 CAN_Transport_Process()
@@ -256,6 +266,16 @@ App_Diagnostics_Process()
 
 After each application cycle, the main loop registers a heartbeat check-in and
 the watchdog evaluates the health-gate policy.
+
+`App_Control_Process()` has no dependency on `can_app`. It reads the latest
+debounced TIC12400 switch state, applies LED and PWM policy, and services the
+PWM built-in test even when CAN did not initialize. A CAN startup failure is
+recorded in `g_canAppState` and the retained event log, the CAN transport is
+disabled, and the yellow board LED is turned on. SPI switch monitoring, IN0
+LED control, an already-established local policy, PWM safety gating, RTC,
+input capture, and watchdog operation continue. GUI commands and CAN
+telemetry are naturally unavailable until CAN is restored and the MCU is
+restarted.
 
 There is no RTOS. Services use `HAL_GetTick()` deadlines and return without
 deliberate blocking. I2C HAL calls are synchronous with a 10 ms timeout, so they
@@ -906,6 +926,14 @@ input. Invalid TIC12400 data forces these controlled functions off. Essential
 CAN transport remains active so command acknowledgements, health, diagnostics,
 and recovery are still available. The GUI distinguishes a requested function
 from one that is running or blocked by its physical input.
+
+Local LED/PWM enforcement is intentionally independent of CAN. If the CAN bus
+becomes disconnected or bus-off after startup, TIC sampling and physical
+output policy continue while the FDCAN recovery state machine retries. If
+FDCAN itself cannot initialize, the firmware enters degraded operation and
+lights the yellow board LED instead of entering `Error_Handler()`. Because IN1
+is a permission rather than a start request, PWM remains safely stopped after
+a reboot without a previously received request.
 
 ### STM32 traffic health
 

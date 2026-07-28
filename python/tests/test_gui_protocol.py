@@ -116,6 +116,16 @@ def main():
         "firmware RX saturation counts are decoded",
     )
     expect(
+        protocol.STM32_LOG_EVENT_NAMES[0x0109] ==
+        "CAN_STARTUP_FAILED",
+        "firmware degraded-startup event is named",
+    )
+    expect(
+        protocol.decode_stm32_log_event_detail(0x0109, 4, 0x20) ==
+        "STAGE=START_ERROR; FDCAN_ERROR=0x00000020",
+        "firmware degraded-startup stage is decoded",
+    )
+    expect(
         protocol.decode_stm32_log_event_detail(
             0x0500,
             3 | (9 << 8) | (10 << 16) | (1 << 24),

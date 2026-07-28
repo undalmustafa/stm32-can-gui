@@ -40,8 +40,32 @@ typedef struct
     uint8_t last_rejected_command;
 } CAN_App_RxStats_t;
 
-void CAN_App_Init(void);
+typedef enum
+{
+    CAN_APP_INIT_OK = 0,
+    CAN_APP_INIT_PERIPHERAL_UNAVAILABLE,
+    CAN_APP_INIT_FILTER_ERROR,
+    CAN_APP_INIT_GLOBAL_FILTER_ERROR,
+    CAN_APP_INIT_START_ERROR,
+    CAN_APP_INIT_NOTIFICATION_ERROR
+} CAN_App_InitResult_t;
+
+typedef struct
+{
+    uint32_t init_attempts;
+    uint32_t process_count;
+    CAN_App_InitResult_t init_result;
+    uint32_t hal_error;
+    uint8_t available;
+} CAN_App_State_t;
+
+/* Convenient for STM32CubeIDE Live Expressions. */
+extern volatile CAN_App_State_t g_canAppState;
+
+CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready);
 void CAN_App_Process(void);
+uint8_t CAN_App_IsAvailable(void);
+CAN_App_State_t CAN_App_GetState(void);
 void CAN_App_GetRxStats(CAN_App_RxStats_t *stats);
 void CAN_App_RequestControlAccess(void);
 void CAN_Process_Rx_Command(void);

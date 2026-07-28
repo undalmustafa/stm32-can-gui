@@ -85,10 +85,12 @@ void HAL_MspInit(void)
   */
 void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* hfdcan)
 {
+  extern volatile uint8_t g_fdcan1_msp_ready;
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
   if(hfdcan->Instance==FDCAN1)
   {
+    g_fdcan1_msp_ready = 0U;
     /* USER CODE BEGIN FDCAN1_MspInit 0 */
 
     /* USER CODE END FDCAN1_MspInit 0 */
@@ -99,7 +101,7 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* hfdcan)
     PeriphClkInitStruct.FdcanClockSelection = RCC_FDCANCLKSOURCE_PLL;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
     {
-      Error_Handler();
+      return;
     }
 
     /* Peripheral clock enable */
@@ -120,6 +122,7 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* hfdcan)
     /* FDCAN1 interrupt Init */
     HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
+    g_fdcan1_msp_ready = 1U;
     /* USER CODE BEGIN FDCAN1_MspInit 1 */
 
     /* USER CODE END FDCAN1_MspInit 1 */

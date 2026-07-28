@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "can_app.h"
+#include "app_control.h"
 #include "rtc_app.h"
 #include "app_log.h"
 #include "app_reset_reason.h"
@@ -66,13 +67,14 @@ TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
+volatile uint8_t g_fdcan1_msp_ready;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_FDCAN1_Init(void);
+static uint8_t MX_FDCAN1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI3_Init(void);
 static void MX_IWDG1_Init(void);
@@ -93,6 +95,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  uint8_t can_peripheral_ready;
 
   /* USER CODE END 1 */
 
@@ -120,7 +123,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_FDCAN1_Init();
+  can_peripheral_ready = MX_FDCAN1_Init();
   MX_I2C1_Init();
   MX_SPI3_Init();
   MX_IWDG1_Init();
@@ -145,6 +148,7 @@ int main(void)
   }
   TIC12400_Probe_Init(&hspi3);
   PWM_SelfTest_Init();
+  App_Control_Init();
   App_ResetReason_Snapshot_t reset_reason;
   App_ResetReason_GetSnapshot(&reset_reason);
   (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,
@@ -164,10 +168,13 @@ int main(void)
                        watchdog_evidence.missing_heartbeat_mask);
   }
 
-  CAN_App_Init();
+  (void)CAN_App_Init(can_peripheral_ready);
   TIC12400_CAN_Init();
   PCA2131_Init_Check();
-  CAN_Send_System_Status();
+  if (CAN_App_IsAvailable() != 0U)
+  {
+    CAN_Send_System_Status();
+  }
 
   if (App_Watchdog_Init(&hiwdg1) != HAL_OK)
   {
@@ -180,6 +187,10 @@ int main(void)
   BSP_LED_Init(LED_GREEN);
   BSP_LED_Init(LED_YELLOW);
   BSP_LED_Init(LED_RED);
+  if (CAN_App_IsAvailable() == 0U)
+  {
+    BSP_LED_On(LED_YELLOW);
+  }
 
   /* Initialize USER push-button, will be used to trigger an interrupt each time it's pressed.*/
   BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
@@ -204,8 +215,12 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-	  CAN_App_Process();
 	  TIC12400_Probe_Process();
+	  App_Control_Process();
+	  RTC_Process();
+	  Input_Capture_Process();
+	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
+	  CAN_App_Process();
 	  TIC12400_CAN_Process();
 	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
 	  App_Watchdog_Process();
@@ -280,9 +295,9 @@ void SystemClock_Config(void)
 /**
   * @brief FDCAN1 Initialization Function
   * @param None
-  * @retval None
-  */
-static void MX_FDCAN1_Init(void)
+ * @retval 1 when the peripheral is ready, otherwise 0
+ */
+static uint8_t MX_FDCAN1_Init(void)
 {
 
   /* USER CODE BEGIN FDCAN1_Init 0 */
@@ -320,14 +335,20 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.TxFifoQueueElmtsNbr = 3;
   hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
+  g_fdcan1_msp_ready = 0U;
   if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
   {
-    Error_Handler();
+    return 0U;
+  }
+  if (g_fdcan1_msp_ready == 0U)
+  {
+    return 0U;
   }
   /* USER CODE BEGIN FDCAN1_Init 2 */
 
   /* USER CODE END FDCAN1_Init 2 */
 
+  return 1U;
 }
 
 /**

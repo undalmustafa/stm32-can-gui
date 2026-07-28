@@ -87,11 +87,33 @@ void test_SendClassicLatest_replaces_pending_same_id(void)
     TEST_ASSERT_EQUAL_UINT32(1U, stats.coalesced);
 }
 
+void test_DisabledTransport_rejects_send_without_touching_hardware(void)
+{
+    uint8_t data[8] = {0};
+    CAN_Transport_Stats_t stats;
+
+    CAN_Transport_Init(NULL);
+
+    TEST_ASSERT_EQUAL(
+        CAN_TRANSPORT_NOT_INITIALIZED,
+        CAN_Transport_SendClassic(
+            0x100U,
+            CAN_TRANSPORT_ID_STANDARD,
+            data));
+
+    CAN_Transport_Process();
+    CAN_Transport_GetStats(&stats);
+    TEST_ASSERT_EQUAL_UINT32(0U, mock_fdcan_messages_added);
+    TEST_ASSERT_EQUAL_UINT8(0U, stats.pending_count);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_SendClassic_goes_direct_when_hw_fifo_free);
     RUN_TEST(test_SendClassic_queues_when_hw_fifo_full);
     RUN_TEST(test_SendClassicLatest_replaces_pending_same_id);
+    RUN_TEST(
+        test_DisabledTransport_rejects_send_without_touching_hardware);
     return UNITY_END();
 }
