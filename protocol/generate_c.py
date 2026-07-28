@@ -95,6 +95,41 @@ def generate_c_header(yaml_path, out_path):
             )
         out.write("\n")
 
+        tic12400_transport = data.get("tic12400_transport", {})
+        out.write("/* TIC12400 Telemetry */\n")
+        out.write(
+            "#define CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT "
+            f"{tic12400_transport.get('adc_channel_count', 24)}U\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME "
+            f"{tic12400_transport.get('adc_codes_per_frame', 3)}U\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_TIC12400_ADC_GROUP_COUNT "
+            f"{tic12400_transport.get('adc_group_count', 8)}U\n"
+        )
+        out.write(
+            "#define CAN_PROTOCOL_TIC12400_ADC_CODE_MAX "
+            f"{tic12400_transport.get('adc_code_max', 1023)}U\n"
+        )
+        for key, val in data.get("tic12400_status_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"#define CAN_PROTOCOL_TIC12400_STATUS_{name} "
+                f"0x{(1 << bit):02X}U\n"
+            )
+        for key, val in data.get(
+                "tic12400_transaction_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"#define CAN_PROTOCOL_TIC12400_TRANSACTION_{name} "
+                f"0x{(1 << bit):02X}U\n"
+            )
+        out.write("\n")
+
         out.write("/* Command Codes */\n")
         out.write("typedef enum\n{\n")
         commands = data.get("commands", {})

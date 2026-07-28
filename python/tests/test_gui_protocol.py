@@ -32,6 +32,18 @@ def main():
            "PWM built-in-test status ID is defined")
     expect(protocol.PWM_SELF_TEST_RESULT_RX_ID == 0x55F,
            "PWM built-in-test result ID is defined")
+    expect(protocol.TIC12400_STATUS_RX_ID == 0x552,
+           "TIC12400 status ID is generated")
+    expect(protocol.TIC12400_ADC_RX_ID == 0x553,
+           "TIC12400 ADC ID is generated")
+    expect(protocol.TIC12400_ADC_CHANNEL_COUNT == 24,
+           "TIC12400 channel count is generated")
+    expect(protocol.TIC12400_ADC_CODES_PER_FRAME == 3,
+           "TIC12400 ADC frame width is generated")
+    expect(protocol.TIC12400_ADC_GROUP_COUNT == 8,
+           "TIC12400 ADC group count is generated")
+    expect(protocol.TIC12400_ADC_CODE_MAX == 1023,
+           "TIC12400 ADC code limit is generated")
     expect(protocol.CMD_PWM_SELF_TEST == 0x41,
            "PWM built-in-test command is defined")
     expect(protocol.GUI_COMMAND_ID_EXT == generated.GUI_COMMAND_ID_EXT,

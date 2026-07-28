@@ -121,6 +121,63 @@ void test_EncodePwmSelfTestResult_matches_wire_format(void)
     TEST_ASSERT_EQUAL_UINT8(0x00U, payload[7]);
 }
 
+void test_EncodeTic12400Status_matches_wire_format(void)
+{
+    CAN_Protocol_Tic12400Status_t status = {
+        .online = 1U,
+        .configuration_valid = 1U,
+        .crc_complete = 1U,
+        .monitoring = 1U,
+        .adc_characterization = 1U,
+        .por_observed = 1U,
+        .service_fault = 0U,
+        .device_id = 0x20U,
+        .service_result = 0U,
+        .spi_fail = 0U,
+        .parity_fail = 1U,
+        .switch_state_change = 1U,
+        .supply_threshold = 0U,
+        .temperature = 1U,
+        .other_interrupt = 0U,
+        .power_on_reset = 1U,
+        .service_failures = 0x1234U,
+        .last_nonzero_int_status = 0x5678U,
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodeTic12400Status(&status, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(0x3FU, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x20U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(0x56U, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0x34U, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0x12U, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x78U, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0x56U, payload[7]);
+}
+
+void test_EncodeTic12400AdcGroup_matches_wire_format(void)
+{
+    CAN_Protocol_Tic12400AdcGroup_t group = {
+        .generation = 0x42U,
+        .group_index = 7U,
+        .adc_code = {0x027U, 0x003U, 0x3FFU},
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodeTic12400AdcGroup(&group, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(0x42U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(7U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x27U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0x03U, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0xFFU, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0x03U, payload[7]);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -134,5 +191,7 @@ int main(void)
     RUN_TEST(test_EncodeSystemStatus_matches_struct);
     RUN_TEST(test_EncodePwmSelfTestStatus_matches_wire_format);
     RUN_TEST(test_EncodePwmSelfTestResult_matches_wire_format);
+    RUN_TEST(test_EncodeTic12400Status_matches_wire_format);
+    RUN_TEST(test_EncodeTic12400AdcGroup_matches_wire_format);
     return UNITY_END();
 }

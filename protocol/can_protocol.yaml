@@ -97,6 +97,18 @@ identifiers:
     direction: mcu_to_gui
     description: "Reliable command acknowledgement"
 
+  tic12400_status:
+    id: 0x0552
+    type: standard
+    direction: mcu_to_gui
+    description: "TIC12400 device and service status"
+
+  tic12400_adc:
+    id: 0x0553
+    type: standard
+    direction: mcu_to_gui
+    description: "Segmented TIC12400 raw ADC snapshot"
+
 command_transport:
   sequence_mask: 0x000000FF
   session_mask: 0x0000FF00
@@ -382,3 +394,44 @@ alarm_event_flags:
   config_ok:
     bit: 2
     description: "Alarm configuration valid"
+
+# ---------------------------------------------------------------------------
+# TIC12400 Telemetry
+# ---------------------------------------------------------------------------
+tic12400_transport:
+  adc_channel_count: 24
+  adc_codes_per_frame: 3
+  adc_group_count: 8
+  adc_code_max: 1023
+
+tic12400_status_flags:
+  online:
+    bit: 0
+  configuration_valid:
+    bit: 1
+  crc_complete:
+    bit: 2
+  monitoring:
+    bit: 3
+  adc_characterization:
+    bit: 4
+  por_observed:
+    bit: 5
+  service_fault:
+    bit: 6
+
+tic12400_transaction_flags:
+  spi_fail:
+    bit: 0
+  parity_fail:
+    bit: 1
+  switch_state_change:
+    bit: 2
+  supply_threshold:
+    bit: 3
+  temperature:
+    bit: 4
+  other_interrupt:
+    bit: 5
+  power_on_reset:
+    bit: 6

@@ -361,6 +361,23 @@ Proposed telemetry groups:
 - Requested channel detail with raw 10-bit ADC value and interpreted state.
 - Configuration/action result.
 
+Implemented characterization telemetry:
+
+- [x] `0x552` device status every 500 ms: state flags, device ID, service
+      result, latest transaction flags, saturated service-failure count, and
+      the low 16 bits of the last nonzero clear-on-read `INT_STAT`.
+- [x] `0x553` raw ADC groups paced every 40 ms: snapshot generation, group
+      index, and three little-endian 10-bit ADC codes. Eight groups cover
+      IN0 through IN23 while keeping IN12 at zero.
+- [x] Copy one coherent 24-channel firmware snapshot before transmitting a
+      generation.
+- [x] Use replaceable periodic transport so a disconnected or bus-off CAN
+      network cannot fill the queue with stale ADC fragments.
+- [ ] Add interpreted left/center/right/invalid telemetry after hardware
+      thresholds are accepted.
+- [ ] Add configuration, action, and channel-detail commands.
+- [ ] Add high-priority TIC12400 fault events.
+
 Protocol rules:
 
 - Do not send one cyclic CAN frame per channel.

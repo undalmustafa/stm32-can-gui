@@ -31,6 +31,7 @@
 #include "input_capture.h"
 #include "pwm_self_test.h"
 #include "tic12400_probe.h"
+#include "tic12400_can.h"
 
 /* USER CODE END Includes */
 
@@ -164,6 +165,7 @@ int main(void)
   }
 
   CAN_App_Init();
+  TIC12400_CAN_Init();
   PCA2131_Init_Check();
   CAN_Send_System_Status();
 
@@ -204,6 +206,7 @@ int main(void)
 
 	  CAN_App_Process();
 	  TIC12400_Probe_Process();
+	  TIC12400_CAN_Process();
 	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
 	  App_Watchdog_Process();
 

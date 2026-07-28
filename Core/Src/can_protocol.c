@@ -275,3 +275,106 @@ void CAN_Protocol_EncodePwmSelfTestResult(
     payload[3] = result->measured_duty_percent;
     CAN_Protocol_WriteU32LE(&payload[4], result->measured_frequency_hz);
 }
+
+void CAN_Protocol_EncodeTic12400Status(
+    const CAN_Protocol_Tic12400Status_t *status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = 0U;
+    payload[3] = 0U;
+
+    if (status->online != 0U)
+    {
+        payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_ONLINE;
+    }
+    if (status->configuration_valid != 0U)
+    {
+        payload[0] |=
+            CAN_PROTOCOL_TIC12400_STATUS_CONFIGURATION_VALID;
+    }
+    if (status->crc_complete != 0U)
+    {
+        payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_CRC_COMPLETE;
+    }
+    if (status->monitoring != 0U)
+    {
+        payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_MONITORING;
+    }
+    if (status->adc_characterization != 0U)
+    {
+        payload[0] |=
+            CAN_PROTOCOL_TIC12400_STATUS_ADC_CHARACTERIZATION;
+    }
+    if (status->por_observed != 0U)
+    {
+        payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_POR_OBSERVED;
+    }
+    if (status->service_fault != 0U)
+    {
+        payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_SERVICE_FAULT;
+    }
+
+    payload[1] = status->device_id;
+    payload[2] = status->service_result;
+
+    if (status->spi_fail != 0U)
+    {
+        payload[3] |= CAN_PROTOCOL_TIC12400_TRANSACTION_SPI_FAIL;
+    }
+    if (status->parity_fail != 0U)
+    {
+        payload[3] |=
+            CAN_PROTOCOL_TIC12400_TRANSACTION_PARITY_FAIL;
+    }
+    if (status->switch_state_change != 0U)
+    {
+        payload[3] |=
+            CAN_PROTOCOL_TIC12400_TRANSACTION_SWITCH_STATE_CHANGE;
+    }
+    if (status->supply_threshold != 0U)
+    {
+        payload[3] |=
+            CAN_PROTOCOL_TIC12400_TRANSACTION_SUPPLY_THRESHOLD;
+    }
+    if (status->temperature != 0U)
+    {
+        payload[3] |=
+            CAN_PROTOCOL_TIC12400_TRANSACTION_TEMPERATURE;
+    }
+    if (status->other_interrupt != 0U)
+    {
+        payload[3] |=
+            CAN_PROTOCOL_TIC12400_TRANSACTION_OTHER_INTERRUPT;
+    }
+    if (status->power_on_reset != 0U)
+    {
+        payload[3] |=
+            CAN_PROTOCOL_TIC12400_TRANSACTION_POWER_ON_RESET;
+    }
+
+    CAN_Protocol_WriteU16LE(&payload[4], status->service_failures);
+    CAN_Protocol_WriteU16LE(
+        &payload[6],
+        status->last_nonzero_int_status);
+}
+
+void CAN_Protocol_EncodeTic12400AdcGroup(
+    const CAN_Protocol_Tic12400AdcGroup_t *group,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    uint8_t index;
+
+    payload[0] = group->generation;
+    payload[1] = group->group_index;
+
+    for (index = 0U;
+         index < CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME;
+         index++)
+    {
+        CAN_Protocol_WriteU16LE(
+            &payload[2U + (index * 2U)],
+            (uint16_t)(
+                group->adc_code[index] &
+                CAN_PROTOCOL_TIC12400_ADC_CODE_MAX));
+    }
+}

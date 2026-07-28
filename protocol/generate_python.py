@@ -88,6 +88,39 @@ def generate_python_module(yaml_path, out_path):
             out.write(f"RTC_ALARM_EVENT_{name} = 0x{(1 << bit):02X}\n")
         out.write("\n")
 
+        tic12400_transport = data.get("tic12400_transport", {})
+        out.write("# TIC12400 Telemetry\n")
+        out.write(
+            "TIC12400_ADC_CHANNEL_COUNT = "
+            f"{tic12400_transport.get('adc_channel_count', 24)}\n"
+        )
+        out.write(
+            "TIC12400_ADC_CODES_PER_FRAME = "
+            f"{tic12400_transport.get('adc_codes_per_frame', 3)}\n"
+        )
+        out.write(
+            "TIC12400_ADC_GROUP_COUNT = "
+            f"{tic12400_transport.get('adc_group_count', 8)}\n"
+        )
+        out.write(
+            "TIC12400_ADC_CODE_MAX = "
+            f"{tic12400_transport.get('adc_code_max', 1023)}\n"
+        )
+        for key, val in data.get("tic12400_status_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"TIC12400_STATUS_{name} = 0x{(1 << bit):02X}\n"
+            )
+        for key, val in data.get(
+                "tic12400_transaction_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"TIC12400_TRANSACTION_{name} = 0x{(1 << bit):02X}\n"
+            )
+        out.write("\n")
+
         out.write("# RTC Status Definitions\n")
         out.write("RTC_STATUS_DEFINITIONS = {\n")
         rtc_status_codes = data.get("rtc_status_codes", {})
