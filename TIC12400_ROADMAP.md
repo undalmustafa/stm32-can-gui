@@ -200,11 +200,11 @@ or switch-topology ambiguity.
 - [x] Add SPI3 and GPIO configuration to `can_gui.ioc`.
 - [x] Enable the STM32 HAL SPI module and generated-equivalent initialization.
 - [x] Configure manual CS, INT EXTI, and active-high RESET output behavior.
-- [ ] Verify mode 1, 2 MHz, MSB-first, 32-clock transactions on an oscilloscope
+- [ ] Verify mode 1, 1 MHz, MSB-first, 32-clock transactions on an oscilloscope
       or logic analyzer.
-- [ ] Read `DEVICE_ID` and confirm TIC12400-Q1 major/minor ID `0x20`.
-- [ ] Read and clear the power-on-reset indication.
-- [ ] Exercise hardware reset and confirm POR/INT behavior.
+- [x] Read `DEVICE_ID` and confirm TIC12400-Q1 major/minor ID `0x20`.
+- [x] Read and clear the power-on-reset indication.
+- [x] Exercise hardware reset and confirm POR/INT behavior.
 
 Exit criterion: 1000 repeated device-ID reads complete without STM32 HAL,
 TIC12400 SPI, or parity errors.
@@ -254,7 +254,7 @@ carrier resistor is not fitted, so firmware intentionally ignores bit 12.
 
 Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
 
-- `configuration_write_count = 10`, `configuration_completed = 1`,
+- `configuration_write_count = 11`, `configuration_completed = 1`,
   `configuration_passed = 1`, and `monitoring_started = 1`.
 - Readbacks must be `config = 0x800`, `mode = 0`, `cs_select = 0`,
   `wc_cfg0 = 0x249249`, `wc_cfg1 = 0x049249`,
@@ -262,6 +262,11 @@ Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
   `int_en_comp2 = 0xFFFFFC`, and `int_en_cfg0 = 4`.
 - `enabled_input_mask = 0xFFEFFF`; bit 12 must always remain zero in
   `comparator_bitmap`, `closed_switch_bitmap`, and `last_change_mask`.
+- Before monitoring starts, the probe triggers the TIC12400 hardware
+  configuration CRC with `TRIGGER=0`. A pass has
+  `crc_trigger_self_cleared = 1`, `crc_completed = 1`,
+  `crc_result = TIC12400_RESULT_OK`, and CRC completion bit 8 set in
+  `crc_int_status`. `crc_value` preserves the device's 16-bit result.
 - `baseline_established = 1`, `service_result = TIC12400_RESULT_OK`, and
   `service_failures = 0`.
 - `comparator_bitmap` contains one for each fitted input above its threshold.
@@ -301,12 +306,14 @@ results, and bench reads match a logic-analyzer decode.
 ## Phase 3 - Device Service and Direct-Input Monitoring
 
 - [ ] Implement a non-blocking initialization sequence.
-- [ ] Keep `TRIGGER=0` while changing configuration.
-- [ ] Apply a safe default direct-input profile with IN12 always disabled.
-- [ ] Read back critical configuration and calculate/compare configuration CRC.
-- [ ] Start monitoring only after the configuration is verified.
-- [ ] Treat the first completed detection cycle as the baseline state.
-- [ ] Handle INT by recording one pending flag in the callback.
+- [x] Keep `TRIGGER=0` while changing configuration.
+- [x] Apply a safe default direct-input profile with IN12 always disabled.
+- [x] Read back critical configuration and run the hardware configuration CRC.
+- [ ] Independently calculate the configuration CRC in software and compare it
+      with the device result.
+- [x] Start monitoring only after register readback and hardware CRC completion.
+- [x] Treat the first completed detection cycle as the baseline state.
+- [x] Handle INT by recording one pending flag in the callback.
 - [ ] Read `INT_STAT` once per service event and preserve its clear-on-read
       value in software.
 - [ ] Read only the dependent status/ADC registers required by that event.

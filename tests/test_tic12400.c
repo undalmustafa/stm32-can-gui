@@ -109,9 +109,20 @@ void test_build_device_id_read_frame_uses_odd_parity(void)
 
 void test_build_read_frame_sets_parity_bit_when_needed(void)
 {
-    uint32_t frame = TIC12400_BuildReadFrame(0x03U);
+    uint32_t frame =
+        TIC12400_BuildReadFrame(TIC12400_REGISTER_CRC);
 
     TEST_ASSERT_EQUAL_UINT32(0x06000001UL, frame);
+    TEST_ASSERT_EQUAL_UINT8(1U, TIC12400_FrameHasOddParity(frame));
+}
+
+void test_build_configuration_crc_trigger_frame(void)
+{
+    uint32_t frame = TIC12400_BuildWriteFrame(
+        TIC12400_REGISTER_CONFIG,
+        TIC12400_CONFIG_CRC_TRIGGER_MASK);
+
+    TEST_ASSERT_EQUAL_UINT32(0xB4000400UL, frame);
     TEST_ASSERT_EQUAL_UINT8(1U, TIC12400_FrameHasOddParity(frame));
 }
 
@@ -313,6 +324,26 @@ void test_write_register_rejects_data_wider_than_24_bits(void)
     TEST_ASSERT_EQUAL_UINT8(0U, cs_state_count);
 }
 
+void test_read_configuration_crc_returns_16_bit_result(void)
+{
+    TIC12400_Transaction_t transaction;
+
+    /* CRC value 0x1234 shifted into response data; parity is already odd. */
+    fake_rx[0] = 0x00U;
+    fake_rx[1] = 0x00U;
+    fake_rx[2] = 0x24U;
+    fake_rx[3] = 0x68U;
+
+    transaction = TIC12400_ReadConfigurationCrc(&device);
+
+    TEST_ASSERT_EQUAL(TIC12400_RESULT_OK, transaction.result);
+    TEST_ASSERT_EQUAL_UINT32(0x1234U, transaction.data);
+    TEST_ASSERT_EQUAL_UINT8(0x06U, captured_tx[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[2]);
+    TEST_ASSERT_EQUAL_UINT8(0x01U, captured_tx[3]);
+}
+
 void test_hardware_reset_pulses_active_high(void)
 {
     TEST_ASSERT_EQUAL(TIC12400_RESULT_OK,
@@ -330,6 +361,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_build_device_id_read_frame_uses_odd_parity);
     RUN_TEST(test_build_read_frame_sets_parity_bit_when_needed);
+    RUN_TEST(test_build_configuration_crc_trigger_frame);
     RUN_TEST(
         test_build_write_frame_encodes_address_data_and_odd_parity);
     RUN_TEST(test_read_device_id_decodes_data_and_por_status);
@@ -343,6 +375,7 @@ int main(void)
     RUN_TEST(
         test_write_register_transmits_frame_and_decodes_previous_value);
     RUN_TEST(test_write_register_rejects_data_wider_than_24_bits);
+    RUN_TEST(test_read_configuration_crc_returns_16_bit_result);
     RUN_TEST(test_hardware_reset_pulses_active_high);
     return UNITY_END();
 }

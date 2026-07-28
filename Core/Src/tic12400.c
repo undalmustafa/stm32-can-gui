@@ -327,3 +327,9 @@ TIC12400_Transaction_t TIC12400_ReadDeviceId(
 
     return transaction;
 }
+
+TIC12400_Transaction_t TIC12400_ReadConfigurationCrc(
+    const TIC12400_Device_t *device)
+{
+    return TIC12400_ReadRegister(device, TIC12400_REGISTER_CRC);
+}

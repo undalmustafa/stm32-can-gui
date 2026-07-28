@@ -24,6 +24,10 @@ typedef struct
     uint32_t configuration_failure_address;
     uint32_t configuration_expected;
     uint32_t configuration_actual;
+    uint32_t crc_poll_target;
+    uint32_t crc_poll_completed;
+    uint32_t crc_int_status;
+    uint32_t crc_value;
     uint32_t config_readback;
     uint32_t in_en_readback;
     uint32_t cs_select_readback;
@@ -56,6 +60,7 @@ typedef struct
     TIC12400_Result_t clear_result;
     TIC12400_Result_t validation_first_failure_result;
     TIC12400_Result_t configuration_result;
+    TIC12400_Result_t crc_result;
     TIC12400_Result_t service_result;
     TIC12400_Result_t first_service_failure_result;
     TIC12400_Result_t last_service_failure_result;
@@ -71,6 +76,8 @@ typedef struct
     uint8_t validation_passed;
     uint8_t configuration_completed;
     uint8_t configuration_passed;
+    uint8_t crc_trigger_self_cleared;
+    uint8_t crc_completed;
     uint8_t monitoring_started;
     uint8_t baseline_established;
     uint8_t in0_above_threshold;

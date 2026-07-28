@@ -4,6 +4,7 @@
 
 #define TIC12400_PROBE_VALIDATION_READS 1000U
 #define TIC12400_PROBE_FALLBACK_POLL_MS  50U
+#define TIC12400_PROBE_CRC_POLL_READS    100U
 
 #define TIC12400_CONFIG_TRIGGER           (1UL << 11)
 #define TIC12400_BOARD_FITTED_INPUT_MASK   0xFFEFFFUL
@@ -127,6 +128,136 @@ static uint8_t TIC12400_ProbeWriteAndVerify(
         return 0U;
     }
 
+    return 1U;
+}
+
+static uint8_t TIC12400_ProbeRunConfigurationCrc(void)
+{
+    uint32_t index;
+    TIC12400_Transaction_t transaction;
+
+    g_tic12400_probe.crc_result = TIC12400_RESULT_OK;
+    g_tic12400_probe.crc_poll_target =
+        TIC12400_PROBE_CRC_POLL_READS;
+
+    transaction = TIC12400_WriteRegister(
+        &tic12400_device,
+        TIC12400_REGISTER_CONFIG,
+        TIC12400_CONFIG_CRC_TRIGGER_MASK);
+    g_tic12400_probe.configuration_write_count++;
+    TIC12400_ProbeStoreTransaction(&transaction);
+    if (transaction.result != TIC12400_RESULT_OK)
+    {
+        g_tic12400_probe.configuration_failure_address =
+            TIC12400_REGISTER_CONFIG;
+        g_tic12400_probe.configuration_expected =
+            TIC12400_CONFIG_CRC_TRIGGER_MASK;
+        g_tic12400_probe.configuration_actual = transaction.data;
+        g_tic12400_probe.crc_result = transaction.result;
+        g_tic12400_probe.configuration_result = transaction.result;
+        return 0U;
+    }
+
+    /*
+     * CRC_T is self-clearing. Do not write any configuration register while
+     * it remains set; doing so would make the device's CRC result invalid.
+     */
+    for (index = 0U;
+         index < TIC12400_PROBE_CRC_POLL_READS;
+         index++)
+    {
+        transaction = TIC12400_ReadRegister(
+            &tic12400_device,
+            TIC12400_REGISTER_CONFIG);
+        TIC12400_ProbeStoreTransaction(&transaction);
+        g_tic12400_probe.crc_poll_completed = index + 1U;
+        g_tic12400_probe.config_readback = transaction.data;
+
+        if (transaction.result != TIC12400_RESULT_OK)
+        {
+            g_tic12400_probe.configuration_failure_address =
+                TIC12400_REGISTER_CONFIG;
+            g_tic12400_probe.configuration_expected = 0U;
+            g_tic12400_probe.configuration_actual =
+                transaction.data;
+            g_tic12400_probe.crc_result = transaction.result;
+            g_tic12400_probe.configuration_result =
+                transaction.result;
+            return 0U;
+        }
+
+        if ((transaction.data &
+             TIC12400_CONFIG_CRC_TRIGGER_MASK) == 0U)
+        {
+            g_tic12400_probe.crc_trigger_self_cleared = 1U;
+            break;
+        }
+    }
+
+    if (g_tic12400_probe.crc_trigger_self_cleared == 0U)
+    {
+        g_tic12400_probe.configuration_failure_address =
+            TIC12400_REGISTER_CONFIG;
+        g_tic12400_probe.configuration_expected = 0U;
+        g_tic12400_probe.configuration_actual =
+            g_tic12400_probe.config_readback;
+        g_tic12400_probe.crc_result =
+            TIC12400_RESULT_CRC_TIMEOUT;
+        g_tic12400_probe.configuration_result =
+            TIC12400_RESULT_CRC_TIMEOUT;
+        return 0U;
+    }
+
+    transaction = TIC12400_ReadRegister(
+        &tic12400_device,
+        TIC12400_REGISTER_INT_STAT);
+    TIC12400_ProbeStoreTransaction(&transaction);
+    g_tic12400_probe.crc_int_status = transaction.data;
+    if (transaction.result != TIC12400_RESULT_OK)
+    {
+        g_tic12400_probe.configuration_failure_address =
+            TIC12400_REGISTER_INT_STAT;
+        g_tic12400_probe.configuration_expected =
+            TIC12400_INT_STATUS_CRC_CALC_MASK;
+        g_tic12400_probe.configuration_actual = transaction.data;
+        g_tic12400_probe.crc_result = transaction.result;
+        g_tic12400_probe.configuration_result = transaction.result;
+        return 0U;
+    }
+
+    if ((transaction.data &
+         TIC12400_INT_STATUS_CRC_CALC_MASK) == 0U)
+    {
+        g_tic12400_probe.configuration_failure_address =
+            TIC12400_REGISTER_INT_STAT;
+        g_tic12400_probe.configuration_expected =
+            TIC12400_INT_STATUS_CRC_CALC_MASK;
+        g_tic12400_probe.configuration_actual = transaction.data;
+        g_tic12400_probe.crc_result =
+            TIC12400_RESULT_CRC_COMPLETION_MISSING;
+        g_tic12400_probe.configuration_result =
+            TIC12400_RESULT_CRC_COMPLETION_MISSING;
+        return 0U;
+    }
+
+    transaction =
+        TIC12400_ReadConfigurationCrc(&tic12400_device);
+    TIC12400_ProbeStoreTransaction(&transaction);
+    if (transaction.result != TIC12400_RESULT_OK)
+    {
+        g_tic12400_probe.configuration_failure_address =
+            TIC12400_REGISTER_CRC;
+        g_tic12400_probe.configuration_expected = 0U;
+        g_tic12400_probe.configuration_actual = transaction.data;
+        g_tic12400_probe.crc_result = transaction.result;
+        g_tic12400_probe.configuration_result = transaction.result;
+        return 0U;
+    }
+
+    g_tic12400_probe.crc_value =
+        transaction.data & TIC12400_CRC_VALUE_MASK;
+    g_tic12400_probe.crc_completed = 1U;
+    g_tic12400_probe.crc_result = TIC12400_RESULT_OK;
     return 1U;
 }
 
@@ -311,6 +442,10 @@ static void TIC12400_ProbeConfigureInputs(void)
             TIC12400_REGISTER_INT_EN_CFG0,
             TIC12400_INT_ENABLE_SSC,
             &g_tic12400_probe.int_en_cfg0_readback) == 0U)
+    {
+        return;
+    }
+    if (TIC12400_ProbeRunConfigurationCrc() == 0U)
     {
         return;
     }
