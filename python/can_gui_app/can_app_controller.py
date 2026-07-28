@@ -381,12 +381,12 @@ class CanAppController:
             physical_key = "in2_closed" if slot_no == 1 else "in3_closed"
             permitted = (
                 self.control_policy["switch_data_valid"]
-                and self.control_policy[physical_key]
+                and not self.control_policy[physical_key]
             )
             if running:
                 state = "Running"
             elif blocked:
-                state = f"Blocked by {input_name}"
+                state = f"Inhibited by {input_name}"
             else:
                 state = "Stopped"
             self.slot_status[slot_no].update({

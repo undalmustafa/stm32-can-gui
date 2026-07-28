@@ -161,13 +161,15 @@ def main():
     expect(slot_requests == [slot1, slot2],
            "slot buttons forward complete form values")
 
+    panel.led1_on_button.clicked.emit()
+    panel.led1_off_button.clicked.emit()
     panel.led2_on_button.clicked.emit()
     panel.led2_off_button.clicked.emit()
-    expect(not panel.led1_on_button.enabled
-           and not panel.led1_off_button.enabled,
-           "LED1 GUI controls are disabled because IN0 owns the output")
-    expect(led_requests == [(2, 1), (2, 0)],
-           "LED2 remains under GUI control")
+    expect(panel.led1_on_button.enabled
+           and panel.led1_off_button.enabled,
+           "LED1 remains available to remote control")
+    expect(led_requests == [(1, 1), (1, 0), (2, 1), (2, 0)],
+           "both LEDs remain under GUI control")
 
     panel.render_status(
         slot_status={
@@ -198,9 +200,15 @@ def main():
            "Slot 1 status retains its engineering layout")
     expect("State      : Stopped" in panel.slot2_status_label.text(),
            "Slot 2 state is rendered")
-    expect("LED1 : ON — physical IN0 CLOSED"
+    expect("LED1 : ON — IN0 CLOSED — forced ON"
            in panel.led_status_label.text(),
-           "LED1 status identifies its physical owner")
+           "LED1 status identifies its active physical override")
+    expect("Override   : IN2 CLOSED — inhibited"
+           in panel.slot1_status_label.text(),
+           "slot status identifies a closed physical inhibit")
+    expect("Override   : IN3 OPEN — remote control"
+           in panel.slot2_status_label.text(),
+           "slot status identifies normal remote ownership")
     expect("LED2 : OFF — GUI controlled"
            in panel.led_status_label.text(),
            "LED2 status identifies GUI ownership")

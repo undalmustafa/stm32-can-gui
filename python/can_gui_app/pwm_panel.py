@@ -101,7 +101,7 @@ class PwmPanel:
         self.pwm_permission = QLabel("Waiting for IN1")
         for row, (name, value) in enumerate((
             ("State", self.pwm_state),
-            ("Physical Permission", self.pwm_permission),
+            ("Physical Override", self.pwm_permission),
             ("Actual Frequency", self.pwm_frequency),
             ("Actual Duty", self.pwm_duty),
             ("Output Pin", QLabel("PA0 (TIM2 CH1)")),
@@ -206,16 +206,16 @@ class PwmPanel:
         if running:
             state_text = "Running"
         elif blocked:
-            state_text = "Blocked by IN1"
+            state_text = "Inhibited by IN1"
         else:
             state_text = "Stopped"
         self.pwm_state.setText(state_text)
         if not switch_valid:
             permission_text = "Unavailable — PWM forced off"
         elif permitted:
-            permission_text = "IN1 CLOSED — permitted"
+            permission_text = "IN1 OPEN — remote control available"
         else:
-            permission_text = "IN1 OPEN — inhibited"
+            permission_text = "IN1 CLOSED — PWM inhibited"
         self.pwm_permission.setText(permission_text)
         self.pwm_frequency.setText(f'{pwm_status["frequency_hz"]:,} Hz')
         self.pwm_duty.setText(f'{pwm_status["duty_percent"]}%')

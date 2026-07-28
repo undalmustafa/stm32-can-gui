@@ -81,14 +81,13 @@ void tearDown(void)
 {
 }
 
-void test_Process_applies_physical_led_and_permitted_pwm_without_can(void)
+void test_Process_applies_led_override_and_remote_pwm_without_can(void)
 {
     App_ControlSnapshot_t snapshot;
 
     switch_state.data_valid = 1U;
     switch_state.closed_bitmap =
-        (1UL << APP_CONTROL_POLICY_LED1_INPUT) |
-        (1UL << APP_CONTROL_POLICY_PWM_INPUT);
+        (1UL << APP_CONTROL_POLICY_LED1_INPUT);
     App_ControlPolicy_SetPwmRequest(1U);
 
     App_Control_Process();
@@ -101,12 +100,11 @@ void test_Process_applies_physical_led_and_permitted_pwm_without_can(void)
     TEST_ASSERT_EQUAL_UINT32(1U, snapshot.process_count);
 }
 
-void test_Invalid_switch_data_forces_mapped_outputs_off(void)
+void test_Invalid_switch_data_forces_fail_safe_outputs_off(void)
 {
     switch_state.data_valid = 1U;
     switch_state.closed_bitmap =
-        (1UL << APP_CONTROL_POLICY_LED1_INPUT) |
-        (1UL << APP_CONTROL_POLICY_PWM_INPUT);
+        (1UL << APP_CONTROL_POLICY_LED1_INPUT);
     App_ControlPolicy_SetPwmRequest(1U);
     App_Control_Process();
 
@@ -118,20 +116,20 @@ void test_Invalid_switch_data_forces_mapped_outputs_off(void)
     TEST_ASSERT_EQUAL_UINT8(0U, pwm_state.running);
 }
 
-void test_Lost_pwm_permission_cancels_running_self_test(void)
+void test_Closed_in1_cancels_running_self_test(void)
 {
     App_ControlSnapshot_t snapshot;
 
     switch_state.data_valid = 1U;
-    switch_state.closed_bitmap =
-        (1UL << APP_CONTROL_POLICY_PWM_INPUT);
+    switch_state.closed_bitmap = 0U;
     self_test_running = 1U;
     pwm_state.running = 1U;
 
     App_Control_Process();
     TEST_ASSERT_EQUAL_UINT32(0U, self_test_cancel_count);
 
-    switch_state.closed_bitmap = 0U;
+    switch_state.closed_bitmap =
+        (1UL << APP_CONTROL_POLICY_PWM_INPUT);
     App_Control_Process();
     snapshot = App_Control_GetSnapshot();
 
@@ -144,8 +142,8 @@ int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(
-        test_Process_applies_physical_led_and_permitted_pwm_without_can);
-    RUN_TEST(test_Invalid_switch_data_forces_mapped_outputs_off);
-    RUN_TEST(test_Lost_pwm_permission_cancels_running_self_test);
+        test_Process_applies_led_override_and_remote_pwm_without_can);
+    RUN_TEST(test_Invalid_switch_data_forces_fail_safe_outputs_off);
+    RUN_TEST(test_Closed_in1_cancels_running_self_test);
     return UNITY_END();
 }

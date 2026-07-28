@@ -501,18 +501,18 @@ The SPI, identity, configuration CRC, raw ADC acquisition, binary
 characterization, debounce, CAN state telemetry, and simplified end-user GUI
 are implemented. The first reviewed control-policy map is also implemented:
 
-- IN0 directly controls LED1.
-- IN1 permits GUI-requested PWM operation.
-- IN2 permits GUI-requested CAN Slot 1 operation.
-- IN3 permits GUI-requested CAN Slot 2 operation.
-- Invalid TIC12400 state forces every mapped function off while essential CAN
-  transport and diagnostics remain active.
+- IN0 closed forces LED1 on; open returns ownership to its GUI/CAN request.
+- IN1 closed inhibits GUI-requested PWM operation.
+- IN2 closed inhibits GUI-requested CAN Slot 1 operation.
+- IN3 closed inhibits GUI-requested CAN Slot 2 operation.
+- Invalid TIC12400 state forces PWM and both configurable CAN slots off while
+  LEDs follow their GUI requests and essential CAN diagnostics remain active.
 - TIC sampling and local LED/PWM enforcement run in `app_control`, outside the
   CAN application. An FDCAN startup failure selects degraded operation instead
   of stopping the MCU; local services, RTC, input capture, and the watchdog
   continue.
 
-The policy records requested, physical-permission, blocked, and effective
+The policy records requested, physical-override, inhibited, and effective
 states separately so the GUI never presents an accepted request as an active
 output.
 

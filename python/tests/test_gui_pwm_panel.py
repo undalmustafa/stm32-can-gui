@@ -53,6 +53,47 @@ def main():
            "capture duty is shown by the visual indicator")
 
     panel.render_status(
+        {
+            "running": False,
+            "frequency_hz": 100_000,
+            "duty_percent": 40,
+            "physical_permitted": True,
+            "blocked": False,
+            "switch_data_valid": True,
+        },
+        {
+            "signal_detected": False,
+            "frequency_hz": 0,
+            "duty_percent": 0,
+            "edge_count": 123,
+        },
+    )
+    expect(
+        panel.pwm_permission.text() ==
+        "IN1 OPEN — remote control available",
+        "open IN1 leaves PWM under remote control",
+    )
+
+    panel.render_status(
+        {
+            "running": False,
+            "frequency_hz": 100_000,
+            "duty_percent": 40,
+            "physical_permitted": False,
+            "blocked": True,
+            "switch_data_valid": True,
+        },
+        {
+            "signal_detected": False,
+            "frequency_hz": 0,
+            "duty_percent": 0,
+            "edge_count": 123,
+        },
+    )
+    expect(panel.pwm_state.text() == "Inhibited by IN1",
+           "closed IN1 is shown as the active physical inhibit")
+
+    panel.render_status(
         {"running": True, "frequency_hz": 100_000, "duty_percent": 40},
         {
             "signal_detected": True,

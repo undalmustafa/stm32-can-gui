@@ -49,12 +49,12 @@ class CanAppPanel:
         self.led1_off_button = QPushButton("LED1 OFF")
         self.led2_on_button = QPushButton("LED2 ON")
         self.led2_off_button = QPushButton("LED2 OFF")
-        self.led1_on_button.setEnabled(False)
-        self.led1_off_button.setEnabled(False)
 
         group = QGroupBox("LED Control")
         layout = QHBoxLayout()
-        layout.addWidget(QLabel("LED1 is controlled by physical switch IN0."))
+        layout.addWidget(QLabel(
+            "GUI controls LED1; IN0 CLOSED forces it ON."
+        ))
         layout.addWidget(self.led1_on_button)
         layout.addWidget(self.led1_off_button)
         layout.addWidget(self.led2_on_button)
@@ -121,10 +121,12 @@ class CanAppPanel:
         slot2 = slot_status[2]
         policy = control_policy or {}
 
-        def permission_text(input_name, valid, closed):
+        def override_text(input_name, valid, closed):
             if not valid:
                 return f"{input_name} unavailable"
-            return f"{input_name} {'CLOSED' if closed else 'OPEN'}"
+            if closed:
+                return f"{input_name} CLOSED — inhibited"
+            return f"{input_name} OPEN — remote control"
 
         switch_valid = policy.get("switch_data_valid", False)
 
@@ -134,8 +136,8 @@ class CanAppPanel:
             f"Cycle Time : {slot1['cycle_time']}\n"
             f"Counter    : {slot1['counter']}\n"
             f"State      : {slot1['state']}\n"
-            "Permission : "
-            f"{permission_text('IN2', switch_valid, policy.get('in2_closed', False))}"
+            "Override   : "
+            f"{override_text('IN2', switch_valid, policy.get('in2_closed', False))}"
         )
         self.slot2_status_label.setText(
             f"CAN ID     : {slot2['can_id']}\n"
@@ -143,13 +145,16 @@ class CanAppPanel:
             f"Cycle Time : {slot2['cycle_time']}\n"
             f"Counter    : {slot2['counter']}\n"
             f"State      : {slot2['state']}\n"
-            "Permission : "
-            f"{permission_text('IN3', switch_valid, policy.get('in3_closed', False))}"
+            "Override   : "
+            f"{override_text('IN3', switch_valid, policy.get('in3_closed', False))}"
         )
-        led1_input = permission_text(
-            "IN0", switch_valid, policy.get("in0_closed", False)
-        )
+        if not switch_valid:
+            led1_owner = "GUI controlled; IN0 unavailable"
+        elif policy.get("in0_closed", False):
+            led1_owner = "IN0 CLOSED — forced ON"
+        else:
+            led1_owner = "GUI controlled; IN0 OPEN"
         self.led_status_label.setText(
-            f"LED1 : {led_status[1]} — physical {led1_input}\n"
+            f"LED1 : {led_status[1]} — {led1_owner}\n"
             f"LED2 : {led_status[2]} — GUI controlled"
         )

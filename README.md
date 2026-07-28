@@ -19,8 +19,8 @@ and debugger-friendly diagnostics.
 - Two independently configured periodic CAN transmit slots
 - Standard 11-bit and extended 29-bit slot identifiers
 - Configurable cycle time and continuously wrapping 32-bit counters
-- Physical IN0 control of LED1 and GUI control of LED2
-- Physical permissions for PWM and both configurable CAN slots
+- GUI/CAN control of both LEDs with an IN0 force-on override for LED1
+- Physical inhibit overrides for PWM and both configurable CAN slots
 - Configurable PWM output with runtime frequency and duty-cycle adjustment
 - TIM3 PWM input capture with live frequency and duty-cycle telemetry
 - MCU-managed PWM/input-capture built-in test with CAN progress reporting
@@ -492,9 +492,11 @@ Bytes 6-7 reserved, zero
 
 A zero limit stops the slot. Otherwise, the first frame is eligible immediately
 and contains the counter in bytes 0-3. The counter runs `1..limit` and wraps
-continuously. Slot 1 transmits only while physical input IN2 is closed; Slot 2
-requires IN3. An open or unavailable permission input retains the GUI request
-but stops transmission.
+continuously. Slot 1 transmits while physical input IN2 is open; Slot 2
+requires IN3 to be open. Closing the mapped switch inhibits transmission.
+Unavailable TIC12400 data also stops both configurable slots. The GUI request
+is retained, so transmission resumes when the valid physical override is
+released.
 
 ### LED Command: `0x10`
 
@@ -503,8 +505,9 @@ but stops transmission.
 ```
 
 Logical LED 1 maps to the green board LED and logical LED 2 to the red LED.
-LED1 follows physical input IN0, so its GUI buttons are disabled. LED2 remains
-under GUI control.
+Both remain under GUI control. Closing physical input IN0 forces LED1 on;
+opening IN0 releases the override and returns LED1 to its latest GUI-requested
+state.
 
 ### RTC Date/Time Command: `0x21`
 
@@ -557,14 +560,17 @@ Bytes 6-7 reserved, zero
 
 A frequency of zero stops the output. Otherwise, valid frequencies are
 1 Hz–1 MHz and duty is 0–100%. A nonzero command records a GUI enable request,
-but PWM runs only while TIC12400 input IN1 is closed and valid. Opening IN1
-stops the output without discarding the configured frequency and duty.
+but PWM runs only while TIC12400 input IN1 is open and switch data is valid.
+Closing IN1 immediately inhibits PWM without discarding the configured
+frequency, duty, or GUI request. Releasing the override allows the requested
+PWM output to resume.
 
 ### PWM Built-In Test: `0x41`, `0x55E`, `0x55F`
 
 The command payload is `[0x41, action, 0, 0, 0, 0, 0, 0]`, where action `1`
-starts the fixed 10-point test and action `0` cancels it. IN1 must be closed
-before the test can start; opening IN1 cancels a running test and stops PWM.
+starts the fixed 10-point test and action `0` cancels it. IN1 must be open
+before the test can start; closing IN1 cancels a running test and stops PWM.
+Releasing IN1 does not automatically restart a cancelled self-test.
 
 Status frames on `0x55E` contain:
 
@@ -916,24 +922,26 @@ The STM32, rather than the GUI, calculates the effective output state:
 
 | Input | Physical function |
 |---|---|
-| IN0 | Direct LED1 control: closed is on |
-| IN1 | PWM permission |
-| IN2 | CAN Slot 1 permission |
-| IN3 | CAN Slot 2 permission |
+| IN0 | Closed forces LED1 on; open returns control to GUI/CAN |
+| IN1 | Closed inhibits PWM; open allows remote control |
+| IN2 | Closed inhibits CAN Slot 1; open allows remote control |
+| IN3 | Closed inhibits CAN Slot 2; open allows remote control |
 
-PWM and CAN slots require both a GUI request and a valid closed permission
-input. Invalid TIC12400 data forces these controlled functions off. Essential
-CAN transport remains active so command acknowledgements, health, diagnostics,
-and recovery are still available. The GUI distinguishes a requested function
-from one that is running or blocked by its physical input.
+GUI/CAN requests own normal operation. A valid closed TIC12400 input applies
+the mapped physical override. Invalid TIC12400 data forces PWM and the
+configurable CAN slots off, while both LEDs remain under GUI control unless a
+valid IN0 force-on override is active. Essential CAN transport remains active
+so command acknowledgements, health, diagnostics, and recovery are still
+available. The GUI distinguishes requested, running, and physically inhibited
+states.
 
 Local LED/PWM enforcement is intentionally independent of CAN. If the CAN bus
 becomes disconnected or bus-off after startup, TIC sampling and physical
 output policy continue while the FDCAN recovery state machine retries. If
 FDCAN itself cannot initialize, the firmware enters degraded operation and
 lights the yellow board LED instead of entering `Error_Handler()`. Because IN1
-is a permission rather than a start request, PWM remains safely stopped after
-a reboot without a previously received request.
+is an inhibit rather than a start command, PWM remains safely stopped after a
+reboot without a previously received GUI/CAN request.
 
 ### STM32 traffic health
 

@@ -32,6 +32,7 @@ from can_gui_app.protocol import (  # noqa: E402
     SYSTEM_PHYSICAL_DATA_VALID,
     SYSTEM_PHYSICAL_IN0_CLOSED,
     SYSTEM_PHYSICAL_IN1_CLOSED,
+    SYSTEM_PHYSICAL_IN2_CLOSED,
     SYSTEM_REQUEST_PWM,
     SYSTEM_REQUEST_SLOT_1,
     SYSTEM_STATUS_RX_ID,
@@ -171,7 +172,8 @@ def main():
             (
                 SYSTEM_PHYSICAL_DATA_VALID |
                 SYSTEM_PHYSICAL_IN0_CLOSED |
-                SYSTEM_PHYSICAL_IN1_CLOSED
+                SYSTEM_PHYSICAL_IN1_CLOSED |
+                SYSTEM_PHYSICAL_IN2_CLOSED
             ),
             (
                 SYSTEM_OVERRIDE_SLOT_1_BLOCKED |
@@ -179,8 +181,8 @@ def main():
             ),
         ],
     )), "control-policy system status is consumed")
-    expect(controller.slot_status[1]["state"] == "Blocked by IN2",
-           "slot status explains the physical interlock")
+    expect(controller.slot_status[1]["state"] == "Inhibited by IN2",
+           "slot status explains the physical override")
     expect(controller.control_policy["in0_closed"],
            "IN0 physical state is decoded")
     expect(controller.control_policy["pwm_blocked"],
