@@ -9,11 +9,15 @@ typedef struct
 {
     uint32_t attempts;
     uint32_t interrupt_count;
+    uint32_t first_rx_frame;
+    uint32_t clear_rx_frame;
     uint32_t tx_frame;
     uint32_t rx_frame;
     uint32_t register_data;
     uint32_t int_status;
     uint32_t hal_error;
+    TIC12400_Result_t first_result;
+    TIC12400_Result_t clear_result;
     TIC12400_Result_t result;
     HAL_StatusTypeDef hal_status;
     TIC12400_StatusFlags_t status;
@@ -21,6 +25,8 @@ typedef struct
     uint8_t online;
     uint8_t por_observed;
     uint8_t interrupt_pending;
+    uint8_t recovery_attempted;
+    uint8_t recovery_succeeded;
 } TIC12400_ProbeSnapshot_t;
 
 extern volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;

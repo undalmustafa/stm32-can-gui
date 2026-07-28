@@ -219,6 +219,10 @@ then inspect `g_tic12400_probe`:
 - `tx_frame = 0x02000000` is the odd-parity `DEVICE_ID` read command.
 - `por_observed = 1` confirms the reset/POR path. `int_status` preserves the
   clear-on-read `INT_STAT` value for inspection.
+- If the first response carries a latched SPI/parity fault, the probe preserves
+  it in `first_rx_frame`/`first_result`, reads `INT_STAT` to clear the fault,
+  and retries `DEVICE_ID`. `recovery_attempted = 1` and
+  `recovery_succeeded = 1` identify this recovered startup condition.
 - `status.spi_fail = 0`, `status.parity_fail = 0`, and `hal_error = 0` are
   required for a clean transaction.
 

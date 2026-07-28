@@ -192,6 +192,33 @@ void test_read_register_reports_device_parity_failure(void)
     TEST_ASSERT_EQUAL_UINT8(1U, transaction.status.parity_fail);
 }
 
+void test_read_register_reports_latched_spi_failure_and_preserves_data(void)
+{
+    TIC12400_Transaction_t transaction;
+
+    /*
+     * This is the real bring-up response: SPI_FAIL is a latched status
+     * flag while the current DEVICE_ID payload and response parity are valid.
+     */
+    fake_rx[0] = 0x80U;
+    fake_rx[1] = 0x00U;
+    fake_rx[2] = 0x00U;
+    fake_rx[3] = 0x41U;
+
+    transaction = TIC12400_ReadRegister(
+        &device,
+        TIC12400_REGISTER_DEVICE_ID);
+
+    TEST_ASSERT_EQUAL(TIC12400_RESULT_DEVICE_SPI_ERROR,
+                      transaction.result);
+    TEST_ASSERT_EQUAL_UINT8(1U, transaction.status.spi_fail);
+    TEST_ASSERT_EQUAL_UINT32(TIC12400_EXPECTED_DEVICE_ID,
+                             transaction.data);
+    TEST_ASSERT_EQUAL_UINT8(1U,
+                           TIC12400_FrameHasOddParity(
+                               transaction.rx_frame));
+}
+
 void test_hal_failure_releases_chip_select_and_keeps_error(void)
 {
     TIC12400_Transaction_t transaction;
@@ -232,6 +259,8 @@ int main(void)
     RUN_TEST(test_read_device_id_rejects_wrong_id);
     RUN_TEST(test_read_register_rejects_bad_response_parity);
     RUN_TEST(test_read_register_reports_device_parity_failure);
+    RUN_TEST(
+        test_read_register_reports_latched_spi_failure_and_preserves_data);
     RUN_TEST(test_hal_failure_releases_chip_select_and_keeps_error);
     RUN_TEST(test_hardware_reset_pulses_active_high);
     return UNITY_END();
