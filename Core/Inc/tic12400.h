@@ -7,8 +7,17 @@
 
 #define TIC12400_REGISTER_DEVICE_ID       0x01U
 #define TIC12400_REGISTER_INT_STAT        0x02U
+#define TIC12400_REGISTER_IN_STAT_COMP    0x05U
+#define TIC12400_REGISTER_CONFIG          0x1AU
+#define TIC12400_REGISTER_IN_EN           0x1BU
+#define TIC12400_REGISTER_CS_SELECT       0x1CU
+#define TIC12400_REGISTER_WC_CFG0         0x1DU
+#define TIC12400_REGISTER_INT_EN_COMP1    0x22U
+#define TIC12400_REGISTER_INT_EN_CFG0     0x24U
+#define TIC12400_REGISTER_MODE            0x32U
 #define TIC12400_EXPECTED_DEVICE_ID       0x000020U
 #define TIC12400_REGISTER_ADDRESS_MAX     0x3FU
+#define TIC12400_REGISTER_DATA_MAX        0xFFFFFFUL
 
 typedef enum
 {
@@ -19,7 +28,9 @@ typedef enum
     TIC12400_RESULT_RESPONSE_PARITY_ERROR,
     TIC12400_RESULT_DEVICE_SPI_ERROR,
     TIC12400_RESULT_DEVICE_PARITY_ERROR,
-    TIC12400_RESULT_DEVICE_ID_MISMATCH
+    TIC12400_RESULT_DEVICE_ID_MISMATCH,
+    TIC12400_RESULT_INVALID_DATA,
+    TIC12400_RESULT_REGISTER_VERIFY_MISMATCH
 } TIC12400_Result_t;
 
 typedef struct
@@ -62,6 +73,8 @@ void TIC12400_Driver_Init(TIC12400_Device_t *device,
 
 uint8_t TIC12400_FrameHasOddParity(uint32_t frame);
 uint32_t TIC12400_BuildReadFrame(uint8_t register_address);
+uint32_t TIC12400_BuildWriteFrame(uint8_t register_address,
+                                 uint32_t register_data);
 
 TIC12400_Result_t TIC12400_HardwareReset(
     const TIC12400_Device_t *device);
@@ -69,6 +82,11 @@ TIC12400_Result_t TIC12400_HardwareReset(
 TIC12400_Transaction_t TIC12400_ReadRegister(
     const TIC12400_Device_t *device,
     uint8_t register_address);
+
+TIC12400_Transaction_t TIC12400_WriteRegister(
+    const TIC12400_Device_t *device,
+    uint8_t register_address,
+    uint32_t register_data);
 
 TIC12400_Transaction_t TIC12400_ReadDeviceId(
     const TIC12400_Device_t *device);

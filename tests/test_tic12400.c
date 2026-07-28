@@ -115,11 +115,21 @@ void test_build_read_frame_sets_parity_bit_when_needed(void)
     TEST_ASSERT_EQUAL_UINT8(1U, TIC12400_FrameHasOddParity(frame));
 }
 
+void test_build_write_frame_encodes_address_data_and_odd_parity(void)
+{
+    uint32_t frame = TIC12400_BuildWriteFrame(
+        TIC12400_REGISTER_IN_EN,
+        0x000001U);
+
+    TEST_ASSERT_EQUAL_UINT32(0xB6000003UL, frame);
+    TEST_ASSERT_EQUAL_UINT8(1U, TIC12400_FrameHasOddParity(frame));
+}
+
 void test_read_device_id_decodes_data_and_por_status(void)
 {
     TIC12400_Transaction_t transaction;
 
-    fake_rx[0] = 0x02U;
+    fake_rx[0] = 0x80U;
     fake_rx[1] = 0x00U;
     fake_rx[2] = 0x00U;
     fake_rx[3] = 0x41U;
@@ -178,7 +188,7 @@ void test_read_register_reports_device_parity_failure(void)
 {
     TIC12400_Transaction_t transaction;
 
-    fake_rx[0] = 0x40U;
+    fake_rx[0] = 0x20U;
     fake_rx[1] = 0x00U;
     fake_rx[2] = 0x00U;
     fake_rx[3] = 0x41U;
@@ -197,10 +207,10 @@ void test_read_register_reports_latched_spi_failure_and_preserves_data(void)
     TIC12400_Transaction_t transaction;
 
     /*
-     * This is the real bring-up response: SPI_FAIL is a latched status
-     * flag while the current DEVICE_ID payload and response parity are valid.
+     * SPI_FAIL is a latched status flag while the current DEVICE_ID
+     * payload and response parity are valid.
      */
-    fake_rx[0] = 0x80U;
+    fake_rx[0] = 0x40U;
     fake_rx[1] = 0x00U;
     fake_rx[2] = 0x00U;
     fake_rx[3] = 0x41U;
@@ -217,6 +227,32 @@ void test_read_register_reports_latched_spi_failure_and_preserves_data(void)
     TEST_ASSERT_EQUAL_UINT8(1U,
                            TIC12400_FrameHasOddParity(
                                transaction.rx_frame));
+}
+
+void test_read_register_decodes_all_status_bit_positions(void)
+{
+    TIC12400_Transaction_t transaction;
+
+    /* Bits 31 through 25 are POR, SPI, parity, SSC, VS, TEMP, and OI. */
+    fake_rx[0] = 0xFEU;
+    fake_rx[1] = 0x00U;
+    fake_rx[2] = 0x00U;
+    fake_rx[3] = 0x00U;
+
+    transaction = TIC12400_ReadRegister(
+        &device,
+        TIC12400_REGISTER_INT_STAT);
+
+    TEST_ASSERT_EQUAL_UINT8(1U, transaction.status.power_on_reset);
+    TEST_ASSERT_EQUAL_UINT8(1U, transaction.status.spi_fail);
+    TEST_ASSERT_EQUAL_UINT8(1U, transaction.status.parity_fail);
+    TEST_ASSERT_EQUAL_UINT8(1U,
+                           transaction.status.switch_state_change);
+    TEST_ASSERT_EQUAL_UINT8(1U,
+                           transaction.status.supply_threshold);
+    TEST_ASSERT_EQUAL_UINT8(1U, transaction.status.temperature);
+    TEST_ASSERT_EQUAL_UINT8(1U,
+                           transaction.status.other_interrupt);
 }
 
 void test_hal_failure_releases_chip_select_and_keeps_error(void)
@@ -238,6 +274,45 @@ void test_hal_failure_releases_chip_select_and_keeps_error(void)
     TEST_ASSERT_EQUAL(GPIO_PIN_SET, cs_states[1]);
 }
 
+void test_write_register_transmits_frame_and_decodes_previous_value(void)
+{
+    TIC12400_Transaction_t transaction;
+
+    /*
+     * The write response contains the register's previous value.
+     * 0x00000001 represents previous value zero plus odd parity.
+     */
+    fake_rx[3] = 0x01U;
+
+    transaction = TIC12400_WriteRegister(
+        &device,
+        TIC12400_REGISTER_IN_EN,
+        0x000001U);
+
+    TEST_ASSERT_EQUAL(TIC12400_RESULT_OK, transaction.result);
+    TEST_ASSERT_EQUAL_UINT32(0U, transaction.data);
+    TEST_ASSERT_EQUAL_UINT8(0xB6U, captured_tx[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[2]);
+    TEST_ASSERT_EQUAL_UINT8(0x03U, captured_tx[3]);
+    TEST_ASSERT_EQUAL_UINT8(2U, cs_state_count);
+    TEST_ASSERT_EQUAL(GPIO_PIN_RESET, cs_states[0]);
+    TEST_ASSERT_EQUAL(GPIO_PIN_SET, cs_states[1]);
+}
+
+void test_write_register_rejects_data_wider_than_24_bits(void)
+{
+    TIC12400_Transaction_t transaction = TIC12400_WriteRegister(
+        &device,
+        TIC12400_REGISTER_IN_EN,
+        0x01000000UL);
+
+    TEST_ASSERT_EQUAL(TIC12400_RESULT_INVALID_DATA,
+                      transaction.result);
+    TEST_ASSERT_EQUAL_UINT8(0U, captured_size);
+    TEST_ASSERT_EQUAL_UINT8(0U, cs_state_count);
+}
+
 void test_hardware_reset_pulses_active_high(void)
 {
     TEST_ASSERT_EQUAL(TIC12400_RESULT_OK,
@@ -255,13 +330,19 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_build_device_id_read_frame_uses_odd_parity);
     RUN_TEST(test_build_read_frame_sets_parity_bit_when_needed);
+    RUN_TEST(
+        test_build_write_frame_encodes_address_data_and_odd_parity);
     RUN_TEST(test_read_device_id_decodes_data_and_por_status);
     RUN_TEST(test_read_device_id_rejects_wrong_id);
     RUN_TEST(test_read_register_rejects_bad_response_parity);
     RUN_TEST(test_read_register_reports_device_parity_failure);
     RUN_TEST(
         test_read_register_reports_latched_spi_failure_and_preserves_data);
+    RUN_TEST(test_read_register_decodes_all_status_bit_positions);
     RUN_TEST(test_hal_failure_releases_chip_select_and_keeps_error);
+    RUN_TEST(
+        test_write_register_transmits_frame_and_decodes_previous_value);
+    RUN_TEST(test_write_register_rejects_data_wider_than_24_bits);
     RUN_TEST(test_hardware_reset_pulses_active_high);
     return UNITY_END();
 }

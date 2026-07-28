@@ -217,6 +217,8 @@ then inspect `g_tic12400_probe`:
 - `online = 1`, `result = TIC12400_RESULT_OK`, and `device_id = 0x20`
   confirm that SPI communication and the device identity are valid.
 - `tx_frame = 0x02000000` is the odd-parity `DEVICE_ID` read command.
+- Response status bits 31 through 25 are, in order: `POR`, `SPI_FAIL`,
+  `PRTY_FAIL`, `SSC`, `VS_TH`, `TEMP`, and `OI`.
 - `por_observed = 1` confirms the reset/POR path. `int_status` preserves the
   clear-on-read `INT_STAT` value for inspection.
 - If the first response carries a latched SPI/parity fault, the probe preserves
@@ -231,6 +233,48 @@ then inspect `g_tic12400_probe`:
 
 The probe is intentionally nonfatal: an absent or unpowered TIC12400 records
 the failure here without stopping PWM, input capture, CAN, or the watchdog.
+
+### IN0 live switch check
+
+After the 1000-read SPI validation passes, the probe performs a small functional
+test using only IN0:
+
+- Comparator mode, current-source mode, and continuous monitoring.
+- IN0 enabled; all other inputs, including IN12, remain disabled.
+- 1 mA wetting current for the IN0/IN1 pair. IN1 remains disabled.
+- Rising and falling comparator edges enabled for IN0.
+- Static active-low INT assertion enabled for switch-state changes.
+- Every written register is read back before `TRIGGER` starts monitoring.
+
+This carrier already has 24 onboard slide switches and their input-conditioning
+components. Do not add a jumper or external voltage to an IN pin. Operate the
+onboard switch that the carrier schematic or readable silkscreen identifies as
+IN0. The current probe enables only IN0; IN1 through IN23, including the
+unfitted IN12 path, remain disabled.
+
+Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
+
+- `configuration_write_count = 8`, `configuration_completed = 1`,
+  `configuration_passed = 1`, and `monitoring_started = 1`.
+- Readbacks must be `config = 0x800`, `mode = 0`, `cs_select = 0`,
+  `wc_cfg0 = 1`, `in_en = 1`, `int_en_comp1 = 3`, and
+  `int_en_cfg0 = 4`.
+- `baseline_established = 1`, `service_result = TIC12400_RESULT_OK`, and
+  `service_failures = 0`.
+- Switch open: `in0_above_threshold = 1` and `in0_closed = 0`.
+- Switch connected to ground: `in0_above_threshold = 0` and `in0_closed = 1`.
+- Each open/closed transition increments `switch_changes`.
+  `last_nonzero_int_status` should contain SSC bit 3 (`0x8`), and
+  `interrupt_count`/`ssc_events` should advance.
+
+The main loop services the active-low INT without doing SPI work in the ISR and
+also samples every 50 ms as a bounded fallback. If configuration fails,
+`configuration_failure_address`, `configuration_expected`,
+`configuration_actual`, and `configuration_result` identify the first failure.
+The driver holds CS high for 2 us after every transfer, exceeding the
+data-sheet minimum 1.5 us inter-frame delay. Runtime SPI failures are retained
+in the `first_service_failure_*` and `last_service_failure_*` fields instead of
+being hidden when a later transaction succeeds.
 
 ## Phase 2 - Production-Quality TIC12400 Driver
 

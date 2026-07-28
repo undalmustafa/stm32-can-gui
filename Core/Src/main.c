@@ -203,6 +203,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 	  CAN_App_Process();
+	  TIC12400_Probe_Process();
 	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
 	  App_Watchdog_Process();
 
