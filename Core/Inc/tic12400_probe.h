@@ -38,9 +38,8 @@ typedef struct
     uint32_t int_en_cfg0_readback;
     uint32_t mode_readback;
     uint32_t enabled_input_mask;
-    uint32_t comparator_bitmap;
-    uint32_t closed_switch_bitmap;
-    uint32_t last_change_mask;
+    uint32_t adc_valid_mask;
+    uint32_t adc_pair_readback[TIC12400_ADC_PAIR_COUNT];
     uint32_t last_int_status;
     uint32_t last_nonzero_int_status;
     uint32_t service_attempts;
@@ -53,9 +52,11 @@ typedef struct
     uint32_t last_service_failure_tx_frame;
     uint32_t last_service_failure_rx_frame;
     uint32_t last_service_failure_hal_error;
-    uint32_t switch_samples;
-    uint32_t switch_changes;
+    uint32_t adc_sample_batches;
     uint32_t ssc_events;
+    uint16_t adc_raw[TIC12400_ADC_CHANNEL_COUNT];
+    uint16_t adc_min[TIC12400_ADC_CHANNEL_COUNT];
+    uint16_t adc_max[TIC12400_ADC_CHANNEL_COUNT];
     TIC12400_Result_t first_result;
     TIC12400_Result_t clear_result;
     TIC12400_Result_t validation_first_failure_result;
@@ -78,10 +79,9 @@ typedef struct
     uint8_t configuration_passed;
     uint8_t crc_trigger_self_cleared;
     uint8_t crc_completed;
+    uint8_t adc_characterization_active;
     uint8_t monitoring_started;
     uint8_t baseline_established;
-    uint8_t in0_above_threshold;
-    uint8_t in0_closed;
 } TIC12400_ProbeSnapshot_t;
 
 extern volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;

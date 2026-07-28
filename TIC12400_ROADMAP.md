@@ -54,8 +54,11 @@ The first usable release will support:
 - The 23 fitted direct inputs: IN0 through IN11 and IN13 through IN23.
 - IN12 permanently unavailable because its required carrier-board resistor is
   not fitted.
-- Comparator mode for ordinary open/closed switches.
-- ADC mode and raw ADC readback for resistor-coded switches.
+- The carrier's 24 onboard switches have three physical positions. The first
+  characterization step uses ADC mode and raw ADC readback to determine the
+  three electrical ranges for each of the 23 fitted channels.
+- Explicit left, center, right, and invalid/diagnostic channel states after
+  measured thresholds are accepted.
 - Ground-connected inputs on every fitted channel.
 - Battery-connected inputs only on IN0 through IN9.
 - Per-channel enable, input type, measurement mode, wetting current, threshold
@@ -234,17 +237,17 @@ then inspect `g_tic12400_probe`:
 The probe is intentionally nonfatal: an absent or unpowered TIC12400 records
 the failure here without stopping PWM, input capture, CAN, or the watchdog.
 
-### 23-channel live switch check
+### 23-channel three-position ADC characterization
 
 After the 1000-read SPI validation passes, the probe performs a small functional
 test using every fitted carrier input:
 
-- Comparator mode, current-source mode, and continuous monitoring.
+- ADC mode, current-source mode, and continuous monitoring.
 - IN0 through IN11 and IN13 through IN23 enabled.
 - IN12 permanently disabled by the board mask `0xFFEFFF`.
 - 1 mA wetting current selected for every fitted input.
-- Rising and falling comparator edges enabled for every fitted input.
-- Static active-low INT assertion enabled for switch-state changes.
+- ADC threshold interrupts intentionally disabled until the three measured
+  position ranges are known.
 - Every written register is read back before `TRIGGER` starts monitoring.
 
 This carrier already has 24 onboard slide switches and their input-conditioning
@@ -255,13 +258,13 @@ carrier resistor is not fitted, so firmware intentionally ignores bit 12.
 Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
 
 - `configuration_write_count = 11`, `configuration_completed = 1`,
-  `configuration_passed = 1`, and `monitoring_started = 1`.
-- Readbacks must be `config = 0x800`, `mode = 0`, `cs_select = 0`,
+  `configuration_passed = 1`, `adc_characterization_active = 1`, and
+  `monitoring_started = 1`.
+- Readbacks must be `config = 0x800`, `mode = 0xFFEFFF`, `cs_select = 0`,
   `wc_cfg0 = 0x249249`, `wc_cfg1 = 0x049249`,
-  `in_en = 0xFFEFFF`, `int_en_comp1 = 0xFFFFFF`,
-  `int_en_comp2 = 0xFFFFFC`, and `int_en_cfg0 = 4`.
-- `enabled_input_mask = 0xFFEFFF`; bit 12 must always remain zero in
-  `comparator_bitmap`, `closed_switch_bitmap`, and `last_change_mask`.
+  `in_en = 0xFFEFFF`, `int_en_comp1 = 0`,
+  `int_en_comp2 = 0`, and `int_en_cfg0 = 4`.
+- `enabled_input_mask = adc_valid_mask = 0xFFEFFF`.
 - Before monitoring starts, the probe triggers the TIC12400 hardware
   configuration CRC with `TRIGGER=0`. A pass has
   `crc_trigger_self_cleared = 1`, `crc_completed = 1`,
@@ -269,15 +272,17 @@ Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
   `crc_int_status`. `crc_value` preserves the device's 16-bit result.
 - `baseline_established = 1`, `service_result = TIC12400_RESULT_OK`, and
   `service_failures = 0`.
-- `comparator_bitmap` contains one for each fitted input above its threshold.
-  `closed_switch_bitmap` contains one for each detected ground-closed switch.
-- Each physical transition updates `last_change_mask` with the corresponding
-  channel bit and increments `switch_changes`.
-  `last_nonzero_int_status` should contain SSC bit 3 (`0x8`), and
-  `interrupt_count`/`ssc_events` should advance.
+- `adc_raw[0]` through `adc_raw[23]` contain the latest 10-bit codes.
+  `adc_min` and `adc_max` retain the observed range for each channel.
+  `adc_pair_readback[0]` through `[11]` preserve the 12 packed hardware
+  registers. IN12 values remain zero because its validity-mask bit is clear.
+- Put all fitted switches in the left position and capture `adc_raw`, then
+  repeat for center and right. Do not assign semantic thresholds until these
+  three arrays show separated, stable ranges.
 
-The main loop services the active-low INT without doing SPI work in the ISR and
-also samples every 50 ms as a bounded fallback. If configuration fails,
+The main loop performs no SPI work in the ISR and samples every 50 ms during
+characterization. Each batch is one `INT_STAT` read plus the 12 packed ADC
+register reads. If configuration fails,
 `configuration_failure_address`, `configuration_expected`,
 `configuration_actual`, and `configuration_result` identify the first failure.
 The driver provides 1 us of CS setup and hold margin and holds CS high for 5 us
@@ -314,14 +319,17 @@ results, and bench reads match a logic-analyzer decode.
 - [x] Start monitoring only after register readback and hardware CRC completion.
 - [x] Treat the first completed detection cycle as the baseline state.
 - [x] Handle INT by recording one pending flag in the callback.
-- [ ] Read `INT_STAT` once per service event and preserve its clear-on-read
+- [x] Read `INT_STAT` once per service event and preserve its clear-on-read
       value in software.
 - [ ] Read only the dependent status/ADC registers required by that event.
-- [ ] Limit SPI work per main-loop pass so CAN, RTC, PWM, and watchdog services
+- [x] Limit SPI work per main-loop pass so CAN, RTC, PWM, and watchdog services
       cannot be starved.
+- [x] Add bounded raw-ADC characterization for all 23 fitted channels.
+- [ ] Record accepted left, center, and right ADC ranges for every fitted
+      channel.
 - [ ] Add switch-change debounce/filter configuration.
 - [ ] Add device-offline detection, controlled reinitialization, and backoff.
-- [ ] Add sticky counters and last-error information to runtime diagnostics.
+- [x] Add sticky counters and last-error information to runtime diagnostics.
 - [ ] Add retained log events for initialization, reset, configuration failure,
       SPI/parity failure, supply/temperature faults, and switch changes selected
       for logging.
@@ -391,7 +399,7 @@ Each channel shows:
 - Enabled/disabled.
 - Ground or battery switch type.
 - Comparator or ADC mode.
-- Open/closed or interpreted position.
+- Left/center/right, invalid, or uncharacterized position.
 - Raw ADC code when applicable.
 - Wetting current.
 - Threshold/profile.
@@ -429,6 +437,8 @@ confirmed MCU telemetry rather than optimistic button clicks.
 
 ## Phase 6 - ADC, Resistor-Coded Switches, and Low-Power Polling
 
+- [x] Read all 23 fitted raw ADC channels into a coherent firmware snapshot.
+- [ ] Capture left, center, and right codes from the actual carrier switches.
 - [ ] Define named resistor-ladder profiles and expected ADC ranges.
 - [ ] Calculate thresholds with component tolerance, wetting-current tolerance,
       ground shift, and ADC margin.
@@ -446,7 +456,7 @@ range, and polling-mode latency/current meet documented targets.
 
 ## Phase 7 - Hardware-in-the-Loop and Regression Acceptance
 
-- [ ] Test open/closed transitions on all 23 fitted channels.
+- [ ] Test left/center/right transitions on all 23 fitted channels.
 - [ ] Test ground-connected switches on all fitted channels.
 - [ ] Confirm IN12 cannot be enabled through firmware or GUI commands and
       never sources or sinks wetting current.
@@ -470,17 +480,18 @@ Exit criterion: signed test evidence demonstrates correct switch detection,
 fault reporting, recovery, CAN behavior, and no regressions in existing
 features.
 
-## Recommended First Milestone
+## Current Vertical Slice
 
-Do not begin with all device features at once. The first vertical slice should
-be:
+The SPI, identity, register readback, hardware CRC, and fitted-channel mask are
+working. Continue with the actual three-position carrier in this order:
 
-1. Confirm the exact module and wiring.
-2. Bring up SPI3 and read `DEVICE_ID`.
-3. Configure one ground-connected comparator input in continuous mode.
-4. Observe one switch transition through INT and firmware diagnostics.
-5. Publish that one channel over CAN.
-6. Display it on a minimal TIC12400 GUI page.
+1. Read all 23 fitted inputs in ADC mode at 1 mA wetting current.
+2. Capture stable `adc_raw` arrays with all switches left, center, and right.
+3. Derive per-channel boundaries with margin from the measured ranges.
+4. Implement explicit left/center/right/invalid states and debounce.
+5. Enable the corresponding ADC threshold interrupts.
+6. Publish raw and interpreted channel state over CAN.
+7. Display and configure the channels on the TIC12400 GUI page.
 
-After that path works end to end, expand the same tested architecture to all 23
-fitted channels, ADC profiles, low-power polling, and advanced diagnostics.
+Low-power polling and advanced diagnostics follow after this end-to-end path is
+accepted.

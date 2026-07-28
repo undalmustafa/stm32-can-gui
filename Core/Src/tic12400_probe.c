@@ -10,8 +10,6 @@
 #define TIC12400_BOARD_FITTED_INPUT_MASK   0xFFEFFFUL
 #define TIC12400_ALL_WC_CFG0_1_MA          0x249249UL
 #define TIC12400_ALL_WC_CFG1_1_MA          0x049249UL
-#define TIC12400_COMP1_BOTH_EDGES          0xFFFFFFUL
-#define TIC12400_COMP2_BOTH_EDGES_NO_IN12  0xFFFFFCUL
 #define TIC12400_INT_ENABLE_SSC            (1UL << 2)
 #define TIC12400_INT_STATUS_SSC            (1UL << 3)
 
@@ -19,19 +17,6 @@ volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
 static TIC12400_Device_t tic12400_device;
 static uint32_t tic12400_last_service_tick;
-
-static uint8_t TIC12400_ProbeCountBits(uint32_t value)
-{
-    uint8_t count = 0U;
-
-    while (value != 0U)
-    {
-        count = (uint8_t)(count + (uint8_t)(value & 1U));
-        value >>= 1U;
-    }
-
-    return count;
-}
 
 static void TIC12400_ProbeStoreTransaction(
     const TIC12400_Transaction_t *transaction)
@@ -295,10 +280,12 @@ static void TIC12400_ProbeRecordServiceFailure(
 
 static void TIC12400_ProbeSampleInputs(void)
 {
-    uint32_t changed_inputs;
-    uint32_t previous_comparator_bitmap;
+    uint8_t channel;
+    uint8_t pair_index;
+    uint16_t adc_sample[TIC12400_ADC_CHANNEL_COUNT];
+    uint32_t pair_readback[TIC12400_ADC_PAIR_COUNT];
     TIC12400_Transaction_t interrupt_status;
-    TIC12400_Transaction_t comparator_status;
+    TIC12400_Transaction_t adc_status;
 
     g_tic12400_probe.service_attempts++;
 
@@ -328,45 +315,74 @@ static void TIC12400_ProbeSampleInputs(void)
         return;
     }
 
-    comparator_status = TIC12400_ReadRegister(
-        &tic12400_device,
-        TIC12400_REGISTER_IN_STAT_COMP);
-    TIC12400_ProbeStoreTransaction(&comparator_status);
-    if (comparator_status.result != TIC12400_RESULT_OK)
+    for (pair_index = 0U;
+         pair_index < TIC12400_ADC_PAIR_COUNT;
+         pair_index++)
     {
-        TIC12400_ProbeRecordServiceFailure(&comparator_status);
-        return;
+        adc_status = TIC12400_ReadAdcPair(
+            &tic12400_device,
+            pair_index);
+        TIC12400_ProbeStoreTransaction(&adc_status);
+        if (adc_status.result != TIC12400_RESULT_OK)
+        {
+            TIC12400_ProbeRecordServiceFailure(&adc_status);
+            return;
+        }
+
+        pair_readback[pair_index] = adc_status.data;
+        TIC12400_DecodeAdcPair(
+            adc_status.data,
+            &adc_sample[(uint8_t)(pair_index * 2U)],
+            &adc_sample[(uint8_t)(pair_index * 2U + 1U)]);
     }
 
-    previous_comparator_bitmap =
-        g_tic12400_probe.comparator_bitmap;
-    g_tic12400_probe.comparator_bitmap =
-        comparator_status.data & TIC12400_BOARD_FITTED_INPUT_MASK;
-    g_tic12400_probe.closed_switch_bitmap =
-        (~g_tic12400_probe.comparator_bitmap) &
-        TIC12400_BOARD_FITTED_INPUT_MASK;
-    g_tic12400_probe.in0_above_threshold =
-        ((g_tic12400_probe.comparator_bitmap & 1U) != 0U) ?
-        1U : 0U;
-    g_tic12400_probe.in0_closed =
-        ((g_tic12400_probe.closed_switch_bitmap & 1U) != 0U) ?
-        1U : 0U;
-    g_tic12400_probe.switch_samples++;
-
-    if (g_tic12400_probe.baseline_established != 0U)
+    for (pair_index = 0U;
+         pair_index < TIC12400_ADC_PAIR_COUNT;
+         pair_index++)
     {
-        changed_inputs =
-            (previous_comparator_bitmap ^
-             g_tic12400_probe.comparator_bitmap) &
-            TIC12400_BOARD_FITTED_INPUT_MASK;
-        if (changed_inputs != 0U)
+        g_tic12400_probe.adc_pair_readback[pair_index] =
+            pair_readback[pair_index];
+    }
+
+    for (channel = 0U;
+         channel < TIC12400_ADC_CHANNEL_COUNT;
+         channel++)
+    {
+        if ((TIC12400_BOARD_FITTED_INPUT_MASK &
+             (1UL << channel)) == 0U)
         {
-            g_tic12400_probe.last_change_mask = changed_inputs;
-            g_tic12400_probe.switch_changes +=
-                TIC12400_ProbeCountBits(changed_inputs);
+            g_tic12400_probe.adc_raw[channel] = 0U;
+            g_tic12400_probe.adc_min[channel] = 0U;
+            g_tic12400_probe.adc_max[channel] = 0U;
+            continue;
+        }
+
+        g_tic12400_probe.adc_raw[channel] = adc_sample[channel];
+        if (g_tic12400_probe.baseline_established == 0U)
+        {
+            g_tic12400_probe.adc_min[channel] =
+                adc_sample[channel];
+            g_tic12400_probe.adc_max[channel] =
+                adc_sample[channel];
+        }
+        else
+        {
+            if (adc_sample[channel] <
+                g_tic12400_probe.adc_min[channel])
+            {
+                g_tic12400_probe.adc_min[channel] =
+                    adc_sample[channel];
+            }
+            if (adc_sample[channel] >
+                g_tic12400_probe.adc_max[channel])
+            {
+                g_tic12400_probe.adc_max[channel] =
+                    adc_sample[channel];
+            }
         }
     }
 
+    g_tic12400_probe.adc_sample_batches++;
     g_tic12400_probe.baseline_established = 1U;
     g_tic12400_probe.service_result = TIC12400_RESULT_OK;
 }
@@ -376,11 +392,13 @@ static void TIC12400_ProbeConfigureInputs(void)
     g_tic12400_probe.configuration_result = TIC12400_RESULT_OK;
     g_tic12400_probe.enabled_input_mask =
         TIC12400_BOARD_FITTED_INPUT_MASK;
+    g_tic12400_probe.adc_valid_mask =
+        TIC12400_BOARD_FITTED_INPUT_MASK;
 
     /*
-     * The reset defaults already select comparator mode and a current source,
-     * but write and verify them explicitly so the debugger proves the complete
-     * fitted-input test configuration.
+     * Characterize the carrier's three-position switches in ADC mode before
+     * assigning semantic states or thresholds. IN12 remains disabled because
+     * its external carrier resistor is not fitted.
      */
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_CONFIG,
@@ -391,7 +409,7 @@ static void TIC12400_ProbeConfigureInputs(void)
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_MODE,
-            0U,
+            TIC12400_BOARD_FITTED_INPUT_MASK,
             &g_tic12400_probe.mode_readback) == 0U)
     {
         return;
@@ -426,14 +444,14 @@ static void TIC12400_ProbeConfigureInputs(void)
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_INT_EN_COMP1,
-            TIC12400_COMP1_BOTH_EDGES,
+            0U,
             &g_tic12400_probe.int_en_comp1_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_INT_EN_COMP2,
-            TIC12400_COMP2_BOTH_EDGES_NO_IN12,
+            0U,
             &g_tic12400_probe.int_en_comp2_readback) == 0U)
     {
         return;
@@ -459,6 +477,7 @@ static void TIC12400_ProbeConfigureInputs(void)
 
     g_tic12400_probe.configuration_completed = 1U;
     g_tic12400_probe.configuration_passed = 1U;
+    g_tic12400_probe.adc_characterization_active = 1U;
     g_tic12400_probe.monitoring_started = 1U;
 
     /*
