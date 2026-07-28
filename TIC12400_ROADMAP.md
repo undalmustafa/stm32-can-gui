@@ -236,10 +236,9 @@ then inspect `g_tic12400_probe`:
 The probe is intentionally nonfatal: an absent or unpowered TIC12400 records
 the failure here without stopping PWM, input capture, CAN, or the watchdog.
 
-### 23-channel binary ADC characterization
+### Accepted 23-channel ADC characterization
 
-After the 1000-read SPI validation passes, the probe performs a small functional
-test using every fitted carrier input:
+The carrier was characterized before selecting its production monitoring mode:
 
 - ADC mode, current-source mode, and continuous monitoring.
 - IN0 through IN11 and IN13 through IN23 enabled.
@@ -254,37 +253,59 @@ components. Do not add a jumper or external voltage to an IN pin. Operate the
 onboard switches directly. The IN12 switch is physically present but its
 carrier resistor is not fitted, so firmware intentionally ignores bit 12.
 
+The accepted 2026-07-28 capture is stored in
+`docs/tic12400_characterization_20260728.csv`. Left measured code 3 through
+41; Center and Right both measured full-scale code 1023 on all 23 fitted
+channels. That wide separation proves the carrier is a binary ground-switch
+network; continuous 12-register ADC polling is unnecessary for normal use.
+The ADC decode and filtering code remains available for engineering diagnostics
+and future resistor-coded switch profiles.
+
+### Production binary comparator profile
+
+After SPI validation, firmware now applies a validated hardware profile:
+
+- `enabled_input_mask = comparator_valid_mask = 0xFFEFFF`.
+- `adc_valid_mask = battery_switch_mask = 0`.
+- `battery_capable_mask = 0x0003FF`, documenting that only IN0 through IN9
+  may use the current-sink, switch-to-battery topology in a future profile.
+- `MODE = 0` selects comparator mode and `CS_SELECT = 0` selects the
+  current-source, switch-to-ground topology for every fitted carrier input.
+- `THRES_COMP = 0` selects the 2 V comparator threshold for all six
+  four-channel groups.
+- `DET_FILTER = 2` requires three equal hardware samples before a state change.
+- Both comparator edges are enabled for every fitted channel. The expected
+  readbacks are `INT_EN_COMP1 = 0xFFFFFF`,
+  `INT_EN_COMP2 = 0xFFFFFC`, and `INT_EN_CFG0 = 4`.
+- Every register is verified and the configuration CRC runs with `TRIGGER=0`
+  before final `CONFIG = 0x8800` starts monitoring.
+
 Flash the Debug firmware, run it, and inspect `g_tic12400_probe`:
 
-- `configuration_write_count = 11`, `configuration_completed = 1`,
-  `configuration_passed = 1`, `adc_characterization_active = 1`, and
+- `profile_result = TIC12400_PROFILE_OK`,
+  `configuration_write_count = 12`, `configuration_completed = 1`,
+  `configuration_passed = 1`, `adc_characterization_active = 0`, and
   `monitoring_started = 1`.
-- Readbacks must be `config = 0x800`, `mode = 0xFFEFFF`, `cs_select = 0`,
+- Readbacks must be `config = 0x8800`, `mode = 0`, `cs_select = 0`,
   `wc_cfg0 = 0x249249`, `wc_cfg1 = 0x049249`,
-  `in_en = 0xFFEFFF`, `int_en_comp1 = 0`,
-  `int_en_comp2 = 0`, and `int_en_cfg0 = 4`.
-- `enabled_input_mask = adc_valid_mask = 0xFFEFFF`.
+  `in_en = 0xFFEFFF`, `thres_comp = 0`,
+  `int_en_comp1 = 0xFFFFFF`, `int_en_comp2 = 0xFFFFFC`, and
+  `int_en_cfg0 = 4`.
 - Before monitoring starts, the probe triggers the TIC12400 hardware
   configuration CRC with `TRIGGER=0`. A pass has
   `crc_trigger_self_cleared = 1`, `crc_completed = 1`,
   `crc_result = TIC12400_RESULT_OK`, and CRC completion bit 8 set in
   `crc_int_status`. `crc_value` preserves the device's 16-bit result.
-- `baseline_established = 1`, `service_result = TIC12400_RESULT_OK`, and
-  `service_failures = 0`.
-- `adc_raw[0]` through `adc_raw[23]` contain the latest 10-bit codes.
-  `adc_min` and `adc_max` retain the observed range for each channel.
-  `adc_pair_readback[0]` through `[11]` preserve the 12 packed hardware
-  registers. IN12 values remain zero because its validity-mask bit is clear.
-- The accepted 2026-07-28 capture is stored in
-  `docs/tic12400_characterization_20260728.csv`. Left measured code 3 through
-  41; Center and Right both measured full-scale code 1023 on all 23 fitted
-  channels.
-- Firmware classifies code 0 through 512 as `CLOSED` and 513 through 1023 as
-  `OPEN`, then requires three consecutive equal classifications.
+- `baseline_established = 1`, `comparator_sample_batches >= 1`,
+  `service_result = TIC12400_RESULT_OK`, and `service_failures = 0`.
+- `comparator_readback` contains the inputs above threshold.
+  `closed_switch_bitmap` inverts those bits for this ground-switched profile;
+  a future battery profile directly maps the selected IN0-IN9 bits.
 
-The main loop performs no SPI work in the ISR and samples every 50 ms during
-characterization. Each batch is one `INT_STAT` read plus the 12 packed ADC
-register reads. If configuration fails,
+The ISR performs no SPI work. It records one pending flag, and the main loop
+reads `INT_STAT` followed by `IN_STAT_COMP` only for a switch-state-change
+event. A bounded 500 ms `INT_STAT` fallback recovers a missed EXTI edge without
+continuously reading all input data. If configuration fails,
 `configuration_failure_address`, `configuration_expected`,
 `configuration_actual`, and `configuration_result` identify the first failure.
 The driver provides 1 us of CS setup and hold margin and holds CS high for 5 us
@@ -323,13 +344,16 @@ results, and bench reads match a logic-analyzer decode.
 - [x] Handle INT by recording one pending flag in the callback.
 - [x] Read `INT_STAT` once per service event and preserve its clear-on-read
       value in software.
-- [ ] Read only the dependent status/ADC registers required by that event.
+- [x] Read `IN_STAT_COMP` only when `INT_STAT.SSC` reports a switch event.
 - [x] Limit SPI work per main-loop pass so CAN, RTC, PWM, and watchdog services
       cannot be starved.
 - [x] Add bounded raw-ADC characterization for all 23 fitted channels.
 - [x] Record accepted Left-closed and Center/Right-open ADC ranges for every
       fitted channel.
 - [x] Add three-sample switch-change debounce filtering.
+- [x] Move the accepted binary carrier to comparator mode with hardware
+      filtering, both-edge interrupts, and a bounded missed-edge fallback.
+- [x] Validate that switch-to-battery selection is limited to IN0 through IN9.
 - [x] Add device-offline detection, controlled reinitialization, and backoff.
 - [x] Add sticky counters and last-error information to runtime diagnostics.
 - [ ] Add retained log events for initialization, reset, configuration failure,
@@ -476,7 +500,8 @@ confirmed MCU telemetry rather than optimistic button clicks.
 - [x] Define the measured binary profile: Left closed, Center/Right open.
 - [x] Select a half-scale software threshold with more than 470 ADC codes of
       measured separation on each side.
-- [ ] Validate shared threshold dependencies across channels.
+- [x] Move the binary runtime path to the shared 2 V hardware comparator
+      threshold after validating its margin against the measured ranges.
 - [x] Display only the debounced OPEN/CLOSED switch state to end users.
 - [ ] Add continuous/polling mode selection.
 - [ ] Configure poll period and active time with range checks.
@@ -516,9 +541,10 @@ features.
 
 ## Current Vertical Slice
 
-The SPI, identity, configuration CRC, raw ADC acquisition, binary
-characterization, debounce, CAN state telemetry, and simplified end-user GUI
-are implemented. The first reviewed control-policy map is also implemented:
+The SPI, identity, configuration CRC, raw ADC characterization, validated
+channel/topology profile, interrupt-driven comparator monitoring, CAN state
+telemetry, and simplified end-user GUI are implemented. The first reviewed
+control-policy map is also implemented:
 
 - IN0 closed forces LED1 on; open returns ownership to its GUI/CAN request.
 - IN1 closed inhibits GUI-requested PWM operation.

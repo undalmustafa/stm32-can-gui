@@ -127,6 +127,52 @@ void test_filter_rejects_null_arguments(void)
             &filter, NULL, TEST_FITTED_MASK));
 }
 
+void test_filter_commits_hardware_debounced_comparator_state(void)
+{
+    TEST_ASSERT_EQUAL_UINT8(
+        1U,
+        TIC12400_SwitchFilter_CommitDebouncedMask(
+            &filter,
+            (1UL << 0) | (1UL << 22),
+            TEST_FITTED_MASK));
+    TEST_ASSERT_EQUAL_HEX32(
+        TEST_FITTED_MASK,
+        filter.valid_mask);
+    TEST_ASSERT_EQUAL_HEX32(
+        (1UL << 0) | (1UL << 22),
+        filter.stable_closed_mask);
+    TEST_ASSERT_EQUAL_HEX32(0U, filter.last_change_mask);
+
+    TEST_ASSERT_EQUAL_UINT8(
+        1U,
+        TIC12400_SwitchFilter_CommitDebouncedMask(
+            &filter,
+            1UL << 22,
+            TEST_FITTED_MASK));
+    TEST_ASSERT_EQUAL_HEX32(1UL << 0, filter.last_change_mask);
+    TEST_ASSERT_EQUAL_UINT8(2U, filter.generation);
+}
+
+void test_filter_masks_unfitted_hardware_state(void)
+{
+    TIC12400_SwitchFilter_CommitDebouncedMask(
+        &filter,
+        1UL << 12,
+        TEST_FITTED_MASK);
+
+    TEST_ASSERT_BITS(
+        1UL << 12,
+        0U,
+        filter.stable_closed_mask);
+    TEST_ASSERT_BITS(1UL << 12, 0U, filter.valid_mask);
+    TEST_ASSERT_EQUAL_UINT8(
+        0U,
+        TIC12400_SwitchFilter_CommitDebouncedMask(
+            NULL,
+            0U,
+            TEST_FITTED_MASK));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -137,5 +183,8 @@ int main(void)
     RUN_TEST(test_filter_never_marks_unfitted_in12_valid_or_closed);
     RUN_TEST(test_filter_handles_generation_wrap);
     RUN_TEST(test_filter_rejects_null_arguments);
+    RUN_TEST(
+        test_filter_commits_hardware_debounced_comparator_state);
+    RUN_TEST(test_filter_masks_unfitted_hardware_state);
     return UNITY_END();
 }

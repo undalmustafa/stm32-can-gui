@@ -44,6 +44,13 @@ add_executable(
 target_link_libraries(test_tic12400_recovery unity)
 
 add_executable(
+    test_tic12400_profile
+    test_tic12400_profile.c
+    ../Core/Src/tic12400_profile.c
+)
+target_link_libraries(test_tic12400_profile unity)
+
+add_executable(
     test_app_control_policy
     test_app_control_policy.c
     ../Core/Src/app_control_policy.c
@@ -79,6 +86,7 @@ add_test(NAME test_pca2131_validation COMMAND test_pca2131_validation)
 add_test(NAME test_tic12400 COMMAND test_tic12400)
 add_test(NAME test_tic12400_switch COMMAND test_tic12400_switch)
 add_test(NAME test_tic12400_recovery COMMAND test_tic12400_recovery)
+add_test(NAME test_tic12400_profile COMMAND test_tic12400_profile)
 add_test(NAME test_app_control_policy COMMAND test_app_control_policy)
 add_test(NAME test_app_control COMMAND test_app_control)
 add_test(NAME test_can_transport COMMAND test_can_transport)

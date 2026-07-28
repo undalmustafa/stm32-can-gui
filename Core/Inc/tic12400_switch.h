@@ -25,4 +25,9 @@ uint8_t TIC12400_SwitchFilter_Update(
     const uint16_t adc_code[TIC12400_SWITCH_CHANNEL_COUNT],
     uint32_t fitted_mask);
 
+uint8_t TIC12400_SwitchFilter_CommitDebouncedMask(
+    TIC12400_SwitchFilter_t *filter,
+    uint32_t closed_mask,
+    uint32_t fitted_mask);
+
 #endif /* TIC12400_SWITCH_H */

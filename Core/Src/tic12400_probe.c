@@ -1,19 +1,23 @@
 #include "tic12400_probe.h"
 
 #include "main.h"
+#include "tic12400_profile.h"
 #include "tic12400_recovery.h"
 #include "tic12400_switch.h"
 
 #define TIC12400_PROBE_VALIDATION_READS 1000U
-#define TIC12400_PROBE_FALLBACK_POLL_MS  50U
+#define TIC12400_PROBE_FALLBACK_POLL_MS  500U
 #define TIC12400_PROBE_CRC_POLL_READS    100U
 
-#define TIC12400_CONFIG_TRIGGER           (1UL << 11)
-#define TIC12400_BOARD_FITTED_INPUT_MASK   0xFFEFFFUL
-#define TIC12400_ALL_WC_CFG0_1_MA          0x249249UL
-#define TIC12400_ALL_WC_CFG1_1_MA          0x049249UL
-#define TIC12400_INT_ENABLE_SSC            (1UL << 2)
-#define TIC12400_INT_STATUS_SSC            (1UL << 3)
+#define TIC12400_CONFIG_TRIGGER                (1UL << 11)
+#define TIC12400_CONFIG_DET_FILTER_3_SAMPLES   (2UL << 14)
+#define TIC12400_CONFIG_BINARY_BASE            \
+    TIC12400_CONFIG_DET_FILTER_3_SAMPLES
+#define TIC12400_ALL_WC_CFG0_1_MA              0x249249UL
+#define TIC12400_ALL_WC_CFG1_1_MA              0x049249UL
+#define TIC12400_COMPARATOR_THRESHOLD_2V       0U
+#define TIC12400_INT_ENABLE_SSC                (1UL << 2)
+#define TIC12400_INT_STATUS_SSC                (1UL << 3)
 
 volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
@@ -39,6 +43,7 @@ typedef struct
 } TIC12400_ProbeLifetimeDiagnostics_t;
 
 static TIC12400_Device_t tic12400_device;
+static TIC12400_Profile_t tic12400_active_profile;
 static TIC12400_RecoveryState_t tic12400_recovery_state;
 static TIC12400_SwitchFilter_t tic12400_switch_filter;
 static uint32_t tic12400_last_service_tick;
@@ -238,7 +243,8 @@ static uint8_t TIC12400_ProbeWriteAndVerify(
     return 1U;
 }
 
-static uint8_t TIC12400_ProbeRunConfigurationCrc(void)
+static uint8_t TIC12400_ProbeRunConfigurationCrc(
+    uint32_t config_value)
 {
     uint32_t index;
     TIC12400_Transaction_t transaction;
@@ -250,7 +256,7 @@ static uint8_t TIC12400_ProbeRunConfigurationCrc(void)
     transaction = TIC12400_WriteRegister(
         &tic12400_device,
         TIC12400_REGISTER_CONFIG,
-        TIC12400_CONFIG_CRC_TRIGGER_MASK);
+        config_value | TIC12400_CONFIG_CRC_TRIGGER_MASK);
     g_tic12400_probe.configuration_write_count++;
     TIC12400_ProbeStoreTransaction(&transaction);
     if (transaction.result != TIC12400_RESULT_OK)
@@ -258,7 +264,7 @@ static uint8_t TIC12400_ProbeRunConfigurationCrc(void)
         g_tic12400_probe.configuration_failure_address =
             TIC12400_REGISTER_CONFIG;
         g_tic12400_probe.configuration_expected =
-            TIC12400_CONFIG_CRC_TRIGGER_MASK;
+            config_value | TIC12400_CONFIG_CRC_TRIGGER_MASK;
         g_tic12400_probe.configuration_actual = transaction.data;
         g_tic12400_probe.crc_result = transaction.result;
         g_tic12400_probe.configuration_result = transaction.result;
@@ -284,7 +290,8 @@ static uint8_t TIC12400_ProbeRunConfigurationCrc(void)
         {
             g_tic12400_probe.configuration_failure_address =
                 TIC12400_REGISTER_CONFIG;
-            g_tic12400_probe.configuration_expected = 0U;
+            g_tic12400_probe.configuration_expected =
+                config_value;
             g_tic12400_probe.configuration_actual =
                 transaction.data;
             g_tic12400_probe.crc_result = transaction.result;
@@ -305,13 +312,28 @@ static uint8_t TIC12400_ProbeRunConfigurationCrc(void)
     {
         g_tic12400_probe.configuration_failure_address =
             TIC12400_REGISTER_CONFIG;
-        g_tic12400_probe.configuration_expected = 0U;
+        g_tic12400_probe.configuration_expected =
+            config_value;
         g_tic12400_probe.configuration_actual =
             g_tic12400_probe.config_readback;
         g_tic12400_probe.crc_result =
             TIC12400_RESULT_CRC_TIMEOUT;
         g_tic12400_probe.configuration_result =
             TIC12400_RESULT_CRC_TIMEOUT;
+        return 0U;
+    }
+
+    if (g_tic12400_probe.config_readback != config_value)
+    {
+        g_tic12400_probe.configuration_failure_address =
+            TIC12400_REGISTER_CONFIG;
+        g_tic12400_probe.configuration_expected = config_value;
+        g_tic12400_probe.configuration_actual =
+            g_tic12400_probe.config_readback;
+        g_tic12400_probe.crc_result =
+            TIC12400_RESULT_REGISTER_VERIFY_MISMATCH;
+        g_tic12400_probe.configuration_result =
+            TIC12400_RESULT_REGISTER_VERIFY_MISMATCH;
         return 0U;
     }
 
@@ -402,12 +424,9 @@ static void TIC12400_ProbeRecordServiceFailure(
 
 static uint8_t TIC12400_ProbeSampleInputs(void)
 {
-    uint8_t channel;
-    uint8_t pair_index;
-    uint16_t adc_sample[TIC12400_ADC_CHANNEL_COUNT];
-    uint32_t pair_readback[TIC12400_ADC_PAIR_COUNT];
+    uint32_t closed_mask;
     TIC12400_Transaction_t interrupt_status;
-    TIC12400_Transaction_t adc_status;
+    TIC12400_Transaction_t comparator_status;
 
     g_tic12400_probe.service_attempts++;
 
@@ -437,79 +456,38 @@ static uint8_t TIC12400_ProbeSampleInputs(void)
         return 0U;
     }
 
-    for (pair_index = 0U;
-         pair_index < TIC12400_ADC_PAIR_COUNT;
-         pair_index++)
+    /*
+     * INT_STAT retains SSC until it is read, so the 500 ms fallback service
+     * also recovers a missed EXTI edge. Other interrupts do not require a
+     * switch-state register read.
+     */
+    if ((interrupt_status.data & TIC12400_INT_STATUS_SSC) == 0U)
     {
-        adc_status = TIC12400_ReadAdcPair(
-            &tic12400_device,
-            pair_index);
-        TIC12400_ProbeStoreTransaction(&adc_status);
-        if (adc_status.result != TIC12400_RESULT_OK)
-        {
-            TIC12400_ProbeRecordServiceFailure(&adc_status);
-            return 0U;
-        }
-
-        pair_readback[pair_index] = adc_status.data;
-        TIC12400_DecodeAdcPair(
-            adc_status.data,
-            &adc_sample[(uint8_t)(pair_index * 2U)],
-            &adc_sample[(uint8_t)(pair_index * 2U + 1U)]);
+        g_tic12400_probe.service_result = TIC12400_RESULT_OK;
+        return 1U;
     }
 
-    for (pair_index = 0U;
-         pair_index < TIC12400_ADC_PAIR_COUNT;
-         pair_index++)
+    comparator_status = TIC12400_ReadRegister(
+        &tic12400_device,
+        TIC12400_REGISTER_IN_STAT_COMP);
+    TIC12400_ProbeStoreTransaction(&comparator_status);
+    if (comparator_status.result != TIC12400_RESULT_OK)
     {
-        g_tic12400_probe.adc_pair_readback[pair_index] =
-            pair_readback[pair_index];
+        TIC12400_ProbeRecordServiceFailure(&comparator_status);
+        return 0U;
     }
 
-    for (channel = 0U;
-         channel < TIC12400_ADC_CHANNEL_COUNT;
-         channel++)
-    {
-        if ((TIC12400_BOARD_FITTED_INPUT_MASK &
-             (1UL << channel)) == 0U)
-        {
-            g_tic12400_probe.adc_raw[channel] = 0U;
-            g_tic12400_probe.adc_min[channel] = 0U;
-            g_tic12400_probe.adc_max[channel] = 0U;
-            continue;
-        }
-
-        g_tic12400_probe.adc_raw[channel] = adc_sample[channel];
-        if (g_tic12400_probe.baseline_established == 0U)
-        {
-            g_tic12400_probe.adc_min[channel] =
-                adc_sample[channel];
-            g_tic12400_probe.adc_max[channel] =
-                adc_sample[channel];
-        }
-        else
-        {
-            if (adc_sample[channel] <
-                g_tic12400_probe.adc_min[channel])
-            {
-                g_tic12400_probe.adc_min[channel] =
-                    adc_sample[channel];
-            }
-            if (adc_sample[channel] >
-                g_tic12400_probe.adc_max[channel])
-            {
-                g_tic12400_probe.adc_max[channel] =
-                    adc_sample[channel];
-            }
-        }
-    }
-
-    g_tic12400_probe.adc_sample_batches++;
-    g_tic12400_probe.baseline_established = 1U;
-    (void)TIC12400_SwitchFilter_Update(
+    g_tic12400_probe.comparator_readback =
+        comparator_status.data & TIC12400_PROFILE_CHANNEL_MASK;
+    g_tic12400_probe.comparator_sample_batches++;
+    closed_mask = TIC12400_Profile_DecodeComparatorClosed(
+        &tic12400_active_profile,
+        g_tic12400_probe.comparator_readback);
+    (void)TIC12400_SwitchFilter_CommitDebouncedMask(
         &tic12400_switch_filter,
-        adc_sample,
-        TIC12400_BOARD_FITTED_INPUT_MASK);
+        closed_mask,
+        tic12400_active_profile.enabled_mask);
+    g_tic12400_probe.baseline_established = 1U;
     g_tic12400_probe.closed_switch_bitmap =
         tic12400_switch_filter.stable_closed_mask;
     g_tic12400_probe.switch_valid_mask =
@@ -518,7 +496,7 @@ static uint8_t TIC12400_ProbeSampleInputs(void)
         tic12400_switch_filter.generation;
     g_tic12400_probe.switch_state_valid =
         (tic12400_switch_filter.valid_mask ==
-         TIC12400_BOARD_FITTED_INPUT_MASK) ? 1U : 0U;
+         tic12400_active_profile.enabled_mask) ? 1U : 0U;
     if (tic12400_switch_filter.last_change_mask != 0U)
     {
         g_tic12400_probe.last_switch_change_mask =
@@ -531,34 +509,67 @@ static uint8_t TIC12400_ProbeSampleInputs(void)
 
 static void TIC12400_ProbeConfigureInputs(void)
 {
+    uint32_t int_en_comp1;
+    uint32_t int_en_comp2;
+
     g_tic12400_probe.configuration_result = TIC12400_RESULT_OK;
+    tic12400_active_profile =
+        TIC12400_Profile_CarrierBinary();
+    g_tic12400_probe.profile_result =
+        TIC12400_Profile_Validate(
+            &tic12400_active_profile,
+            TIC12400_PROFILE_CARRIER_FITTED_MASK);
+    if (g_tic12400_probe.profile_result !=
+        TIC12400_PROFILE_OK)
+    {
+        g_tic12400_probe.configuration_result =
+            TIC12400_RESULT_INVALID_DATA;
+        return;
+    }
+
     g_tic12400_probe.enabled_input_mask =
-        TIC12400_BOARD_FITTED_INPUT_MASK;
+        tic12400_active_profile.enabled_mask;
     g_tic12400_probe.adc_valid_mask =
-        TIC12400_BOARD_FITTED_INPUT_MASK;
+        tic12400_active_profile.adc_mode_mask;
+    g_tic12400_probe.comparator_valid_mask =
+        tic12400_active_profile.enabled_mask &
+        ~tic12400_active_profile.adc_mode_mask;
+    g_tic12400_probe.battery_capable_mask =
+        TIC12400_PROFILE_BATTERY_CAPABLE_MASK;
+    g_tic12400_probe.battery_switch_mask =
+        tic12400_active_profile.battery_switch_mask;
+    int_en_comp1 =
+        TIC12400_Profile_BuildComparatorInterruptEnable(
+            &tic12400_active_profile,
+            0U);
+    int_en_comp2 =
+        TIC12400_Profile_BuildComparatorInterruptEnable(
+            &tic12400_active_profile,
+            12U);
 
     /*
-     * Characterize the carrier's three-position switches in ADC mode before
-     * assigning semantic states or thresholds. IN12 remains disabled because
-     * its external carrier resistor is not fitted.
+     * The accepted carrier characterization proves that every fitted onboard
+     * switch is binary and ground-connected. Use comparator mode and current
+     * sources for the production path. IN0-IN9 remain explicitly marked as
+     * battery-capable for future external profiles, while IN12 stays disabled.
      */
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_CONFIG,
-            0U,
+            TIC12400_CONFIG_BINARY_BASE,
             &g_tic12400_probe.config_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_MODE,
-            TIC12400_BOARD_FITTED_INPUT_MASK,
+            tic12400_active_profile.adc_mode_mask,
             &g_tic12400_probe.mode_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_CS_SELECT,
-            0U,
+            tic12400_active_profile.battery_switch_mask,
             &g_tic12400_probe.cs_select_readback) == 0U)
     {
         return;
@@ -579,21 +590,28 @@ static void TIC12400_ProbeConfigureInputs(void)
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_IN_EN,
-            TIC12400_BOARD_FITTED_INPUT_MASK,
+            tic12400_active_profile.enabled_mask,
             &g_tic12400_probe.in_en_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
+            TIC12400_REGISTER_THRES_COMP,
+            TIC12400_COMPARATOR_THRESHOLD_2V,
+            &g_tic12400_probe.thres_comp_readback) == 0U)
+    {
+        return;
+    }
+    if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_INT_EN_COMP1,
-            0U,
+            int_en_comp1,
             &g_tic12400_probe.int_en_comp1_readback) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_INT_EN_COMP2,
-            0U,
+            int_en_comp2,
             &g_tic12400_probe.int_en_comp2_readback) == 0U)
     {
         return;
@@ -605,12 +623,14 @@ static void TIC12400_ProbeConfigureInputs(void)
     {
         return;
     }
-    if (TIC12400_ProbeRunConfigurationCrc() == 0U)
+    if (TIC12400_ProbeRunConfigurationCrc(
+            TIC12400_CONFIG_BINARY_BASE) == 0U)
     {
         return;
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_CONFIG,
+            TIC12400_CONFIG_BINARY_BASE |
             TIC12400_CONFIG_TRIGGER,
             &g_tic12400_probe.config_readback) == 0U)
     {
@@ -619,7 +639,7 @@ static void TIC12400_ProbeConfigureInputs(void)
 
     g_tic12400_probe.configuration_completed = 1U;
     g_tic12400_probe.configuration_passed = 1U;
-    g_tic12400_probe.adc_characterization_active = 1U;
+    g_tic12400_probe.adc_characterization_active = 0U;
     g_tic12400_probe.monitoring_started = 1U;
 
     /*

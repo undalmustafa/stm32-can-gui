@@ -142,9 +142,10 @@ Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
 Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
 Core/Inc|Src/pwm_self_test.* Closed-loop PWM/capture built-in test
 Core/Inc|Src/tic12400.*     TIC12400-Q1 SPI driver
-Core/Inc|Src/tic12400_probe.* Initialization and raw ADC monitoring service
+Core/Inc|Src/tic12400_profile.* Validated channel/topology configuration
+Core/Inc|Src/tic12400_probe.* Initialization and comparator monitoring service
 Core/Inc|Src/tic12400_recovery.* Offline detection and retry-backoff policy
-Core/Inc|Src/tic12400_switch.* Debounced binary switch-state filter
+Core/Inc|Src/tic12400_switch.* Binary switch-state filtering and snapshots
 Core/Inc|Src/tic12400_can.* TIC12400 health and switch-state telemetry
 Core/Inc|Src/watchdog.*     Low-level IWDG1 hardware driver
 Core/Src/stm32h7xx_it.c     Interrupt handlers
@@ -909,12 +910,24 @@ application telemetry only from the protocol-defined standard identifiers.
 ### TIC12400 switch display
 
 The measured carrier behavior is binary: Left is `CLOSED`; Center and Right
-are both `OPEN`. Firmware classifies and debounces the ADC samples before
-publishing a compact state bitmap on CAN ID `0x554`. The **TIC12400** page
-shows only `OPEN`, `CLOSED`, or unavailable. It does not expose raw ADC,
-snapshot, generation, SPI, or characterization information to end users.
+are both `OPEN`. Production firmware uses the TIC12400 hardware comparator,
+three-sample detection filter, and switch-state-change interrupt before
+publishing a compact state bitmap on CAN ID `0x554`. A 500 ms `INT_STAT`
+fallback recovers a missed interrupt edge; it reads the comparator bitmap only
+when a switch-change event is pending. The **TIC12400** page shows only
+`OPEN`, `CLOSED`, or unavailable. It does not expose raw ADC, snapshot,
+generation, SPI, or characterization information to end users.
 
-The accepted bench measurements are retained in
+IN0 through IN9 can additionally monitor battery-connected switches by using
+the TIC12400 current-sink path. IN10 through IN23 support ground-connected
+switches only. The current carrier is electrically ground-switched on every
+fitted input, so its validated runtime profile uses the current-source path for
+all channels and leaves the IN0-IN9 battery capability disabled. IN12 remains
+disabled because its carrier resistor is not fitted.
+
+The ADC driver and accepted bench measurements remain available for engineering
+work and future resistor-coded input profiles. They are not part of the
+continuous binary-switch runtime path. The captured evidence is retained in
 `docs/tic12400_characterization_20260728.csv`.
 
 If a service batch fails, firmware invalidates the switch snapshot immediately,

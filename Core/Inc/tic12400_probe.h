@@ -2,6 +2,7 @@
 #define TIC12400_PROBE_H
 
 #include "tic12400.h"
+#include "tic12400_profile.h"
 
 #include <stdint.h>
 
@@ -33,13 +34,17 @@ typedef struct
     uint32_t cs_select_readback;
     uint32_t wc_cfg0_readback;
     uint32_t wc_cfg1_readback;
+    uint32_t thres_comp_readback;
     uint32_t int_en_comp1_readback;
     uint32_t int_en_comp2_readback;
     uint32_t int_en_cfg0_readback;
     uint32_t mode_readback;
     uint32_t enabled_input_mask;
     uint32_t adc_valid_mask;
-    uint32_t adc_pair_readback[TIC12400_ADC_PAIR_COUNT];
+    uint32_t comparator_valid_mask;
+    uint32_t battery_capable_mask;
+    uint32_t battery_switch_mask;
+    uint32_t comparator_readback;
     uint32_t last_int_status;
     uint32_t last_nonzero_int_status;
     uint32_t service_attempts;
@@ -57,15 +62,12 @@ typedef struct
     uint32_t reinitialization_attempts;
     uint32_t reinitialization_successes;
     uint32_t reinitialization_delay_ms;
-    uint32_t adc_sample_batches;
+    uint32_t comparator_sample_batches;
     uint32_t ssc_events;
     uint32_t closed_switch_bitmap;
     uint32_t switch_valid_mask;
     uint32_t last_switch_change_mask;
     uint32_t switch_change_events;
-    uint16_t adc_raw[TIC12400_ADC_CHANNEL_COUNT];
-    uint16_t adc_min[TIC12400_ADC_CHANNEL_COUNT];
-    uint16_t adc_max[TIC12400_ADC_CHANNEL_COUNT];
     TIC12400_Result_t first_result;
     TIC12400_Result_t clear_result;
     TIC12400_Result_t validation_first_failure_result;
@@ -74,6 +76,7 @@ typedef struct
     TIC12400_Result_t service_result;
     TIC12400_Result_t first_service_failure_result;
     TIC12400_Result_t last_service_failure_result;
+    TIC12400_ProfileResult_t profile_result;
     TIC12400_Result_t result;
     HAL_StatusTypeDef hal_status;
     TIC12400_StatusFlags_t status;
