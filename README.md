@@ -256,8 +256,7 @@ cycle.
 ### Service authorization
 
 State-changing commands are accepted during a four-minute service window.
-Press the Nucleo blue **B1** button to open that window. The GUI starts and
-maintains the command session automatically.
+Press the Nucleo blue **B1** button to open that window.
 
 Safe commands remain available while locked, including disabling transmit
 slots, turning LEDs off, stopping PWM, cancelling the built-in test, and
@@ -301,12 +300,15 @@ Multi-byte values are little-endian.
 | `0x31` | Read an event by sequence number |
 | `0x40` | Configure or stop PWM |
 | `0x41` | Start or cancel the PWM built-in test |
-| `0x7E` | Start a reliable command session |
 
-Reliable command frames use the extended-ID family `0x18940000`, with a
-session tag and rolling sequence encoded in the lower identifier bytes.
-The MCU acknowledges them on standard ID `0x550`. The GUI retries once if an
+Every GUI command uses the fixed extended ID `0x1894AABB`; payload byte 0
+selects the command. The MCU acknowledges command execution on standard ID
+`0x550`, including a CRC-8 token calculated from the request payload. The GUI
+sends one command at a time, queues later requests, and retries once if an
 acknowledgement is not received.
+
+This fixed-ID transport is protocol version 2. Update the GUI and reflash the
+firmware together; protocol version 1 used dynamic command identifiers.
 
 The complete byte-level definition is
 [protocol/can_protocol.yaml](protocol/can_protocol.yaml). Treat that schema,

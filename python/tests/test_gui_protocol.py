@@ -20,8 +20,10 @@ def expect(condition, description):
 
 
 def main():
+    expect(protocol.PROTOCOL_VERSION == 2,
+           "fixed-ID command transport uses protocol version 2")
     expect(protocol.GUI_COMMAND_ID_EXT == 0x1894AABB,
-           "GUI command ID remains unchanged")
+           "all GUI commands use the fixed extended identifier")
     expect(protocol.RTC_STATUS_RX_ID == 0x551,
            "RTC status ID remains unchanged")
     expect(protocol.RTC_TIME_RX_ID == 0x556,
@@ -68,6 +70,8 @@ def main():
            "TIC12400 SPI service failure is named")
     expect(protocol.CMD_PWM_SELF_TEST == 0x41,
            "PWM built-in-test command is defined")
+    expect(protocol.command_token([0x10, 2, 1, 0, 0, 0, 0, 0]) == 0x8C,
+           "command ACK token uses CRC-8/SAE-J1850")
     expect(protocol.GUI_COMMAND_ID_EXT == generated.GUI_COMMAND_ID_EXT,
            "GUI imports its command ID from the generated protocol")
     expect(protocol.CMD_LOG_GET_INFO == generated.CMD_LOG_GET_INFO,
@@ -76,13 +80,8 @@ def main():
            "GUI RX aliases use generated firmware TX identifiers")
     expect(protocol.RTC_STATUS_DEFINITIONS == generated.RTC_STATUS_DEFINITIONS,
            "GUI imports RTC status definitions from the generated protocol")
-    expect(
-        protocol.command_arbitration_id(0x42, 0xA5) ==
-        ((generated.GUI_COMMAND_ID_EXT &
-          generated.GUI_COMMAND_ID_MASK_EXT) |
-         (0xA5 << generated.GUI_COMMAND_SESSION_SHIFT) | 0x42),
-        "reliable session and sequence are encoded in the identifier",
-    )
+    expect(not hasattr(generated, "GUI_COMMAND_SEQUENCE_MASK"),
+           "generated protocol no longer exposes dynamic command-ID fields")
     expect(protocol.COMMAND_ACK_RX_ID == generated.COMMAND_ACK_TX_ID,
            "GUI receives generated command acknowledgements")
     expect(protocol.RTC_ALARM_EVENT_RX_ID == 0x558,

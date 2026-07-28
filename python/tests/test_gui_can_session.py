@@ -89,6 +89,24 @@ def create_session(session_type, bus, clock, max_frames=256):
     return session, events, frames, health_reports, error_frames, factory_calls
 
 
+def ack(protocol, request, status=None, flags=0, reserved=None):
+    if status is None:
+        status = protocol.COMMAND_ACK_ACCEPTED
+    data = [
+        protocol.PROTOCOL_VERSION,
+        request[0],
+        protocol.command_token(request),
+        status,
+        flags,
+        0,
+        0,
+        0,
+    ]
+    if reserved is not None:
+        data[6] = reserved
+    return FakeMessage(protocol.COMMAND_ACK_RX_ID, data=data)
+
+
 def main():
     session_type, protocol = load_session_types()
     command_id = protocol.GUI_COMMAND_ID_EXT
@@ -124,82 +142,70 @@ def main():
     expect("configured by Linux" in socket_events[-1]["detail"],
            "SocketCAN connection log explains bitrate ownership")
 
-    command = [0x10, 2, 1, 0, 0, 0, 0, 0]
-    result = session.send_command(command)
-    expect(result.ok, "valid GUI command starts a reliable session")
+    led_command = [0x10, 2, 1, 0, 0, 0, 0, 0]
+    pwm_command = [0x40, 0x10, 0x27, 0, 0, 50, 0, 0]
+    result = session.send_command(led_command)
+    expect(result.ok, "valid GUI command is transmitted")
     expect(len(bus.sent) == 1,
-           "first GUI command waits for the session acknowledgement")
-    expect(bus.sent[0].data[0] == protocol.CMD_SESSION_START,
-           "first reliable frame starts a command session")
-
-    session_sequence = (
-        bus.sent[0].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
-    )
-    bus.rx_items.append(FakeMessage(
-        protocol.COMMAND_ACK_RX_ID,
-        data=[
-            protocol.PROTOCOL_VERSION,
-            protocol.CMD_SESSION_START,
-            session_sequence,
-            protocol.COMMAND_ACK_ACCEPTED,
-            protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
-            0, session.command_session_tag, 0,
-        ],
-    ))
-    session.poll()
-    expect(session.command_session_confirmed,
-           "session acknowledgement confirms reliable transport")
-    expect(len(bus.sent) == 2,
-           "queued GUI command is sent after session confirmation")
-    expect(
-        (bus.sent[-1].arbitration_id &
-         protocol.GUI_COMMAND_ID_MASK_EXT) ==
-        (command_id & protocol.GUI_COMMAND_ID_MASK_EXT),
-        "GUI command uses the generated extended command-ID range",
-    )
-    expect(bus.sent[-1].is_extended_id,
+           "the first command is transmitted immediately")
+    expect(bus.sent[0].arbitration_id == command_id,
+           "the generated fixed command identifier is used exactly")
+    expect(bus.sent[0].is_extended_id,
            "GUI command remains an extended CAN frame")
-    expect(list(bus.sent[-1].data) == command,
+    expect(list(bus.sent[0].data) == led_command,
            "GUI command payload remains unchanged")
-    expect(any(event["event_code"] == "LED_CONTROL" for event in events[-2:]),
-           "known command name is logged")
 
-    command_sequence = (
-        bus.sent[1].arbitration_id & protocol.GUI_COMMAND_SEQUENCE_MASK
-    )
-    bus.rx_items.append(FakeMessage(
-        protocol.COMMAND_ACK_RX_ID,
-        data=[
-            protocol.PROTOCOL_VERSION,
-            command[0],
-            command_sequence,
-            protocol.COMMAND_ACK_ACCEPTED,
-            protocol.COMMAND_ACK_FLAG_EXECUTED,
-            0, session.command_session_tag, 0,
-        ],
+    queued = session.send_command(pwm_command)
+    expect(queued.ok and len(bus.sent) == 1,
+           "a second command waits while one ACK is pending")
+    expect(session.get_health_metrics()["command_queue_depth"] == 1,
+           "the serialized command queue depth is observable")
+
+    bus.rx_items.append(ack(
+        protocol,
+        led_command,
+        flags=protocol.COMMAND_ACK_FLAG_EXECUTED,
     ))
     session.poll()
-    expect(not session.pending_commands,
-           "matching acknowledgements clear pending commands")
+    expect(len(bus.sent) == 2,
+           "the next queued command transmits after the matching ACK")
+    expect(bus.sent[1].arbitration_id == command_id,
+           "every command reuses the same fixed identifier")
+    expect(list(bus.sent[1].data) == pwm_command,
+           "queued command payload is preserved")
+
+    bus.rx_items.append(ack(
+        protocol,
+        pwm_command,
+        flags=protocol.COMMAND_ACK_FLAG_EXECUTED,
+    ))
+    session.poll()
+    expect(session.pending_command is None and not session.command_queue,
+           "matching acknowledgements clear the fixed-ID pipeline")
     expect(session.command_ack_count == 2,
            "matching MCU acknowledgements are counted")
 
-    denied_result = session.send_command(command)
-    denied_sequence = denied_result.sequence
-    bus.rx_items.append(FakeMessage(
-        protocol.COMMAND_ACK_RX_ID,
-        data=[
-            protocol.PROTOCOL_VERSION,
-            command[0],
-            denied_sequence,
-            protocol.COMMAND_ACK_ACCESS_DENIED,
-            0,
-            0, session.command_session_tag, 0,
-        ],
+    expect(session.send_command(led_command).ok,
+           "another command can be sent after the pipeline drains")
+    bus.rx_items.append(ack(
+        protocol,
+        led_command,
+        status=protocol.COMMAND_ACK_ACCESS_DENIED,
     ))
     session.poll()
     expect(health[-1][0:2] == ("WARN", "COMMAND_ACCESS_DENIED"),
            "access denial tells the operator to press B1")
+
+    expect(session.send_command(led_command).ok,
+           "invalid ACK test has a pending command")
+    bus.rx_items.append(ack(protocol, led_command, reserved=1))
+    session.poll()
+    expect(session.pending_command is not None,
+           "an ACK with nonzero reserved bytes cannot clear a command")
+    expect(events[-1]["event_code"] == "INVALID_ACK",
+           "invalid fixed-ID ACK format is logged")
+    bus.rx_items.append(ack(protocol, led_command))
+    session.poll()
 
     send_count = len(bus.sent)
     result = session.send_command([0x10, 1])
@@ -211,7 +217,7 @@ def main():
            "invalid command DLC is logged")
 
     bus.send_error = RuntimeError("tx failed")
-    result = session.send_command(command)
+    result = session.send_command(led_command)
     expect(not result.ok and result.error_code == "TX_EXCEPTION",
            "PCAN TX exception is returned to the UI")
     expect(events[-1]["event_code"] == "TX_FAILED",
@@ -230,9 +236,9 @@ def main():
     session.poll()
     metrics = session.get_health_metrics()
     expect(len(error_frames) == 1, "PCAN error frame is delegated once")
-    expect(metrics["rx_count"] == 6,
+    expect(metrics["rx_count"] == 8,
            "all non-error CAN frames are counted")
-    expect(metrics["stm32_rx_count"] == 4,
+    expect(metrics["stm32_rx_count"] == 6,
            "only known STM32 application frames update health traffic")
     expect(metrics["last_stm32_rx_time"] == 101.0,
            "STM32 receive time uses the session clock")
@@ -269,97 +275,41 @@ def main():
     disconnected_session, disconnected_events, _, _, _, _ = create_session(
         session_type, disconnected_bus, clock
     )
-    result = disconnected_session.send_command(command)
+    result = disconnected_session.send_command(led_command)
     expect(not result.ok and result.error_code == "DISCONNECTED",
            "command before connection is rejected")
     expect(disconnected_events[-1]["event_code"] ==
            "NOT_SENT_DISCONNECTED",
            "disconnected command attempt is logged")
 
-    resync_bus = FakeBus()
-    resync_clock = [150.0]
-    resync_session, _, _, _, _, _ = create_session(
-        session_type, resync_bus, resync_clock
-    )
-    resync_session.connect("pcan", "PCAN_USBBUS1", 500000)
-    resync_result = resync_session.send_command(command)
-    initial_session_sequence = (
-        resync_bus.sent[0].arbitration_id &
-        protocol.GUI_COMMAND_SEQUENCE_MASK
-    )
-    resync_bus.rx_items.append(FakeMessage(
-        protocol.COMMAND_ACK_RX_ID,
-        data=[
-            protocol.PROTOCOL_VERSION,
-            protocol.CMD_SESSION_START,
-            initial_session_sequence,
-            protocol.COMMAND_ACK_ACCEPTED,
-            protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
-            0,
-            resync_session.command_session_tag,
-            0,
-        ],
-    ))
-    resync_session.poll()
-    initial_command_sequence = (
-        resync_bus.sent[-1].arbitration_id &
-        protocol.GUI_COMMAND_SEQUENCE_MASK
-    )
-    resync_bus.rx_items.append(FakeMessage(
-        protocol.COMMAND_ACK_RX_ID,
-        data=[
-            protocol.PROTOCOL_VERSION,
-            command[0],
-            initial_command_sequence,
-            protocol.COMMAND_ACK_SESSION_REQUIRED,
-            0,
-            0,
-            resync_session.command_session_tag,
-            0,
-        ],
-    ))
-    resync_session.poll()
-    expect(resync_bus.sent[-1].data[0] == protocol.CMD_SESSION_START,
-           "MCU reset response starts a replacement command session")
-    replacement_sequence = (
-        resync_bus.sent[-1].arbitration_id &
-        protocol.GUI_COMMAND_SEQUENCE_MASK
-    )
-    resync_bus.rx_items.append(FakeMessage(
-        protocol.COMMAND_ACK_RX_ID,
-        data=[
-            protocol.PROTOCOL_VERSION,
-            protocol.CMD_SESSION_START,
-            replacement_sequence,
-            protocol.COMMAND_ACK_ACCEPTED,
-            protocol.COMMAND_ACK_FLAG_SESSION_STARTED,
-            0,
-            resync_session.command_session_tag,
-            0,
-        ],
-    ))
-    resync_session.poll()
-    expect(list(resync_bus.sent[-1].data) == command,
-           "command is resent only after replacement session ACK")
-
     timeout_bus = FakeBus()
     timeout_clock = [200.0]
-    timeout_session, _, _, _, _, _ = create_session(
+    timeout_session, timeout_events, _, _, _, _ = create_session(
         session_type, timeout_bus, timeout_clock
     )
     timeout_session.connect("pcan", "PCAN_USBBUS1", 500000)
-    expect(timeout_session.send_command(command).ok,
-           "timeout test sends session and command")
+    expect(timeout_session.send_command(led_command).ok,
+           "timeout test sends the fixed-ID command")
+    expect(timeout_session.send_command(pwm_command).ok,
+           "timeout test queues the following command")
     timeout_clock[0] += 0.8
     timeout_session.poll()
     expect(timeout_session.command_retry_count == 1,
-           "the unacknowledged session frame is retried once")
+           "an unacknowledged fixed-ID command is retried once")
+    expect(timeout_bus.sent[0].arbitration_id ==
+           timeout_bus.sent[1].arbitration_id == command_id,
+           "the retry uses the same fixed identifier")
     timeout_clock[0] += 0.8
     timeout_session.poll()
     expect(timeout_session.command_ack_timeout_count == 1,
-           "a session missing after its retry is timed out")
+           "a command missing after its retry is timed out")
+    expect(list(timeout_bus.sent[-1].data) == pwm_command,
+           "the queue continues after an ACK timeout")
+    expect(any(event["event_code"] == "ACK_TIMEOUT"
+               for event in timeout_events),
+           "the fixed-ID ACK timeout is logged")
 
-    print("PASS: GUI CAN session connection, TX, RX metrics and shutdown")
+    print("PASS: GUI fixed-ID CAN command transport, RX metrics and shutdown")
 
 
 if __name__ == "__main__":

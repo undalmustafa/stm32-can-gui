@@ -432,7 +432,7 @@ Protocol rules:
   service-access window.
 - Keep status/detail reads and safe stop actions available while access is
   locked.
-- Use the existing reliable command session and ACK behavior.
+- Use the fixed `0x1894AABB` command ID and `0x550` ACK behavior.
 
 Exit criterion: generated C and Python constants have no drift, codec tests
 cover every payload, and worst-case TIC12400 telemetry stays within the current

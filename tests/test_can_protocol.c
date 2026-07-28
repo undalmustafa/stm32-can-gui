@@ -236,6 +236,19 @@ void test_EncodeTic12400SwitchState_matches_wire_format(void)
         payload[7]);
 }
 
+void test_CalculateCommandToken_uses_sae_j1850_crc8(void)
+{
+    const uint8_t payload[8] =
+        {CAN_PROTOCOL_CMD_LED_CONTROL, 2U, 1U, 0U, 0U, 0U, 0U, 0U};
+
+    TEST_ASSERT_EQUAL_HEX8(
+        0x8CU,
+        CAN_Protocol_CalculateCommandToken(payload));
+    TEST_ASSERT_EQUAL_HEX8(
+        0x00U,
+        CAN_Protocol_CalculateCommandToken(NULL));
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -253,5 +266,6 @@ int main(void)
     RUN_TEST(test_EncodeTic12400Status_matches_wire_format);
     RUN_TEST(test_EncodeTic12400AdcGroup_matches_wire_format);
     RUN_TEST(test_EncodeTic12400SwitchState_matches_wire_format);
+    RUN_TEST(test_CalculateCommandToken_uses_sae_j1850_crc8);
     return UNITY_END();
 }

@@ -154,6 +154,8 @@ uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
 void CAN_Protocol_WriteU16LE(uint8_t *data, uint16_t value);
+uint8_t CAN_Protocol_CalculateCommandToken(
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 uint8_t CAN_Protocol_IsValidId(uint8_t is_extended,
                                uint32_t identifier);

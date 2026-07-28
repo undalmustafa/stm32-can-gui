@@ -9,16 +9,11 @@ from can_protocol_generated import (
     CMD_RTC_SET_ALARM,
     CMD_RTC_SET_DATETIME,
     CMD_RTC_SET_TIME,
-    CMD_SESSION_START,
     CMD_SET_SLOT_1,
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
     CMD_START_SLOT_2_COUNTER,
     GUI_COMMAND_ID_EXT,
-    GUI_COMMAND_ID_MASK_EXT,
-    GUI_COMMAND_SESSION_MASK,
-    GUI_COMMAND_SESSION_SHIFT,
-    GUI_COMMAND_SEQUENCE_MASK,
     INPUT_CAPTURE_STATUS_TX_ID,
     LOG_HEARTBEAT_TX_ID,
     LOG_RESPONSE_TX_ID,
@@ -83,15 +78,10 @@ from can_protocol_generated import (
     TIC12400_TRANSACTION_TEMPERATURE,
     COMMAND_ACK_ACCEPTED,
     COMMAND_ACK_ACCESS_DENIED,
-    COMMAND_ACK_DUPLICATE,
     COMMAND_ACK_INVALID_PAYLOAD,
-    COMMAND_ACK_PROTOCOL_MISMATCH,
-    COMMAND_ACK_REPLAY_REJECTED,
-    COMMAND_ACK_SESSION_REQUIRED,
     COMMAND_ACK_UNKNOWN_COMMAND,
     COMMAND_ACK_FLAG_ACCESS_OPEN,
     COMMAND_ACK_FLAG_EXECUTED,
-    COMMAND_ACK_FLAG_SESSION_STARTED,
 )
 
 RTC_STATUS_RX_ID = RTC_STATUS_TX_ID
@@ -153,18 +143,13 @@ COMMAND_NAMES = {
     CMD_LOG_READ_SEQUENCE: "LOG_READ_SEQUENCE",
     CMD_PWM_SET: "PWM_SET",
     CMD_PWM_SELF_TEST: "PWM_SELF_TEST",
-    CMD_SESSION_START: "SESSION_START",
 }
 
 COMMAND_ACK_STATUS_NAMES = {
     COMMAND_ACK_ACCEPTED: "ACCEPTED",
-    COMMAND_ACK_DUPLICATE: "DUPLICATE",
     COMMAND_ACK_INVALID_PAYLOAD: "INVALID_PAYLOAD",
     COMMAND_ACK_UNKNOWN_COMMAND: "UNKNOWN_COMMAND",
     COMMAND_ACK_ACCESS_DENIED: "ACCESS_DENIED",
-    COMMAND_ACK_REPLAY_REJECTED: "REPLAY_REJECTED",
-    COMMAND_ACK_SESSION_REQUIRED: "SESSION_REQUIRED",
-    COMMAND_ACK_PROTOCOL_MISMATCH: "PROTOCOL_MISMATCH",
 }
 
 STM32_APPLICATION_RX_IDS = {
@@ -183,16 +168,6 @@ STM32_APPLICATION_RX_IDS = {
     TIC12400_ADC_RX_ID,
     TIC12400_SWITCH_STATE_RX_ID,
 }
-
-
-def command_arbitration_id(sequence: int, session_tag: int) -> int:
-    """Return the reliable extended command ID for a session and sequence."""
-    return (
-        (GUI_COMMAND_ID_EXT & GUI_COMMAND_ID_MASK_EXT)
-        | ((int(session_tag) << GUI_COMMAND_SESSION_SHIFT)
-           & GUI_COMMAND_SESSION_MASK)
-        | (int(sequence) & GUI_COMMAND_SEQUENCE_MASK)
-    )
 
 STM32_LOG_EVENT_NAMES = {
     STM32_LOG_EVENT_SYSTEM_BOOT: "SYSTEM_BOOT",
@@ -314,6 +289,20 @@ def u32_to_le(value: int):
         (value >> 16) & 0xFF,
         (value >> 24) & 0xFF,
     ]
+
+
+def command_token(payload):
+    """Return the CRC-8/SAE-J1850 token echoed by command ACK frames."""
+    if len(payload) != 8:
+        raise ValueError("Command payload must contain exactly 8 bytes")
+
+    crc = 0xFF
+    for value in payload:
+        crc ^= int(value) & 0xFF
+        for _unused in range(8):
+            crc = (((crc << 1) ^ 0x1D)
+                   if crc & 0x80 else (crc << 1)) & 0xFF
+    return crc ^ 0xFF
 
 
 def parse_can_id(text: str) -> int:

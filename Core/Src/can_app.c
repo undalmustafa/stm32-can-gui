@@ -44,7 +44,6 @@ static FDCAN_RxHeaderTypeDef RxHeader;
 static uint8_t RxData[8];
 static CAN_App_RxStats_t can_rx_stats;
 static uint32_t pwm_self_test_result_sequence_sent;
-static CAN_CommandGuard_t command_guard;
 static volatile uint8_t control_access_requested;
 static uint8_t control_access_active;
 static uint32_t control_access_deadline;
@@ -70,7 +69,6 @@ static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
 static uint8_t CAN_Is_Control_Access_Open(void);
 static void CAN_Send_Command_Ack(
     uint8_t command,
-    uint8_t sequence,
     CAN_Protocol_CommandAckStatus_t status,
     uint8_t flags);
 
@@ -258,18 +256,6 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
 
             return CAN_COMMAND_VALID;
 
-        case CAN_PROTOCOL_CMD_SESSION_START:
-
-            if ((CAN_Protocol_ReadU32LE(&data[1]) == 0U) ||
-                (data[5] != CAN_PROTOCOL_VERSION) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
         default:
             return CAN_COMMAND_UNKNOWN;
     }
@@ -310,16 +296,6 @@ static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
 
         case CAN_APP_RX_REJECT_INVALID_PAYLOAD:
             can_rx_stats.rejected_invalid_payload++;
-            detail = command;
-            break;
-
-        case CAN_APP_RX_REJECT_REPLAY:
-            can_rx_stats.rejected_replay++;
-            detail = command;
-            break;
-
-        case CAN_APP_RX_REJECT_SESSION_REQUIRED:
-            can_rx_stats.rejected_session_required++;
             detail = command;
             break;
 
@@ -389,7 +365,6 @@ static uint8_t CAN_Is_Control_Access_Open(void)
 
 static void CAN_Send_Command_Ack(
     uint8_t command,
-    uint8_t sequence,
     CAN_Protocol_CommandAckStatus_t status,
     uint8_t flags)
 {
@@ -406,7 +381,7 @@ static void CAN_Send_Command_Ack(
 
     payload[0] = CAN_PROTOCOL_VERSION;
     payload[1] = command;
-    payload[2] = sequence;
+    payload[2] = CAN_Protocol_CalculateCommandToken(RxData);
     payload[3] = (uint8_t)status;
     payload[4] = flags;
     payload[5] = (remaining_ms == 0U)
@@ -414,9 +389,8 @@ static void CAN_Send_Command_Ack(
                : (uint8_t)(((remaining_ms + 999U) / 1000U) > 255U
                          ? 255U
                          : ((remaining_ms + 999U) / 1000U));
-    payload[6] = (uint8_t)(
-        (RxHeader.Identifier & CAN_PROTOCOL_GUI_COMMAND_SESSION_MASK) >>
-        CAN_PROTOCOL_GUI_COMMAND_SESSION_SHIFT);
+    payload[6] = 0U;
+    payload[7] = 0U;
 
     result = CAN_Transport_SendClassicHighPriority(
         CAN_PROTOCOL_COMMAND_ACK_TX_ID,
@@ -579,7 +553,6 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
     g_canAppState = (CAN_App_State_t){0};
     g_canAppState.init_attempts = 1U;
     can_rx_stats = (CAN_App_RxStats_t){0};
-    CAN_CommandGuard_Init(&command_guard);
     control_access_requested = 0U;
     control_access_active = 0U;
     control_access_deadline = 0U;
@@ -601,20 +574,13 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
 
     CAN_Transport_Init(&hfdcan1);
 
-    /*
-     GUI'den gelen komut mesajı:
-     Extended ID = 0x1894AABB
-     Bu mesaj RX FIFO0'a alınacak.
-    */
+    /* Accept only the fixed extended GUI command identifier. */
     sFilterConfig.IdType = FDCAN_EXTENDED_ID;
     sFilterConfig.FilterIndex = 0;
     sFilterConfig.FilterType = FDCAN_FILTER_MASK;
     sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 =
-        CAN_PROTOCOL_GUI_COMMAND_ID_EXT &
-        CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT;
-    sFilterConfig.FilterID2 =
-        CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT;
+    sFilterConfig.FilterID1 = CAN_PROTOCOL_GUI_COMMAND_ID_EXT;
+    sFilterConfig.FilterID2 = 0x1FFFFFFFUL;
 
     if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig) != HAL_OK)
     {
@@ -708,10 +674,7 @@ void CAN_App_Process(void)
 void CAN_Process_Rx_Command(void)
 {
     CAN_CommandValidationResult_t validation_result;
-    CAN_CommandGuardDecision_t guard_decision;
     uint8_t command;
-    uint8_t sequence;
-    uint8_t session_tag;
     uint8_t ack_flags;
     uint32_t processed_count = 0U;
 
@@ -734,10 +697,7 @@ void CAN_Process_Rx_Command(void)
         can_rx_stats.frames_received++;
 
         if ((RxHeader.IdType != FDCAN_EXTENDED_ID) ||
-            ((RxHeader.Identifier &
-              CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT) !=
-             (CAN_PROTOCOL_GUI_COMMAND_ID_EXT &
-              CAN_PROTOCOL_GUI_COMMAND_ID_MASK_EXT)))
+            (RxHeader.Identifier != CAN_PROTOCOL_GUI_COMMAND_ID_EXT))
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_WRONG_ID, 0U);
             continue;
@@ -758,113 +718,7 @@ void CAN_Process_Rx_Command(void)
         }
 
         command = RxData[0];
-        sequence = (uint8_t)(
-            RxHeader.Identifier &
-            CAN_PROTOCOL_GUI_COMMAND_SEQUENCE_MASK);
-        session_tag = (uint8_t)(
-            (RxHeader.Identifier &
-             CAN_PROTOCOL_GUI_COMMAND_SESSION_MASK) >>
-            CAN_PROTOCOL_GUI_COMMAND_SESSION_SHIFT);
         validation_result = CAN_Validate_Command(RxData);
-
-        if (command == CAN_PROTOCOL_CMD_SESSION_START)
-        {
-            if ((validation_result != CAN_COMMAND_VALID) ||
-                (session_tag != (uint8_t)
-                    CAN_Protocol_ReadU32LE(&RxData[1])))
-            {
-                CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_INVALID_PAYLOAD,
-                                     command);
-                CAN_Send_Command_Ack(
-                    command,
-                    sequence,
-                    (RxData[5] != CAN_PROTOCOL_VERSION)
-                        ? CAN_PROTOCOL_COMMAND_ACK_PROTOCOL_MISMATCH
-                        : CAN_PROTOCOL_COMMAND_ACK_INVALID_PAYLOAD,
-                    0U);
-                continue;
-            }
-
-            guard_decision = CAN_CommandGuard_StartSession(
-                &command_guard,
-                CAN_Protocol_ReadU32LE(&RxData[1]),
-                session_tag,
-                sequence,
-                RxData);
-
-            if (guard_decision == CAN_COMMAND_GUARD_DUPLICATE)
-            {
-                can_rx_stats.duplicate_commands++;
-                CAN_Send_Command_Ack(
-                    command,
-                    sequence,
-                    CAN_PROTOCOL_COMMAND_ACK_DUPLICATE,
-                    CAN_PROTOCOL_COMMAND_ACK_FLAG_SESSION_STARTED);
-                continue;
-            }
-
-            if (guard_decision != CAN_COMMAND_GUARD_ACCEPT)
-            {
-                CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_REPLAY, command);
-                CAN_Send_Command_Ack(
-                    command,
-                    sequence,
-                    CAN_PROTOCOL_COMMAND_ACK_REPLAY_REJECTED,
-                    0U);
-                continue;
-            }
-
-            CAN_Send_Command_Ack(
-                command,
-                sequence,
-                CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
-                CAN_PROTOCOL_COMMAND_ACK_FLAG_SESSION_STARTED);
-            continue;
-        }
-
-        /*
-         * Evaluate without consuming the sequence so invalid or unauthorized
-         * commands cannot later look like successfully executed duplicates.
-         */
-        guard_decision = CAN_CommandGuard_Evaluate(
-            &command_guard,
-            session_tag,
-            sequence,
-            RxData);
-
-        if (guard_decision == CAN_COMMAND_GUARD_SESSION_REQUIRED)
-        {
-            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_SESSION_REQUIRED,
-                                 command);
-            CAN_Send_Command_Ack(
-                command,
-                sequence,
-                CAN_PROTOCOL_COMMAND_ACK_SESSION_REQUIRED,
-                0U);
-            continue;
-        }
-
-        if (guard_decision == CAN_COMMAND_GUARD_DUPLICATE)
-        {
-            can_rx_stats.duplicate_commands++;
-            CAN_Send_Command_Ack(
-                command,
-                sequence,
-                CAN_PROTOCOL_COMMAND_ACK_DUPLICATE,
-                0U);
-            continue;
-        }
-
-        if (guard_decision != CAN_COMMAND_GUARD_ACCEPT)
-        {
-            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_REPLAY, command);
-            CAN_Send_Command_Ack(
-                command,
-                sequence,
-                CAN_PROTOCOL_COMMAND_ACK_REPLAY_REJECTED,
-                0U);
-            continue;
-        }
 
         if (validation_result == CAN_COMMAND_UNKNOWN)
         {
@@ -872,7 +726,6 @@ void CAN_Process_Rx_Command(void)
                                  command);
             CAN_Send_Command_Ack(
                 command,
-                sequence,
                 CAN_PROTOCOL_COMMAND_ACK_UNKNOWN_COMMAND,
                 0U);
             continue;
@@ -884,7 +737,6 @@ void CAN_Process_Rx_Command(void)
                                  command);
             CAN_Send_Command_Ack(
                 command,
-                sequence,
                 CAN_PROTOCOL_COMMAND_ACK_INVALID_PAYLOAD,
                 0U);
             continue;
@@ -897,28 +749,7 @@ void CAN_Process_Rx_Command(void)
                                  command);
             CAN_Send_Command_Ack(
                 command,
-                sequence,
                 CAN_PROTOCOL_COMMAND_ACK_ACCESS_DENIED,
-                0U);
-            continue;
-        }
-
-        /*
-         * The non-mutating evaluation above returned ACCEPT, so this call
-         * records the sequence immediately before command dispatch.
-         */
-        guard_decision = CAN_CommandGuard_Check(
-            &command_guard,
-            session_tag,
-            sequence,
-            RxData);
-        if (guard_decision != CAN_COMMAND_GUARD_ACCEPT)
-        {
-            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_REPLAY, command);
-            CAN_Send_Command_Ack(
-                command,
-                sequence,
-                CAN_PROTOCOL_COMMAND_ACK_REPLAY_REJECTED,
                 0U);
             continue;
         }
@@ -927,7 +758,6 @@ void CAN_Process_Rx_Command(void)
         ack_flags = CAN_PROTOCOL_COMMAND_ACK_FLAG_EXECUTED;
         CAN_Send_Command_Ack(
             command,
-            sequence,
             CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
             ack_flags);
 

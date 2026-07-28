@@ -30,6 +30,32 @@ void CAN_Protocol_WriteU16LE(uint8_t *data, uint16_t value)
     data[1] = (uint8_t)((value >> 8U) & 0xFFU);
 }
 
+uint8_t CAN_Protocol_CalculateCommandToken(
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    uint8_t bit;
+    uint8_t crc = 0xFFU;
+    uint8_t index;
+
+    if (payload == NULL)
+    {
+        return 0U;
+    }
+
+    for (index = 0U; index < CAN_PROTOCOL_PAYLOAD_SIZE; index++)
+    {
+        crc ^= payload[index];
+        for (bit = 0U; bit < 8U; bit++)
+        {
+            crc = ((crc & 0x80U) != 0U)
+                ? (uint8_t)((crc << 1U) ^ 0x1DU)
+                : (uint8_t)(crc << 1U);
+        }
+    }
+
+    return crc ^ 0xFFU;
+}
+
 uint8_t CAN_Protocol_IsValidId(uint8_t is_extended,
                                uint32_t identifier)
 {

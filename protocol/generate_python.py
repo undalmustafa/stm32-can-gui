@@ -26,25 +26,6 @@ def generate_python_module(yaml_path, out_path):
                 out.write(f"{name}_TX_ID = 0x{id_val:03X}\n")
         out.write("\n")
 
-        command_transport = data.get("command_transport", {})
-        out.write("# Reliable Command Transport\n")
-        out.write(
-            "GUI_COMMAND_SEQUENCE_MASK = "
-            f"0x{command_transport.get('sequence_mask', 0xFF):08X}\n"
-        )
-        out.write(
-            "GUI_COMMAND_SESSION_MASK = "
-            f"0x{command_transport.get('session_mask', 0xFF00):08X}\n"
-        )
-        out.write(
-            "GUI_COMMAND_SESSION_SHIFT = "
-            f"{command_transport.get('session_shift', 8)}\n"
-        )
-        out.write(
-            "GUI_COMMAND_ID_MASK_EXT = "
-            f"0x{command_transport.get('identifier_mask', 0x1FFF0000):08X}\n\n"
-        )
-
         out.write("# Command Codes\n")
         commands = data.get("commands", {})
         for key, val in commands.items():
