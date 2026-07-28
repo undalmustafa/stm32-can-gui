@@ -36,6 +36,13 @@ add_executable(
 )
 target_link_libraries(test_tic12400_switch unity)
 
+add_executable(
+    test_app_control_policy
+    test_app_control_policy.c
+    ../Core/Src/app_control_policy.c
+)
+target_link_libraries(test_app_control_policy unity)
+
 add_executable(test_can_transport test_can_transport.c ../Core/Src/can_transport.c)
 target_link_libraries(test_can_transport unity)
 
@@ -56,6 +63,7 @@ add_test(NAME test_can_protocol COMMAND test_can_protocol)
 add_test(NAME test_pca2131_validation COMMAND test_pca2131_validation)
 add_test(NAME test_tic12400 COMMAND test_tic12400)
 add_test(NAME test_tic12400_switch COMMAND test_tic12400_switch)
+add_test(NAME test_app_control_policy COMMAND test_app_control_policy)
 add_test(NAME test_can_transport COMMAND test_can_transport)
 add_test(NAME test_pwm_self_test COMMAND test_pwm_self_test)
 add_test(NAME test_can_command_guard COMMAND test_can_command_guard)

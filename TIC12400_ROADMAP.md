@@ -499,8 +499,18 @@ features.
 
 The SPI, identity, configuration CRC, raw ADC acquisition, binary
 characterization, debounce, CAN state telemetry, and simplified end-user GUI
-are implemented. The next application step is to define an explicit, reviewed
-`INx -> system action` map before any switch controls an output or service.
+are implemented. The first reviewed control-policy map is also implemented:
+
+- IN0 directly controls LED1.
+- IN1 permits GUI-requested PWM operation.
+- IN2 permits GUI-requested CAN Slot 1 operation.
+- IN3 permits GUI-requested CAN Slot 2 operation.
+- Invalid TIC12400 state forces every mapped function off while essential CAN
+  transport and diagnostics remain active.
+
+The policy records requested, physical-permission, blocked, and effective
+states separately so the GUI never presents an accepted request as an active
+output.
 
 Low-power polling and advanced diagnostics follow after the binary
 monitoring-and-control path is accepted.

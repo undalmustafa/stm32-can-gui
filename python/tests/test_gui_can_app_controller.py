@@ -22,8 +22,18 @@ from can_gui_app.protocol import (  # noqa: E402
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
     CMD_START_SLOT_2_COUNTER,
+    PWM_CONTROL_BLOCKED,
+    PWM_CONTROL_REQUESTED,
+    PWM_CONTROL_SWITCH_DATA_VALID,
     SLOT_FLAG_ENABLE,
     SLOT_FLAG_EXTENDED_ID,
+    SYSTEM_OVERRIDE_PWM_BLOCKED,
+    SYSTEM_OVERRIDE_SLOT_1_BLOCKED,
+    SYSTEM_PHYSICAL_DATA_VALID,
+    SYSTEM_PHYSICAL_IN0_CLOSED,
+    SYSTEM_PHYSICAL_IN1_CLOSED,
+    SYSTEM_REQUEST_PWM,
+    SYSTEM_REQUEST_SLOT_1,
     SYSTEM_STATUS_RX_ID,
     PWM_STATUS_RX_ID,
     INPUT_CAPTURE_STATUS_RX_ID,
@@ -153,6 +163,29 @@ def main():
     expect(controller.led_status[2] == "ON",
            "0x557 LED2 set flag is decoded")
 
+    expect(controller.handle_message(FakeMessage(
+        SYSTEM_STATUS_RX_ID,
+        [
+            0x04, 0, 0, 1, 0,
+            SYSTEM_REQUEST_SLOT_1 | SYSTEM_REQUEST_PWM,
+            (
+                SYSTEM_PHYSICAL_DATA_VALID |
+                SYSTEM_PHYSICAL_IN0_CLOSED |
+                SYSTEM_PHYSICAL_IN1_CLOSED
+            ),
+            (
+                SYSTEM_OVERRIDE_SLOT_1_BLOCKED |
+                SYSTEM_OVERRIDE_PWM_BLOCKED
+            ),
+        ],
+    )), "control-policy system status is consumed")
+    expect(controller.slot_status[1]["state"] == "Blocked by IN2",
+           "slot status explains the physical interlock")
+    expect(controller.control_policy["in0_closed"],
+           "IN0 physical state is decoded")
+    expect(controller.control_policy["pwm_blocked"],
+           "PWM override state is decoded")
+
     view_count = len(views)
     expect(controller.handle_message(FakeMessage(SYSTEM_STATUS_RX_ID, [0])),
            "short 0x557 frame is consumed safely")
@@ -164,11 +197,26 @@ def main():
     pwm_views = []
     controller._pwm_status_renderer = lambda **view: pwm_views.append(view)
     expect(controller.handle_message(FakeMessage(
-        PWM_STATUS_RX_ID, [1, 50, 0x10, 0x27, 0, 0, 0, 0]
+        PWM_STATUS_RX_ID,
+        [
+            0, 50, 0x10, 0x27, 0, 0,
+            (
+                PWM_CONTROL_REQUESTED |
+                PWM_CONTROL_BLOCKED |
+                PWM_CONTROL_SWITCH_DATA_VALID
+            ),
+            0,
+        ],
     )), "PWM telemetry is consumed")
     expect(controller.pwm_status == {
-        "running": True, "frequency_hz": 10_000, "duty_percent": 50
-    }, "PWM telemetry is decoded")
+        "running": False,
+        "frequency_hz": 10_000,
+        "duty_percent": 50,
+        "requested": True,
+        "physical_permitted": False,
+        "blocked": True,
+        "switch_data_valid": True,
+    }, "PWM telemetry distinguishes requested from physically blocked")
     expect(controller.handle_message(FakeMessage(
         INPUT_CAPTURE_STATUS_RX_ID,
         [1, 49, 0x0F, 0x27, 0, 0, 0x34, 0x12]

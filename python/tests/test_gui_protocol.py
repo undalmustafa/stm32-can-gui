@@ -38,6 +38,18 @@ def main():
            "TIC12400 ADC ID is generated")
     expect(protocol.TIC12400_SWITCH_STATE_RX_ID == 0x554,
            "TIC12400 switch-state ID is generated")
+    expect(protocol.SYSTEM_REQUEST_SLOT_1 == 0x01
+           and protocol.SYSTEM_REQUEST_PWM == 0x10,
+           "system request flags are generated")
+    expect(protocol.SYSTEM_PHYSICAL_DATA_VALID == 0x01
+           and protocol.SYSTEM_PHYSICAL_IN3_CLOSED == 0x10,
+           "physical permission flags are generated")
+    expect(protocol.SYSTEM_OVERRIDE_SLOT_1_BLOCKED == 0x01
+           and protocol.SYSTEM_OVERRIDE_PWM_BLOCKED == 0x10,
+           "control override flags are generated")
+    expect(protocol.PWM_CONTROL_REQUESTED == 0x01
+           and protocol.PWM_CONTROL_SWITCH_DATA_VALID == 0x08,
+           "PWM control-policy flags are generated")
     expect(generated.TIC12400_SWITCH_CLOSED_MAX_ADC_CODE == 512,
            "TIC12400 binary threshold is generated")
     expect(generated.TIC12400_SWITCH_DEBOUNCE_SAMPLES == 3,

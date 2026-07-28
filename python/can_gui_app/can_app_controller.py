@@ -8,8 +8,26 @@ from .protocol import (
     CMD_SET_SLOT_2,
     CMD_START_SLOT_1_COUNTER,
     CMD_START_SLOT_2_COUNTER,
+    PWM_CONTROL_BLOCKED,
+    PWM_CONTROL_PHYSICAL_PERMITTED,
+    PWM_CONTROL_REQUESTED,
+    PWM_CONTROL_SWITCH_DATA_VALID,
     SLOT_FLAG_ENABLE,
     SLOT_FLAG_EXTENDED_ID,
+    SYSTEM_OVERRIDE_LED_1_OVERRIDDEN,
+    SYSTEM_OVERRIDE_PWM_BLOCKED,
+    SYSTEM_OVERRIDE_SLOT_1_BLOCKED,
+    SYSTEM_OVERRIDE_SLOT_2_BLOCKED,
+    SYSTEM_PHYSICAL_DATA_VALID,
+    SYSTEM_PHYSICAL_IN0_CLOSED,
+    SYSTEM_PHYSICAL_IN1_CLOSED,
+    SYSTEM_PHYSICAL_IN2_CLOSED,
+    SYSTEM_PHYSICAL_IN3_CLOSED,
+    SYSTEM_REQUEST_LED_1,
+    SYSTEM_REQUEST_LED_2,
+    SYSTEM_REQUEST_PWM,
+    SYSTEM_REQUEST_SLOT_1,
+    SYSTEM_REQUEST_SLOT_2,
     SYSTEM_STATUS_RX_ID,
     PWM_STATUS_RX_ID,
     INPUT_CAPTURE_STATUS_RX_ID,
@@ -41,6 +59,9 @@ class CanAppController:
                 "cycle_time": "-",
                 "counter": "-",
                 "state": "Stopped",
+                "requested": False,
+                "permitted": False,
+                "blocked": False,
             },
             2: {
                 "can_id": "-",
@@ -48,11 +69,32 @@ class CanAppController:
                 "cycle_time": "-",
                 "counter": "-",
                 "state": "Stopped",
+                "requested": False,
+                "permitted": False,
+                "blocked": False,
             },
         }
         self.led_status = {1: "OFF", 2: "OFF"}
+        self.control_policy = {
+            "switch_data_valid": False,
+            "in0_closed": False,
+            "in1_closed": False,
+            "in2_closed": False,
+            "in3_closed": False,
+            "led1_requested": False,
+            "led2_requested": False,
+            "pwm_requested": False,
+            "led1_overridden": False,
+            "pwm_blocked": False,
+        }
         self.pwm_status = {
-            "running": False, "frequency_hz": 0, "duty_percent": 0
+            "running": False,
+            "frequency_hz": 0,
+            "duty_percent": 0,
+            "requested": False,
+            "physical_permitted": False,
+            "blocked": False,
+            "switch_data_valid": False,
         }
         self.input_capture_status = {
             "signal_detected": False,
@@ -73,6 +115,7 @@ class CanAppController:
         self._status_renderer(
             slot_status=self.slot_status,
             led_status=self.led_status,
+            control_policy=self.control_policy,
         )
 
     def configure_and_start_slot(self,
@@ -193,6 +236,22 @@ class CanAppController:
                     "running": bool(data[0]),
                     "duty_percent": data[1],
                     "frequency_hz": int.from_bytes(bytes(data[2:6]), "little"),
+                    "requested": (
+                        bool(data[6] & PWM_CONTROL_REQUESTED)
+                        if len(data) >= 7 else False
+                    ),
+                    "physical_permitted": (
+                        bool(data[6] & PWM_CONTROL_PHYSICAL_PERMITTED)
+                        if len(data) >= 7 else False
+                    ),
+                    "blocked": (
+                        bool(data[6] & PWM_CONTROL_BLOCKED)
+                        if len(data) >= 7 else False
+                    ),
+                    "switch_data_valid": (
+                        bool(data[6] & PWM_CONTROL_SWITCH_DATA_VALID)
+                        if len(data) >= 7 else False
+                    ),
                 }
                 self.render_pwm_status()
             return True
@@ -271,12 +330,71 @@ class CanAppController:
             return True
 
         flags = data[0]
-        self.slot_status[1]["state"] = (
-            "Running" if flags & 0x01 else "Stopped"
-        )
-        self.slot_status[2]["state"] = (
-            "Running" if flags & 0x02 else "Stopped"
-        )
+        request_flags = data[5] if len(data) >= 8 else 0
+        physical_flags = data[6] if len(data) >= 8 else 0
+        override_flags = data[7] if len(data) >= 8 else 0
+        self.control_policy = {
+            "switch_data_valid": bool(
+                physical_flags & SYSTEM_PHYSICAL_DATA_VALID
+            ),
+            "in0_closed": bool(
+                physical_flags & SYSTEM_PHYSICAL_IN0_CLOSED
+            ),
+            "in1_closed": bool(
+                physical_flags & SYSTEM_PHYSICAL_IN1_CLOSED
+            ),
+            "in2_closed": bool(
+                physical_flags & SYSTEM_PHYSICAL_IN2_CLOSED
+            ),
+            "in3_closed": bool(
+                physical_flags & SYSTEM_PHYSICAL_IN3_CLOSED
+            ),
+            "led1_requested": bool(
+                request_flags & SYSTEM_REQUEST_LED_1
+            ),
+            "led2_requested": bool(
+                request_flags & SYSTEM_REQUEST_LED_2
+            ),
+            "pwm_requested": bool(
+                request_flags & SYSTEM_REQUEST_PWM
+            ),
+            "led1_overridden": bool(
+                override_flags & SYSTEM_OVERRIDE_LED_1_OVERRIDDEN
+            ),
+            "pwm_blocked": bool(
+                override_flags & SYSTEM_OVERRIDE_PWM_BLOCKED
+            ),
+        }
+        for slot_no, running_flag, request_flag, blocked_flag, input_name in (
+            (
+                1, 0x01, SYSTEM_REQUEST_SLOT_1,
+                SYSTEM_OVERRIDE_SLOT_1_BLOCKED, "IN2",
+            ),
+            (
+                2, 0x02, SYSTEM_REQUEST_SLOT_2,
+                SYSTEM_OVERRIDE_SLOT_2_BLOCKED, "IN3",
+            ),
+        ):
+            running = bool(flags & running_flag)
+            requested = bool(request_flags & request_flag)
+            blocked = bool(override_flags & blocked_flag)
+            physical_key = "in2_closed" if slot_no == 1 else "in3_closed"
+            permitted = (
+                self.control_policy["switch_data_valid"]
+                and self.control_policy[physical_key]
+            )
+            if running:
+                state = "Running"
+            elif blocked:
+                state = f"Blocked by {input_name}"
+            else:
+                state = "Stopped"
+            self.slot_status[slot_no].update({
+                "state": state,
+                "requested": requested,
+                "permitted": permitted,
+                "blocked": blocked,
+            })
         self.led_status[1] = "ON" if flags & 0x04 else "OFF"
         self.led_status[2] = "ON" if flags & 0x08 else "OFF"
         self.render_status()

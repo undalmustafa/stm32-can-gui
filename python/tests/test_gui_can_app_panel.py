@@ -27,6 +27,7 @@ class FakeWidget:
         self._text = text
         self.layout = None
         self.stylesheet = ""
+        self.enabled = True
 
     def setText(self, text):
         self._text = text
@@ -39,6 +40,9 @@ class FakeWidget:
 
     def setStyleSheet(self, stylesheet):
         self.stylesheet = stylesheet
+
+    def setEnabled(self, enabled):
+        self.enabled = bool(enabled)
 
     def setPlaceholderText(self, _text):
         pass
@@ -157,12 +161,13 @@ def main():
     expect(slot_requests == [slot1, slot2],
            "slot buttons forward complete form values")
 
-    panel.led1_on_button.clicked.emit()
-    panel.led1_off_button.clicked.emit()
     panel.led2_on_button.clicked.emit()
     panel.led2_off_button.clicked.emit()
-    expect(led_requests == [(1, 1), (1, 0), (2, 1), (2, 0)],
-           "all four LED command mappings remain unchanged")
+    expect(not panel.led1_on_button.enabled
+           and not panel.led1_off_button.enabled,
+           "LED1 GUI controls are disabled because IN0 owns the output")
+    expect(led_requests == [(2, 1), (2, 0)],
+           "LED2 remains under GUI control")
 
     panel.render_status(
         slot_status={
@@ -182,13 +187,23 @@ def main():
             },
         },
         led_status={1: "ON", 2: "OFF"},
+        control_policy={
+            "switch_data_valid": True,
+            "in0_closed": True,
+            "in2_closed": True,
+            "in3_closed": False,
+        },
     )
     expect("CAN ID     : 0x123" in panel.slot1_status_label.text(),
            "Slot 1 status retains its engineering layout")
     expect("State      : Stopped" in panel.slot2_status_label.text(),
            "Slot 2 state is rendered")
-    expect(panel.led_status_label.text() == "LED1 : ON\nLED2 : OFF",
-           "LED status text remains unchanged")
+    expect("LED1 : ON — physical IN0 CLOSED"
+           in panel.led_status_label.text(),
+           "LED1 status identifies its physical owner")
+    expect("LED2 : OFF — GUI controlled"
+           in panel.led_status_label.text(),
+           "LED2 status identifies GUI ownership")
 
     print("PASS: GUI CAN application panel slot/LED inputs and status")
 

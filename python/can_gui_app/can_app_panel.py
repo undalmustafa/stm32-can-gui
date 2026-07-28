@@ -49,9 +49,12 @@ class CanAppPanel:
         self.led1_off_button = QPushButton("LED1 OFF")
         self.led2_on_button = QPushButton("LED2 ON")
         self.led2_off_button = QPushButton("LED2 OFF")
+        self.led1_on_button.setEnabled(False)
+        self.led1_off_button.setEnabled(False)
 
         group = QGroupBox("LED Control")
         layout = QHBoxLayout()
+        layout.addWidget(QLabel("LED1 is controlled by physical switch IN0."))
         layout.addWidget(self.led1_on_button)
         layout.addWidget(self.led1_off_button)
         layout.addWidget(self.led2_on_button)
@@ -113,25 +116,40 @@ class CanAppPanel:
     def request_slot_start(self, slot_widget):
         self._slot_start_requested(**self.get_slot_request(slot_widget))
 
-    def render_status(self, slot_status, led_status):
+    def render_status(self, slot_status, led_status, control_policy=None):
         slot1 = slot_status[1]
         slot2 = slot_status[2]
+        policy = control_policy or {}
+
+        def permission_text(input_name, valid, closed):
+            if not valid:
+                return f"{input_name} unavailable"
+            return f"{input_name} {'CLOSED' if closed else 'OPEN'}"
+
+        switch_valid = policy.get("switch_data_valid", False)
 
         self.slot1_status_label.setText(
             f"CAN ID     : {slot1['can_id']}\n"
             f"ID Type    : {slot1['id_type']}\n"
             f"Cycle Time : {slot1['cycle_time']}\n"
             f"Counter    : {slot1['counter']}\n"
-            f"State      : {slot1['state']}"
+            f"State      : {slot1['state']}\n"
+            "Permission : "
+            f"{permission_text('IN2', switch_valid, policy.get('in2_closed', False))}"
         )
         self.slot2_status_label.setText(
             f"CAN ID     : {slot2['can_id']}\n"
             f"ID Type    : {slot2['id_type']}\n"
             f"Cycle Time : {slot2['cycle_time']}\n"
             f"Counter    : {slot2['counter']}\n"
-            f"State      : {slot2['state']}"
+            f"State      : {slot2['state']}\n"
+            "Permission : "
+            f"{permission_text('IN3', switch_valid, policy.get('in3_closed', False))}"
+        )
+        led1_input = permission_text(
+            "IN0", switch_valid, policy.get("in0_closed", False)
         )
         self.led_status_label.setText(
-            f"LED1 : {led_status[1]}\n"
-            f"LED2 : {led_status[2]}"
+            f"LED1 : {led_status[1]} — physical {led1_input}\n"
+            f"LED2 : {led_status[2]} — GUI controlled"
         )

@@ -61,6 +61,15 @@ void test_EncodeSystemStatus_matches_struct(void)
     status.slot_2_running = 0;
     status.led_1_on = 1;
     status.led_2_on = 0;
+    status.request_flags =
+        CAN_PROTOCOL_SYSTEM_REQUEST_SLOT_1 |
+        CAN_PROTOCOL_SYSTEM_REQUEST_PWM;
+    status.physical_flags =
+        CAN_PROTOCOL_SYSTEM_PHYSICAL_DATA_VALID |
+        CAN_PROTOCOL_SYSTEM_PHYSICAL_IN0_CLOSED |
+        CAN_PROTOCOL_SYSTEM_PHYSICAL_IN2_CLOSED;
+    status.override_flags =
+        CAN_PROTOCOL_SYSTEM_OVERRIDE_PWM_BLOCKED;
     uint8_t payload[8] = {0};
     CAN_Protocol_EncodeSystemStatus(&status, payload);
 
@@ -70,9 +79,34 @@ void test_EncodeSystemStatus_matches_struct(void)
     TEST_ASSERT_EQUAL_UINT8(0, payload[2]); // slot2
     TEST_ASSERT_EQUAL_UINT8(1, payload[3]); // led1
     TEST_ASSERT_EQUAL_UINT8(0, payload[4]); // led2
-    TEST_ASSERT_EQUAL_UINT8(0, payload[5]);
-    TEST_ASSERT_EQUAL_UINT8(0, payload[6]);
-    TEST_ASSERT_EQUAL_UINT8(0, payload[7]);
+    TEST_ASSERT_EQUAL_UINT8(0x11, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x0B, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0x10, payload[7]);
+}
+
+void test_EncodePwmStatus_includes_control_policy(void)
+{
+    CAN_Protocol_PwmStatus_t status = {
+        .running = 0U,
+        .duty_percent = 51U,
+        .actual_frequency_hz = 321366U,
+        .control_flags =
+            CAN_PROTOCOL_PWM_CONTROL_REQUESTED |
+            CAN_PROTOCOL_PWM_CONTROL_BLOCKED |
+            CAN_PROTOCOL_PWM_CONTROL_SWITCH_DATA_VALID,
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodePwmStatus(&status, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(0U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(51U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x56U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(0xE7U, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0x04U, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x0DU, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(0U, payload[7]);
 }
 
 void test_EncodePwmSelfTestStatus_matches_wire_format(void)
@@ -213,6 +247,7 @@ int main(void)
     RUN_TEST(test_IsValidId_extended_max_0x1FFFFFFF);
     RUN_TEST(test_IsValidId_extended_rejects_0x20000000);
     RUN_TEST(test_EncodeSystemStatus_matches_struct);
+    RUN_TEST(test_EncodePwmStatus_includes_control_policy);
     RUN_TEST(test_EncodePwmSelfTestStatus_matches_wire_format);
     RUN_TEST(test_EncodePwmSelfTestResult_matches_wire_format);
     RUN_TEST(test_EncodeTic12400Status_matches_wire_format);

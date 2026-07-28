@@ -206,9 +206,9 @@ void CAN_Protocol_EncodeSystemStatus(
     payload[2] = system_status->slot_2_running;
     payload[3] = system_status->led_1_on;
     payload[4] = system_status->led_2_on;
-    payload[5] = 0U;
-    payload[6] = 0U;
-    payload[7] = 0U;
+    payload[5] = system_status->request_flags;
+    payload[6] = system_status->physical_flags;
+    payload[7] = system_status->override_flags;
 }
 
 void CAN_Protocol_EncodeLogHeartbeat(
@@ -240,7 +240,7 @@ void CAN_Protocol_EncodePwmStatus(
     payload[0] = pwm_status->running;
     payload[1] = pwm_status->duty_percent;
     CAN_Protocol_WriteU32LE(&payload[2], pwm_status->actual_frequency_hz);
-    payload[6] = 0U;
+    payload[6] = pwm_status->control_flags;
     payload[7] = 0U;
 }
 

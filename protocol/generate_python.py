@@ -74,6 +74,21 @@ def generate_python_module(yaml_path, out_path):
             out.write(f"SLOT_FLAG_{name} = 0x{(1 << bit):02X}\n")
         out.write("\n")
 
+        out.write("# System Status Control Policy\n")
+        for section, prefix in (
+            ("system_status_request_flags", "SYSTEM_REQUEST"),
+            ("system_status_physical_flags", "SYSTEM_PHYSICAL"),
+            ("system_status_override_flags", "SYSTEM_OVERRIDE"),
+            ("pwm_status_control_flags", "PWM_CONTROL"),
+        ):
+            for key, val in data.get(section, {}).items():
+                name = key.upper()
+                bit = val["bit"]
+                out.write(
+                    f"{prefix}_{name} = 0x{(1 << bit):02X}\n"
+                )
+        out.write("\n")
+
         out.write("# Alarm Enable Flags\n")
         for key, val in data.get("alarm_enable_flags", {}).items():
             name = key.upper()

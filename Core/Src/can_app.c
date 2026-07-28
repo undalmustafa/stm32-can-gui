@@ -1,4 +1,5 @@
 #include "main.h"
+#include "app_control_policy.h"
 #include "can_app.h"
 #include "can_protocol.h"
 #include "can_command_guard.h"
@@ -12,6 +13,7 @@
 #include "pwm_control.h"
 #include "input_capture.h"
 #include "pwm_self_test.h"
+#include "tic12400_probe.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
 #define CAN_CONTROL_ACCESS_WINDOW_MS    240000UL
 
@@ -21,6 +23,7 @@ typedef struct
 {
     uint8_t configured;
     uint8_t active;
+    uint8_t requested_running;
     uint8_t running;
 
     uint8_t id_type;          // 0 = Standard, 1 = Extended
@@ -47,6 +50,7 @@ static CAN_CommandGuard_t command_guard;
 static volatile uint8_t control_access_requested;
 static uint8_t control_access_active;
 static uint32_t control_access_deadline;
+static uint32_t control_policy_update_applied;
 
 typedef enum
 {
@@ -57,6 +61,8 @@ typedef enum
 
 static void CAN_Process_TxSlot(CAN_TxSlot_t *slot);
 static void CAN_Handle_LED_Command(uint8_t *data);
+static void CAN_Refresh_Control_Policy(void);
+static void CAN_Apply_Control_Policy(void);
 static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
                                  uint8_t command);
 static uint8_t CAN_Is_Control_Access_Open(void);
@@ -430,6 +436,7 @@ static void CAN_Reset_Slot(CAN_TxSlot_t *slot)
 {
     slot->configured = 0;
     slot->active = 0;
+    slot->requested_running = 0;
     slot->running = 0;
     slot->id_type = 0;
     slot->can_id = 0;
@@ -468,6 +475,7 @@ static void CAN_Set_Slot_Config(CAN_TxSlot_t *slot, uint8_t *data)
     if (CAN_Protocol_IsValidId(id_type, can_id) == 0U)
     {
         slot->active = 0U;
+        slot->requested_running = 0U;
         slot->running = 0U;
         return;
     }
@@ -481,6 +489,7 @@ static void CAN_Set_Slot_Config(CAN_TxSlot_t *slot, uint8_t *data)
     else
     {
         slot->active = 0U;
+        slot->requested_running = 0U;
         slot->running = 0U;
     }
 
@@ -493,10 +502,14 @@ static void CAN_Set_Slot_Config(CAN_TxSlot_t *slot, uint8_t *data)
      Counter/start komutu gelince tekrar 1'den başlar.
     */
     slot->running = 0U;
+    slot->requested_running = 0U;
     slot->counter_value = 0U;
 }
 
-static void CAN_Start_Slot_Counter(CAN_TxSlot_t *slot, uint8_t *data)
+static void CAN_Start_Slot_Counter(
+    CAN_TxSlot_t *slot,
+    uint8_t slot_number,
+    uint8_t *data)
 {
     uint32_t counter_limit;
 
@@ -506,14 +519,18 @@ static void CAN_Start_Slot_Counter(CAN_TxSlot_t *slot, uint8_t *data)
 
     if ((slot->configured == 0U) || (slot->active == 0U))
     {
+        slot->requested_running = 0U;
         slot->running = 0U;
+        App_ControlPolicy_SetSlotRequest(slot_number, 0U);
         return;
     }
 
     if (counter_limit == 0U)
     {
+        slot->requested_running = 0U;
         slot->running = 0U;
         slot->counter_value = 0U;
+        App_ControlPolicy_SetSlotRequest(slot_number, 0U);
         return;
     }
 
@@ -526,7 +543,8 @@ static void CAN_Start_Slot_Counter(CAN_TxSlot_t *slot, uint8_t *data)
      Bu yüzden counter_value 1'den başlatılır.
     */
     slot->counter_value = 1U;
-    slot->running = 1U;
+    slot->requested_running = 1U;
+    App_ControlPolicy_SetSlotRequest(slot_number, 1U);
 
     /*
      İlk mesajın hemen gönderilebilmesi için last_tx_time geçmişe çekilir.
@@ -543,6 +561,8 @@ void CAN_App_Init(void)
     control_access_requested = 0U;
     control_access_active = 0U;
     control_access_deadline = 0U;
+    control_policy_update_applied = UINT32_MAX;
+    App_ControlPolicy_Init();
 
     CAN_Transport_Init(&hfdcan1);
     App_Log_Can_Init();
@@ -614,10 +634,13 @@ void CAN_App_Process(void)
     CAN_Transport_Process();
 
     /* Uygulama servisleri yeni mesajlar üretebilir. */
+    CAN_Refresh_Control_Policy();
     CAN_Process_Rx_Command();
+    CAN_Apply_Control_Policy();
     RTC_Process();
     Input_Capture_Process();
     PWM_SelfTest_Process();
+    CAN_Apply_Control_Policy();
     CAN_Send_Pwm_Self_Test_Result();
     App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
     System_Status_Process();
@@ -860,27 +883,24 @@ void CAN_Process_Rx_Command(void)
         {
             case CAN_PROTOCOL_CMD_SET_SLOT_1:
                 CAN_Set_Slot_Config(&tx_slot_1, RxData);
-                CAN_Send_System_Status();
+                App_ControlPolicy_SetSlotRequest(1U, 0U);
                 break;
 
             case CAN_PROTOCOL_CMD_SET_SLOT_2:
                 CAN_Set_Slot_Config(&tx_slot_2, RxData);
-                CAN_Send_System_Status();
+                App_ControlPolicy_SetSlotRequest(2U, 0U);
                 break;
 
             case CAN_PROTOCOL_CMD_START_SLOT_1_COUNTER:
-                CAN_Start_Slot_Counter(&tx_slot_1, RxData);
-                CAN_Send_System_Status();
+                CAN_Start_Slot_Counter(&tx_slot_1, 1U, RxData);
                 break;
 
             case CAN_PROTOCOL_CMD_START_SLOT_2_COUNTER:
-                CAN_Start_Slot_Counter(&tx_slot_2, RxData);
-                CAN_Send_System_Status();
+                CAN_Start_Slot_Counter(&tx_slot_2, 2U, RxData);
                 break;
 
             case CAN_PROTOCOL_CMD_LED_CONTROL:
                 CAN_Handle_LED_Command(RxData);
-                CAN_Send_System_Status();
                 break;
 
             case CAN_PROTOCOL_CMD_RTC_SET_TIME:
@@ -916,17 +936,16 @@ void CAN_Process_Rx_Command(void)
 
                 if (freq == 0U)
                 {
-                    PWM_Control_Stop();
+                    App_ControlPolicy_SetPwmRequest(0U);
                 }
                 else
                 {
                     if (PWM_Control_Set(freq, duty) == PWM_CONTROL_OK)
                     {
-                        (void)PWM_Control_Start();
+                        App_ControlPolicy_SetPwmRequest(1U);
                     }
                 }
 
-                CAN_Send_Pwm_Status();
                 break;
             }
 
@@ -937,7 +956,12 @@ void CAN_Process_Rx_Command(void)
                 }
                 else
                 {
-                    (void)PWM_SelfTest_Start();
+                    App_ControlPolicySnapshot_t policy =
+                        App_ControlPolicy_GetSnapshot();
+                    if (policy.pwm_permitted != 0U)
+                    {
+                        (void)PWM_SelfTest_Start();
+                    }
                 }
                 CAN_Send_Pwm_Self_Test_Status();
                 break;
@@ -952,6 +976,124 @@ void CAN_Process_Rx_Command(void)
             &hfdcan1, FDCAN_RX_FIFO0) > 0U))
     {
         can_rx_stats.rx_budget_hits++;
+    }
+}
+
+static void CAN_Refresh_Control_Policy(void)
+{
+    TIC12400_ProbeSwitchState_t switches = {0};
+
+    (void)TIC12400_Probe_GetSwitchState(&switches);
+    App_ControlPolicy_UpdateSwitches(
+        switches.data_valid,
+        switches.closed_bitmap);
+}
+
+static void CAN_Apply_Slot_Policy(
+    CAN_TxSlot_t *slot,
+    uint8_t effective_running)
+{
+    uint8_t may_run =
+        ((effective_running != 0U) &&
+         (slot->requested_running != 0U) &&
+         (slot->configured != 0U) &&
+         (slot->active != 0U) &&
+         (slot->counter_limit != 0U)) ? 1U : 0U;
+
+    if ((may_run != 0U) && (slot->running == 0U))
+    {
+        slot->last_tx_time =
+            HAL_GetTick() - slot->cycle_time_ms;
+    }
+
+    slot->running = may_run;
+}
+
+static void CAN_Apply_Led(
+    uint8_t led_number,
+    uint8_t effective_on)
+{
+    uint8_t *current_state;
+    Led_TypeDef led;
+
+    if (led_number == 1U)
+    {
+        current_state = &led1_state;
+        led = LED_GREEN;
+    }
+    else
+    {
+        current_state = &led2_state;
+        led = LED_RED;
+    }
+
+    if (*current_state == effective_on)
+    {
+        return;
+    }
+
+    *current_state = effective_on;
+    if (effective_on != 0U)
+    {
+        BSP_LED_On(led);
+    }
+    else
+    {
+        BSP_LED_Off(led);
+    }
+}
+
+static void CAN_Apply_Control_Policy(void)
+{
+    App_ControlPolicySnapshot_t policy =
+        App_ControlPolicy_GetSnapshot();
+    uint8_t previous_slot_1 = tx_slot_1.running;
+    uint8_t previous_slot_2 = tx_slot_2.running;
+    uint8_t previous_led_1 = led1_state;
+    uint8_t previous_led_2 = led2_state;
+    uint8_t previous_pwm =
+        PWM_Control_GetState().running;
+    uint8_t status_changed;
+
+    CAN_Apply_Led(1U, policy.led_1_effective);
+    CAN_Apply_Led(2U, policy.led_2_effective);
+    CAN_Apply_Slot_Policy(
+        &tx_slot_1,
+        policy.slot_1_effective);
+    CAN_Apply_Slot_Policy(
+        &tx_slot_2,
+        policy.slot_2_effective);
+
+    if (PWM_SelfTest_IsRunning() != 0U)
+    {
+        if (policy.pwm_permitted == 0U)
+        {
+            PWM_SelfTest_Cancel();
+            (void)PWM_Control_Stop();
+        }
+    }
+    else if (policy.pwm_effective != 0U)
+    {
+        (void)PWM_Control_Start();
+    }
+    else
+    {
+        (void)PWM_Control_Stop();
+    }
+
+    status_changed =
+        ((policy.update_count != control_policy_update_applied) ||
+         (previous_slot_1 != tx_slot_1.running) ||
+         (previous_slot_2 != tx_slot_2.running) ||
+         (previous_led_1 != led1_state) ||
+         (previous_led_2 != led2_state) ||
+         (previous_pwm != PWM_Control_GetState().running)) ? 1U : 0U;
+
+    control_policy_update_applied = policy.update_count;
+    if (status_changed != 0U)
+    {
+        CAN_Send_System_Status();
+        CAN_Send_Pwm_Status();
     }
 }
 
@@ -1034,32 +1176,7 @@ static void CAN_Handle_LED_Command(uint8_t *data)
     uint8_t led_no = data[1];
     uint8_t led_state = data[2];
 
-    if (led_no == 1U)
-    {
-        if (led_state == 1U)
-        {
-            led1_state = 1U;
-            BSP_LED_On(LED_GREEN);
-        }
-        else
-        {
-            led1_state = 0U;
-            BSP_LED_Off(LED_GREEN);
-        }
-    }
-    else if (led_no == 2U)
-    {
-        if (led_state == 1U)
-        {
-            led2_state = 1U;
-            BSP_LED_On(LED_RED);
-        }
-        else
-        {
-            led2_state = 0U;
-            BSP_LED_Off(LED_RED);
-        }
-    }
+    App_ControlPolicy_SetLedRequest(led_no, led_state);
 }
 void System_Status_Process(void)
 {
@@ -1144,13 +1261,50 @@ void CAN_Send_Input_Capture_Status(void)
 }
 void CAN_Send_System_Status(void)
 {
-    CAN_Protocol_SystemStatus_t system_status;
+    CAN_Protocol_SystemStatus_t system_status = {0};
+    App_ControlPolicySnapshot_t policy =
+        App_ControlPolicy_GetSnapshot();
     uint8_t txData[8] = {0};
 
     system_status.slot_1_running = tx_slot_1.running;
     system_status.slot_2_running = tx_slot_2.running;
     system_status.led_1_on = led1_state;
     system_status.led_2_on = led2_state;
+    system_status.request_flags =
+        ((policy.slot_1_requested != 0U)
+            ? CAN_PROTOCOL_SYSTEM_REQUEST_SLOT_1 : 0U) |
+        ((policy.slot_2_requested != 0U)
+            ? CAN_PROTOCOL_SYSTEM_REQUEST_SLOT_2 : 0U) |
+        ((policy.led_1_requested != 0U)
+            ? CAN_PROTOCOL_SYSTEM_REQUEST_LED_1 : 0U) |
+        ((policy.led_2_requested != 0U)
+            ? CAN_PROTOCOL_SYSTEM_REQUEST_LED_2 : 0U) |
+        ((policy.pwm_requested != 0U)
+            ? CAN_PROTOCOL_SYSTEM_REQUEST_PWM : 0U);
+    system_status.physical_flags =
+        ((policy.switch_data_valid != 0U)
+            ? CAN_PROTOCOL_SYSTEM_PHYSICAL_DATA_VALID : 0U) |
+        (((policy.closed_switch_mask &
+           (1UL << APP_CONTROL_POLICY_LED1_INPUT)) != 0U)
+            ? CAN_PROTOCOL_SYSTEM_PHYSICAL_IN0_CLOSED : 0U) |
+        (((policy.closed_switch_mask &
+           (1UL << APP_CONTROL_POLICY_PWM_INPUT)) != 0U)
+            ? CAN_PROTOCOL_SYSTEM_PHYSICAL_IN1_CLOSED : 0U) |
+        (((policy.closed_switch_mask &
+           (1UL << APP_CONTROL_POLICY_SLOT1_INPUT)) != 0U)
+            ? CAN_PROTOCOL_SYSTEM_PHYSICAL_IN2_CLOSED : 0U) |
+        (((policy.closed_switch_mask &
+           (1UL << APP_CONTROL_POLICY_SLOT2_INPUT)) != 0U)
+            ? CAN_PROTOCOL_SYSTEM_PHYSICAL_IN3_CLOSED : 0U);
+    system_status.override_flags =
+        ((policy.slot_1_blocked != 0U)
+            ? CAN_PROTOCOL_SYSTEM_OVERRIDE_SLOT_1_BLOCKED : 0U) |
+        ((policy.slot_2_blocked != 0U)
+            ? CAN_PROTOCOL_SYSTEM_OVERRIDE_SLOT_2_BLOCKED : 0U) |
+        ((policy.led_1_overridden != 0U)
+            ? CAN_PROTOCOL_SYSTEM_OVERRIDE_LED_1_OVERRIDDEN : 0U) |
+        ((policy.pwm_blocked != 0U)
+            ? CAN_PROTOCOL_SYSTEM_OVERRIDE_PWM_BLOCKED : 0U);
 
     CAN_Protocol_EncodeSystemStatus(&system_status, txData);
 
@@ -1161,13 +1315,24 @@ void CAN_Send_System_Status(void)
 
 void CAN_Send_Pwm_Status(void)
 {
-    CAN_Protocol_PwmStatus_t pwm_status;
+    CAN_Protocol_PwmStatus_t pwm_status = {0};
+    App_ControlPolicySnapshot_t policy =
+        App_ControlPolicy_GetSnapshot();
     uint8_t txData[8] = {0};
     PWM_Control_State_t state = PWM_Control_GetState();
 
     pwm_status.running = state.running;
     pwm_status.duty_percent = state.duty_percent;
     pwm_status.actual_frequency_hz = state.actual_frequency_hz;
+    pwm_status.control_flags =
+        ((policy.pwm_requested != 0U)
+            ? CAN_PROTOCOL_PWM_CONTROL_REQUESTED : 0U) |
+        ((policy.pwm_permitted != 0U)
+            ? CAN_PROTOCOL_PWM_CONTROL_PHYSICAL_PERMITTED : 0U) |
+        ((policy.pwm_blocked != 0U)
+            ? CAN_PROTOCOL_PWM_CONTROL_BLOCKED : 0U) |
+        ((policy.switch_data_valid != 0U)
+            ? CAN_PROTOCOL_PWM_CONTROL_SWITCH_DATA_VALID : 0U);
 
     CAN_Protocol_EncodePwmStatus(&pwm_status, txData);
 

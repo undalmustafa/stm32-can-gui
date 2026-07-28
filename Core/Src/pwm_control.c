@@ -32,17 +32,8 @@ PWM_Control_Result_t PWM_Control_Init(
     pwm_channel = channel;
 
     g_pwmControlState.counter_clock_hz = counter_clock_hz;
-
-    if (HAL_TIM_PWM_Start(pwm_timer, pwm_channel) != HAL_OK)
-    {
-        g_pwmControlState.running = 0U;
-
-        return PWM_Control_RecordResult(
-            PWM_CONTROL_ERROR_HAL);
-    }
-
     g_pwmControlState.initialized = 1U;
-    g_pwmControlState.running = 1U;
+    g_pwmControlState.running = 0U;
 
     return PWM_Control_RecordResult(PWM_CONTROL_OK);
 }

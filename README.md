@@ -3,9 +3,9 @@
 This project is an embedded control and observability system for the
 **NUCLEO-H7A3ZI-Q**. An STM32H7A3 firmware application communicates with a
 Python/PySide6 desktop GUI over Classic CAN, drives configurable cyclic CAN
-traffic, controls board LEDs, generates a configurable PWM output, accesses a
-PCA2131 real-time clock over I2C, and reports RTC, alarm, CAN, and system
-health.
+traffic, monitors a TIC12400-Q1 switch module, arbitrates physical and GUI
+control requests, generates a configurable PWM output, accesses a PCA2131
+real-time clock over I2C, and reports RTC, alarm, CAN, and system health.
 
 The protocol layer is generated from a single YAML schema so firmware and GUI
 always share identical constants, identifiers, and status definitions.
@@ -19,7 +19,8 @@ and debugger-friendly diagnostics.
 - Two independently configured periodic CAN transmit slots
 - Standard 11-bit and extended 29-bit slot identifiers
 - Configurable cycle time and continuously wrapping 32-bit counters
-- Remote control of two board LEDs
+- Physical IN0 control of LED1 and GUI control of LED2
+- Physical permissions for PWM and both configurable CAN slots
 - Configurable PWM output with runtime frequency and duty-cycle adjustment
 - TIM3 PWM input capture with live frequency and duty-cycle telemetry
 - MCU-managed PWM/input-capture built-in test with CAN progress reporting
@@ -60,7 +61,7 @@ and debugger-friendly diagnostics.
 | I2C peripheral | I2C1, PB8 SCL and PB9 SDA |
 | PWM timer | TIM2 Channel 1, 1 MHz counter clock |
 | PWM output pin | PA0, ST Zio D32 (CN10 pin 29) |
-| PWM default | 10 kHz, 90% duty cycle |
+| PWM default configuration | 10 kHz, 90% duty cycle; output starts stopped |
 | Input capture | TIM3 Channel 1 on PA6, ST Zio D12 (CN7 pin 12) |
 | Capture counter/range | 1 MHz, approximately 16 Hz–500 kHz |
 | Watchdog | IWDG1, LSI/32 prescaler, ~1000 ms timeout |
@@ -90,6 +91,7 @@ callbacks to work.
 |   +-> can_recovery        bus-off restart and verification         |
 |   +-> app_diagnostics     periodic RX/TX health snapshot           |
 |   +-> app_log             binary event ring buffer                 |
+|   +-> app_control_policy  physical/GUI request arbitration         |
 |   +-> pwm_control         TIM2 frequency and duty-cycle driver     |
 |   +-> input_capture       TIM3 frequency and duty measurement     |
 |   +-> pwm_self_test       non-blocking closed-loop test sequencer  |
@@ -131,6 +133,7 @@ Core/Inc|Src/app_diagnostics.* Aggregated runtime diagnostics
 Core/Inc|Src/app_watchdog.* Health-gated IWDG policy and timing diagnostics
 Core/Inc|Src/app_watchdog_evidence.* Retained watchdog reset evidence
 Core/Inc|Src/app_reset_reason.* Boot-time RCC reset-cause snapshot
+Core/Inc|Src/app_control_policy.* Physical/GUI control arbitration
 Core/Inc|Src/pwm_control.*  Configurable TIM2 PWM output driver
 Core/Inc|Src/input_capture.* TIM3 PWM input capture driver
 Core/Inc|Src/pwm_self_test.* Closed-loop PWM/capture built-in test
@@ -415,7 +418,7 @@ bytes**. Multi-byte integers are little-endian.
 | MCU -> GUI | `0x553` | Standard | Reserved TIC12400 engineering ADC data |
 | MCU -> GUI | `0x554` | Standard | TIC12400 debounced switch states |
 | MCU -> GUI | `0x556` | Standard | RTC date/time and health |
-| MCU -> GUI | `0x557` | Standard | Slot and LED state |
+| MCU -> GUI | `0x557` | Standard | Effective, requested, and physical-control state |
 | MCU -> GUI | `0x558` | Standard | RTC alarm event |
 | MCU -> GUI | `0x55A` | Standard | Log info response |
 | MCU -> GUI | `0x55B` | Standard | Cyclic heartbeat |
@@ -469,7 +472,9 @@ Bytes 6-7 reserved, zero
 
 A zero limit stops the slot. Otherwise, the first frame is eligible immediately
 and contains the counter in bytes 0-3. The counter runs `1..limit` and wraps
-continuously. Bytes 4-7 are zero.
+continuously. Slot 1 transmits only while physical input IN2 is closed; Slot 2
+requires IN3. An open or unavailable permission input retains the GUI request
+but stops transmission.
 
 ### LED Command: `0x10`
 
@@ -478,6 +483,8 @@ continuously. Bytes 4-7 are zero.
 ```
 
 Logical LED 1 maps to the green board LED and logical LED 2 to the red LED.
+LED1 follows physical input IN0, so its GUI buttons are disabled. LED2 remains
+under GUI control.
 
 ### RTC Date/Time Command: `0x21`
 
@@ -529,12 +536,15 @@ Bytes 6-7 reserved, zero
 ```
 
 A frequency of zero stops the output. Otherwise, valid frequencies are
-1 Hz–1 MHz and duty is 0–100%.
+1 Hz–1 MHz and duty is 0–100%. A nonzero command records a GUI enable request,
+but PWM runs only while TIC12400 input IN1 is closed and valid. Opening IN1
+stops the output without discarding the configured frequency and duty.
 
 ### PWM Built-In Test: `0x41`, `0x55E`, `0x55F`
 
 The command payload is `[0x41, action, 0, 0, 0, 0, 0, 0]`, where action `1`
-starts the fixed 10-point test and action `0` cancels it.
+starts the fixed 10-point test and action `0` cancels it. IN1 must be closed
+before the test can start; opening IN1 cancels a running test and stops PWM.
 
 Status frames on `0x55E` contain:
 
@@ -879,6 +889,23 @@ snapshot, generation, SPI, or characterization information to end users.
 
 The accepted bench measurements are retained in
 `docs/tic12400_characterization_20260728.csv`.
+
+### Physical control policy
+
+The STM32, rather than the GUI, calculates the effective output state:
+
+| Input | Physical function |
+|---|---|
+| IN0 | Direct LED1 control: closed is on |
+| IN1 | PWM permission |
+| IN2 | CAN Slot 1 permission |
+| IN3 | CAN Slot 2 permission |
+
+PWM and CAN slots require both a GUI request and a valid closed permission
+input. Invalid TIC12400 data forces these controlled functions off. Essential
+CAN transport remains active so command acknowledgements, health, diagnostics,
+and recovery are still available. The GUI distinguishes a requested function
+from one that is running or blocked by its physical input.
 
 ### STM32 traffic health
 

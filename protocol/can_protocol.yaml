@@ -362,6 +362,53 @@ slot_flags:
     description: "Use 29-bit extended CAN identifier"
 
 # ---------------------------------------------------------------------------
+# System Status Control-Policy Flags (bytes 5-7 of 0x557)
+# ---------------------------------------------------------------------------
+system_status_request_flags:
+  slot_1:
+    bit: 0
+  slot_2:
+    bit: 1
+  led_1:
+    bit: 2
+  led_2:
+    bit: 3
+  pwm:
+    bit: 4
+
+system_status_physical_flags:
+  data_valid:
+    bit: 0
+  in0_closed:
+    bit: 1
+  in1_closed:
+    bit: 2
+  in2_closed:
+    bit: 3
+  in3_closed:
+    bit: 4
+
+system_status_override_flags:
+  slot_1_blocked:
+    bit: 0
+  slot_2_blocked:
+    bit: 1
+  led_1_overridden:
+    bit: 2
+  pwm_blocked:
+    bit: 4
+
+pwm_status_control_flags:
+  requested:
+    bit: 0
+  physical_permitted:
+    bit: 1
+  blocked:
+    bit: 2
+  switch_data_valid:
+    bit: 3
+
+# ---------------------------------------------------------------------------
 # Alarm Enable Flags (byte 1 of RTC_SET_ALARM command)
 # ---------------------------------------------------------------------------
 alarm_enable_flags:

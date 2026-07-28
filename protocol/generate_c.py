@@ -70,6 +70,22 @@ def generate_c_header(yaml_path, out_path):
             )
         out.write("\n")
 
+        out.write("/* System Status Control Policy */\n")
+        for section, prefix in (
+            ("system_status_request_flags", "SYSTEM_REQUEST"),
+            ("system_status_physical_flags", "SYSTEM_PHYSICAL"),
+            ("system_status_override_flags", "SYSTEM_OVERRIDE"),
+            ("pwm_status_control_flags", "PWM_CONTROL"),
+        ):
+            for key, val in data.get(section, {}).items():
+                name = key.upper()
+                bit = val["bit"]
+                out.write(
+                    f"#define CAN_PROTOCOL_{prefix}_{name} "
+                    f"0x{(1 << bit):02X}U\n"
+                )
+        out.write("\n")
+
         out.write("/* Alarm Enable Flags */\n")
         mask = 0
         for key, val in data.get("alarm_enable_flags", {}).items():

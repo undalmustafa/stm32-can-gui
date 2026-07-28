@@ -65,6 +65,9 @@ typedef struct
     uint8_t slot_2_running;
     uint8_t led_1_on;
     uint8_t led_2_on;
+    uint8_t request_flags;
+    uint8_t physical_flags;
+    uint8_t override_flags;
 } CAN_Protocol_SystemStatus_t;
 
 typedef struct
@@ -81,6 +84,7 @@ typedef struct
     uint8_t running;
     uint8_t duty_percent;
     uint32_t actual_frequency_hz;
+    uint8_t control_flags;
 } CAN_Protocol_PwmStatus_t;
 
 typedef struct

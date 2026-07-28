@@ -98,8 +98,10 @@ class PwmPanel:
         self.pwm_state = QLabel("Stopped")
         self.pwm_frequency = QLabel("0 Hz")
         self.pwm_duty = QLabel("0%")
+        self.pwm_permission = QLabel("Waiting for IN1")
         for row, (name, value) in enumerate((
             ("State", self.pwm_state),
+            ("Physical Permission", self.pwm_permission),
             ("Actual Frequency", self.pwm_frequency),
             ("Actual Duty", self.pwm_duty),
             ("Output Pin", QLabel("PA0 (TIM2 CH1)")),
@@ -196,9 +198,25 @@ class PwmPanel:
         self._latest_pwm_status = dict(pwm_status)
         self._latest_capture_status = dict(input_capture_status)
         running = pwm_status["running"]
+        permitted = pwm_status.get("physical_permitted", True)
+        blocked = pwm_status.get("blocked", False)
+        switch_valid = pwm_status.get("switch_data_valid", True)
         measured = input_capture_status["frequency_hz"]
         detected = input_capture_status["signal_detected"]
-        self.pwm_state.setText("Running" if running else "Stopped")
+        if running:
+            state_text = "Running"
+        elif blocked:
+            state_text = "Blocked by IN1"
+        else:
+            state_text = "Stopped"
+        self.pwm_state.setText(state_text)
+        if not switch_valid:
+            permission_text = "Unavailable — PWM forced off"
+        elif permitted:
+            permission_text = "IN1 CLOSED — permitted"
+        else:
+            permission_text = "IN1 OPEN — inhibited"
+        self.pwm_permission.setText(permission_text)
         self.pwm_frequency.setText(f'{pwm_status["frequency_hz"]:,} Hz')
         self.pwm_duty.setText(f'{pwm_status["duty_percent"]}%')
         self.capture_state.setText("Detected" if detected else "No signal")
@@ -256,7 +274,10 @@ class PwmPanel:
 
         self.self_test_progress.setRange(0, total)
         self.self_test_progress.setValue(min(completed, total))
-        self.self_test_start_button.setEnabled(not running)
+        permitted = self._latest_pwm_status.get(
+            "physical_permitted", True
+        )
+        self.self_test_start_button.setEnabled(not running and permitted)
         self.self_test_cancel_button.setEnabled(running)
         self.control_group.setEnabled(not running)
 
