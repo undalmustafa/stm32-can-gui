@@ -292,6 +292,30 @@ class Tic12400Controller:
         configuration_valid = bool(
             flags & TIC12400_PROFILE_CONFIGURATION_VALID
         )
+        profile_changed = (
+            self.profile["received"]
+            and (
+                data[6] != self.profile["generation"]
+                or battery_switch_mask !=
+                self.profile["battery_switch_mask"]
+            )
+        )
+        if profile_changed or not configuration_valid:
+            self.switch_state.update({
+                "received": False,
+                "data_valid": False,
+                "closed_bitmap": 0,
+                "valid_mask": 0,
+                "generation": None,
+                "updated_at": None,
+            })
+            for channel in self.channels:
+                channel["state"] = (
+                    "NOT_FITTED"
+                    if not channel["fitted"]
+                    else "UNAVAILABLE"
+                )
+
         self.profile.update({
             "received": True,
             "configuration_valid": configuration_valid,

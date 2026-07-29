@@ -190,6 +190,63 @@ def main():
     expect(controller.channels[0]["state"] == "UNAVAILABLE",
            "invalid telemetry never presents a guessed open state")
 
+    reconfigured = Tic12400Controller(
+        renderer=lambda **_snapshot: None,
+        clock=lambda: 200.0,
+    )
+    reconfigured.handle_message(Message(
+        TIC12400_PROFILE_RX_ID,
+        [
+            0,
+            0,
+            0,
+            0xFF,
+            0x03,
+            0,
+            1,
+            TIC12400_PROFILE_CONFIGURATION_VALID,
+        ],
+    ))
+    reconfigured.handle_message(switch_frame(
+        closed_mask,
+        fitted_mask,
+        49,
+        TIC12400_SWITCH_DATA_VALID,
+    ))
+    expect(reconfigured.switch_state["generation"] == 49,
+           "pre-reconfiguration generation is established")
+
+    reconfigured.handle_message(Message(
+        TIC12400_PROFILE_RX_ID,
+        [
+            1,
+            0,
+            0,
+            0xFF,
+            0x03,
+            0,
+            2,
+            TIC12400_PROFILE_CONFIGURATION_VALID,
+        ],
+    ))
+    expect(reconfigured.switch_state["generation"] is None,
+           "profile change clears the old generation reference")
+    expect(not reconfigured.switch_state["data_valid"],
+           "old state is hidden until the new baseline arrives")
+
+    reconfigured.handle_message(switch_frame(
+        1,
+        fitted_mask,
+        1,
+        TIC12400_SWITCH_DATA_VALID,
+    ))
+    expect(reconfigured.switch_state["generation"] == 1,
+           "generation one is accepted after reconfiguration")
+    expect(reconfigured.switch_state["stale_frames"] == 0,
+           "new baseline is not rejected as stale")
+    expect(reconfigured.channels[0]["state"] == "CLOSED",
+           "new-profile switch state is rendered")
+
     fault_status = Message(
         TIC12400_STATUS_RX_ID,
         [0x41, 0x20, 0x05, 0x03, 0x02, 0x00, 0x01, 0x00],
