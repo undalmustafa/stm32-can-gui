@@ -9,6 +9,7 @@ typedef struct
 {
     uint32_t status_frames_accepted;
     uint32_t switch_frames_accepted;
+    uint32_t profile_frames_accepted;
     uint32_t tx_failures;
     CAN_Transport_Result_t last_tx_result;
     uint8_t last_switch_generation;

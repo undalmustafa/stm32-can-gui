@@ -115,6 +115,12 @@ identifiers:
     direction: mcu_to_gui
     description: "Debounced TIC12400 open/closed switch state"
 
+  tic12400_profile:
+    id: 0x0555
+    type: standard
+    direction: mcu_to_gui
+    description: "Applied TIC12400 switch-polarity profile"
+
 command_transport:
   identifier_mode: fixed
   serialized_requests: true
@@ -174,6 +180,10 @@ commands:
   log_read_sequence:
     code: 0x31
     description: "Request one STM32 event-log record by sequence"
+
+  tic12400_set_polarity:
+    code: 0x50
+    description: "Set IN0-IN9 battery/ground switch polarity mask"
 
 command_ack_status_codes:
   accepted:
@@ -441,6 +451,7 @@ alarm_event_flags:
 # ---------------------------------------------------------------------------
 tic12400_transport:
   adc_channel_count: 24
+  battery_capable_mask: 1023
   adc_codes_per_frame: 3
   adc_group_count: 8
   adc_code_max: 1023
@@ -449,6 +460,10 @@ tic12400_transport:
 
 tic12400_switch_flags:
   data_valid:
+    bit: 0
+
+tic12400_profile_flags:
+  configuration_valid:
     bit: 0
 
 tic12400_status_flags:

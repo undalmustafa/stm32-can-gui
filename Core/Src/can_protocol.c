@@ -128,6 +128,35 @@ uint8_t CAN_Protocol_DecodeRtcAlarmCommand(
     return 1U;
 }
 
+uint8_t CAN_Protocol_DecodeTic12400PolarityCommand(
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE],
+    uint32_t *battery_switch_mask)
+{
+    uint32_t decoded_mask;
+
+    if ((payload == NULL) || (battery_switch_mask == NULL))
+    {
+        return 0U;
+    }
+
+    decoded_mask =
+        ((uint32_t)payload[1]) |
+        ((uint32_t)payload[2] << 8U) |
+        ((uint32_t)payload[3] << 16U);
+    if (((decoded_mask &
+          ~CAN_PROTOCOL_TIC12400_BATTERY_CAPABLE_MASK) != 0U) ||
+        (payload[4] != 0U) ||
+        (payload[5] != 0U) ||
+        (payload[6] != 0U) ||
+        (payload[7] != 0U))
+    {
+        return 0U;
+    }
+
+    *battery_switch_mask = decoded_mask;
+    return 1U;
+}
+
 void CAN_Protocol_EncodeRtcStatus(CAN_Protocol_RtcStatusCode_t status_code,
                                   uint8_t hal_status,
                                   uint32_t hal_error,
@@ -421,4 +450,23 @@ void CAN_Protocol_EncodeTic12400SwitchState(
     payload[6] = state->generation;
     payload[7] = (state->data_valid != 0U) ?
         CAN_PROTOCOL_TIC12400_SWITCH_DATA_VALID : 0U;
+}
+
+void CAN_Protocol_EncodeTic12400Profile(
+    const CAN_Protocol_Tic12400Profile_t *profile,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = (uint8_t)(profile->battery_switch_mask & 0xFFU);
+    payload[1] =
+        (uint8_t)((profile->battery_switch_mask >> 8U) & 0xFFU);
+    payload[2] =
+        (uint8_t)((profile->battery_switch_mask >> 16U) & 0xFFU);
+    payload[3] = (uint8_t)(profile->battery_capable_mask & 0xFFU);
+    payload[4] =
+        (uint8_t)((profile->battery_capable_mask >> 8U) & 0xFFU);
+    payload[5] =
+        (uint8_t)((profile->battery_capable_mask >> 16U) & 0xFFU);
+    payload[6] = profile->generation;
+    payload[7] = (profile->configuration_valid != 0U) ?
+        CAN_PROTOCOL_TIC12400_PROFILE_CONFIGURATION_VALID : 0U;
 }

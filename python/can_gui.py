@@ -47,9 +47,12 @@ class CanGui(QWidget):
             command_requested=self.send_pwm_command,
             self_test_requested=self.send_pwm_self_test,
         )
-        self.tic12400_panel = Tic12400Panel()
+        self.tic12400_panel = Tic12400Panel(
+            polarity_requested=self.send_tic12400_polarity
+        )
         self.tic12400_controller = Tic12400Controller(
-            renderer=self.tic12400_panel.render
+            renderer=self.tic12400_panel.render,
+            command_sender=self.send_can_command,
         )
 
         self.can_connection_panel = CanConnectionPanel(
@@ -217,6 +220,17 @@ class CanGui(QWidget):
 
     def send_pwm_self_test(self, start=True):
         return self.can_app_controller.send_pwm_self_test(start)
+
+    def send_tic12400_polarity(self, battery_switch_mask):
+        try:
+            return self.tic12400_controller.request_polarity(
+                battery_switch_mask
+            )
+        except ValueError as error:
+            QMessageBox.warning(
+                self, "Invalid switch polarity", str(error)
+            )
+            return False
 
     def handle_application_message(self, msg):
         if self.rtc_controller.handle_message(msg):

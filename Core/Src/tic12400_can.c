@@ -6,11 +6,16 @@
 
 #define TIC12400_CAN_STATUS_PERIOD_MS 500U
 #define TIC12400_CAN_SWITCH_PERIOD_MS 500U
+#define TIC12400_CAN_PROFILE_PERIOD_MS 500U
 
 _Static_assert(
     CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT ==
     TIC12400_SWITCH_CHANNEL_COUNT,
     "TIC12400 protocol and driver channel counts must match");
+_Static_assert(
+    CAN_PROTOCOL_TIC12400_BATTERY_CAPABLE_MASK ==
+    TIC12400_PROFILE_BATTERY_CAPABLE_MASK,
+    "TIC12400 battery-capable masks must match");
 _Static_assert(
     CAN_PROTOCOL_TIC12400_SWITCH_CLOSED_MAX_ADC_CODE ==
     TIC12400_SWITCH_CLOSED_MAX_ADC_CODE,
@@ -24,6 +29,7 @@ volatile TIC12400_CanSnapshot_t g_tic12400_can;
 
 static uint32_t tic12400_can_last_status_tick;
 static uint32_t tic12400_can_last_switch_tick;
+static uint32_t tic12400_can_last_profile_tick;
 
 static uint16_t TIC12400_CAN_SaturateU16(uint32_t value)
 {
@@ -161,11 +167,36 @@ static void TIC12400_CAN_SendSwitchState(void)
         state.generation;
 }
 
+static void TIC12400_CAN_SendProfile(void)
+{
+    CAN_Protocol_Tic12400Profile_t profile = {0};
+    CAN_Transport_Result_t result;
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE] = {0};
+
+    profile.battery_switch_mask =
+        g_tic12400_probe.battery_switch_mask;
+    profile.battery_capable_mask =
+        g_tic12400_probe.battery_capable_mask;
+    profile.generation = g_tic12400_probe.profile_generation;
+    profile.configuration_valid =
+        g_tic12400_probe.configuration_passed;
+
+    CAN_Protocol_EncodeTic12400Profile(&profile, payload);
+    result = CAN_Transport_SendClassicLatest(
+        CAN_PROTOCOL_TIC12400_PROFILE_TX_ID,
+        CAN_TRANSPORT_ID_STANDARD,
+        payload);
+    TIC12400_CAN_RecordResult(
+        result,
+        &g_tic12400_can.profile_frames_accepted);
+}
+
 void TIC12400_CAN_Init(void)
 {
     g_tic12400_can = (TIC12400_CanSnapshot_t){0};
     tic12400_can_last_status_tick = HAL_GetTick();
     tic12400_can_last_switch_tick = HAL_GetTick();
+    tic12400_can_last_profile_tick = HAL_GetTick();
 }
 
 void TIC12400_CAN_Process(void)
@@ -177,6 +208,13 @@ void TIC12400_CAN_Process(void)
     {
         tic12400_can_last_status_tick = now;
         TIC12400_CAN_SendStatus();
+    }
+
+    if ((now - tic12400_can_last_profile_tick) >=
+        TIC12400_CAN_PROFILE_PERIOD_MS)
+    {
+        tic12400_can_last_profile_tick = now;
+        TIC12400_CAN_SendProfile();
     }
 
     if ((g_tic12400_probe.comparator_sample_batches == 0U) ||

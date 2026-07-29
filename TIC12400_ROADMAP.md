@@ -413,11 +413,14 @@ Implemented monitoring telemetry:
       the low 16 bits of the last nonzero clear-on-read `INT_STAT`.
 - [x] `0x554` debounced state: 24-bit closed bitmap, 24-bit validity mask,
       generation, and data-valid flag. IN12 is always invalid and clear.
+- [x] `0x555` applied profile: 24-bit battery-switch mask, supported-channel
+      mask, profile generation, and configuration-valid confirmation.
 - [x] Transmit state immediately on a stable generation change and every
       500 ms as a replaceable heartbeat.
 - [x] Stop cyclic `0x553` raw ADC traffic after characterization; the ID
       remains reserved for engineering diagnostics.
-- [ ] Add configuration, action, and channel-detail commands.
+- [x] Add the B1-authorized `0x50` polarity command for IN0–IN9.
+- [ ] Add remaining action and channel-detail commands.
 - [ ] Add high-priority TIC12400 fault events.
 
 Protocol rules:
@@ -480,11 +483,12 @@ Each channel shows:
 - Recent TIC12400 events integrated with the existing Logs & Errors page.
 
 - [x] Add `tic12400_controller.py`.
-- [x] Add a read-only `tic12400_panel.py` for debounced OPEN/CLOSED state.
+- [x] Add `tic12400_panel.py` for debounced OPEN/CLOSED state and validated
+      IN0–IN9 ground/battery polarity selection.
 - [x] Compose the page through `main_window_view.py`.
 - [x] Route CAN telemetry through the top-level application.
-- [x] Add controller, panel, protocol, rendering, bitmap, invalid-data, and
-      stale-state tests for the read-only telemetry path.
+- [x] Add controller, panel, protocol, rendering, bitmap, invalid-data,
+      stale-state, polarity-command, and applied-profile tests.
 
 Exit criterion: the GUI can configure and observe every supported channel
 without exposing invalid combinations, and displayed state always comes from
@@ -507,8 +511,8 @@ confirmed MCU telemetry rather than optimistic button clicks.
 - [ ] Configure poll period and active time with range checks.
 - [ ] Measure switch detection latency and average supply current.
 - [ ] Add clean-current polling only if required by the chosen switch network.
-- [ ] Run ADC self-diagnostic and configuration CRC on demand and after
-      reconfiguration.
+- [x] Run configuration CRC after reconfiguration.
+- [ ] Run ADC self-diagnostic and configuration CRC on demand.
 
 Exit criterion: every resistor-coded position is detected across its tolerance
 range, and polling-mode latency/current meet documented targets.

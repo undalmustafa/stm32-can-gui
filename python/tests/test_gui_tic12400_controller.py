@@ -10,6 +10,9 @@ if not (GUI_DIRECTORY / "can_gui_app").is_dir():
 sys.path.insert(0, str(GUI_DIRECTORY))
 
 from can_gui_app.protocol import (  # noqa: E402
+    CMD_TIC12400_SET_POLARITY,
+    TIC12400_PROFILE_CONFIGURATION_VALID,
+    TIC12400_PROFILE_RX_ID,
     TIC12400_STATUS_RX_ID,
     TIC12400_SWITCH_DATA_VALID,
     TIC12400_SWITCH_STATE_RX_ID,
@@ -43,6 +46,7 @@ def switch_frame(closed, valid, generation, flags):
 
 def main():
     rendered = []
+    sent_commands = []
     clock_value = [100.0]
 
     def render(**snapshot):
@@ -50,6 +54,9 @@ def main():
 
     controller = Tic12400Controller(
         renderer=render,
+        command_sender=(
+            lambda data: sent_commands.append(list(data)) or True
+        ),
         clock=lambda: clock_value[0],
     )
     expect(
@@ -76,6 +83,47 @@ def main():
            "INT status is little-endian")
     expect(status["updated_at"] == 100.0,
            "status reception time is retained")
+
+    battery_mask = (1 << 0) | (1 << 9)
+    expect(controller.handle_message(Message(
+        TIC12400_PROFILE_RX_ID,
+        [
+            battery_mask & 0xFF,
+            (battery_mask >> 8) & 0xFF,
+            0,
+            0xFF,
+            0x03,
+            0,
+            3,
+            TIC12400_PROFILE_CONFIGURATION_VALID,
+        ],
+    )), "TIC12400 applied-profile frame is consumed")
+    expect(controller.profile["configuration_valid"],
+           "applied profile is marked valid")
+    expect(controller.channels[0]["polarity"] == "BATTERY",
+           "battery-connected polarity is decoded")
+    expect(controller.channels[1]["polarity"] == "GROUND",
+           "ground-connected polarity is decoded")
+    expect(controller.channels[12]["polarity"] == "NOT_FITTED",
+           "unfitted channel has no polarity")
+
+    expect(controller.request_polarity((1 << 1) | (1 << 8)),
+           "valid polarity request is sent")
+    expect(sent_commands[-1] == [
+        CMD_TIC12400_SET_POLARITY,
+        0x02,
+        0x01,
+        0,
+        0,
+        0,
+        0,
+        0,
+    ], "polarity command carries the 24-bit battery mask")
+    try:
+        controller.request_polarity(1 << 10)
+        raise AssertionError("unsupported polarity was accepted")
+    except ValueError:
+        pass
 
     before = copy.deepcopy(status)
     controller.handle_message(Message(TIC12400_STATUS_RX_ID, [0] * 7))

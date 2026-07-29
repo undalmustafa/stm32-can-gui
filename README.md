@@ -176,7 +176,7 @@ The GUI is divided into five task-oriented pages:
 | Control | LEDs, CAN transmit slots, RTC, and alarms |
 | Live Data | Board telemetry and communication state |
 | PWM / Capture | PWM generation, measurement, and built-in test |
-| TIC12400 | Switch states only: open, closed, or unavailable |
+| TIC12400 | Switch state and supported input-polarity configuration |
 | Logs / Errors | Retained events, faults, and synchronization status |
 
 ### Remote control and physical overrides
@@ -215,12 +215,23 @@ The TIC12400-Q1 replaces many direct MCU inputs with a protected, diagnostic
 - Periodic status polling as an interrupt fallback
 - Communication-failure detection and automatic reinitialization
 
-Inputs IN0–IN9 can also support battery-connected switch configurations in an
-appropriate external circuit. This carrier is currently configured for
-ground-switched inputs, so that capability is not used.
+Inputs IN0–IN9 can be configured as ground-connected (`−`) or
+battery-connected (`+`) switches. IN10–IN23 are fixed as ground-connected,
+and IN12 is unavailable. The selected polarity must match the physical input
+circuit; the onboard carrier switches are ground-connected.
 
 The GUI intentionally hides raw register snapshots. It presents only the
-useful operator state: **Open**, **Closed**, or **Unavailable**.
+useful operator state and confirmed polarity. To change polarity:
+
+1. Confirm that the external input is wired for the selected topology.
+2. Press Nucleo **B1** to open the service-access window.
+3. Select `− Ground` or `+ Battery` for IN0–IN9 and press **Apply switch
+   polarity**.
+4. Wait for **Polarity profile applied**. The GUI reports the setting returned
+   by the MCU rather than assuming the command succeeded.
+
+Polarity changes are runtime-only. An MCU reset restores every fitted input to
+the ground-connected carrier default.
 
 ### PWM and input capture
 
@@ -276,6 +287,7 @@ Multi-byte values are little-endian.
 | `0x552` | TIC12400 status |
 | `0x553` | Reserved engineering ADC telemetry |
 | `0x554` | TIC12400 switch bitmap |
+| `0x555` | Applied TIC12400 polarity profile |
 | `0x556` | RTC date and time |
 | `0x557` | Requested, physical, and effective control state |
 | `0x558` | RTC alarm event |
@@ -300,6 +312,7 @@ Multi-byte values are little-endian.
 | `0x31` | Read an event by sequence number |
 | `0x40` | Configure or stop PWM |
 | `0x41` | Start or cancel the PWM built-in test |
+| `0x50` | Configure TIC12400 IN0–IN9 switch polarity |
 
 Every GUI command uses the fixed extended ID `0x1894AABB`; payload byte 0
 selects the command. The MCU acknowledges command execution on standard ID
@@ -391,8 +404,9 @@ matches the schema.
 ## Practical limitations
 
 - IN12 is not populated on the current switch board.
-- The TIC12400 battery-switch capability requires suitable external input
-  networks and is not enabled by the current carrier configuration.
+- TIC12400 battery-switch polarity is available only on IN0–IN9 and requires
+  a suitable battery-connected external input circuit. The onboard carrier
+  switches remain ground-connected.
 - Very high PWM frequencies have coarse duty-cycle resolution because of the
   1 MHz timer timebase.
 - B1 service authorization protects against accidental remote changes; it is

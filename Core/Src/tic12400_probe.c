@@ -47,6 +47,10 @@ static TIC12400_Profile_t tic12400_active_profile;
 static TIC12400_RecoveryState_t tic12400_recovery_state;
 static TIC12400_SwitchFilter_t tic12400_switch_filter;
 static uint32_t tic12400_last_service_tick;
+static uint32_t tic12400_requested_battery_switch_mask;
+static uint32_t tic12400_applied_battery_switch_mask;
+static uint8_t tic12400_profile_generation;
+static uint8_t tic12400_profile_applied;
 
 static void TIC12400_ProbeSyncRecoverySnapshot(void)
 {
@@ -512,9 +516,20 @@ static void TIC12400_ProbeConfigureInputs(void)
     uint32_t int_en_comp1;
     uint32_t int_en_comp2;
 
+    g_tic12400_probe.online = 0U;
+    g_tic12400_probe.configuration_completed = 0U;
+    g_tic12400_probe.configuration_passed = 0U;
+    g_tic12400_probe.crc_trigger_self_cleared = 0U;
+    g_tic12400_probe.crc_completed = 0U;
+    g_tic12400_probe.monitoring_started = 0U;
+    g_tic12400_probe.baseline_established = 0U;
+    g_tic12400_probe.switch_state_valid = 0U;
+    g_tic12400_probe.switch_valid_mask = 0U;
     g_tic12400_probe.configuration_result = TIC12400_RESULT_OK;
     tic12400_active_profile =
         TIC12400_Profile_CarrierBinary();
+    tic12400_active_profile.battery_switch_mask =
+        tic12400_requested_battery_switch_mask;
     g_tic12400_probe.profile_result =
         TIC12400_Profile_Validate(
             &tic12400_active_profile,
@@ -642,6 +657,18 @@ static void TIC12400_ProbeConfigureInputs(void)
     g_tic12400_probe.adc_characterization_active = 0U;
     g_tic12400_probe.monitoring_started = 1U;
 
+    if ((tic12400_profile_applied == 0U) ||
+        (tic12400_applied_battery_switch_mask !=
+         tic12400_active_profile.battery_switch_mask))
+    {
+        tic12400_profile_generation++;
+        tic12400_applied_battery_switch_mask =
+            tic12400_active_profile.battery_switch_mask;
+        tic12400_profile_applied = 1U;
+    }
+    g_tic12400_probe.profile_generation =
+        tic12400_profile_generation;
+
     /*
      * tSTARTUP is at most 400 us. Allow the first detection cycle to finish,
      * then preserve and acknowledge its expected baseline SSC interrupt.
@@ -767,6 +794,10 @@ void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
 {
     uint8_t succeeded;
 
+    tic12400_requested_battery_switch_mask = 0U;
+    tic12400_applied_battery_switch_mask = 0U;
+    tic12400_profile_generation = 0U;
+    tic12400_profile_applied = 0U;
     TIC12400_Driver_Init(&tic12400_device,
                          spi,
                          TIC12400_CS_GPIO_Port,
@@ -842,6 +873,57 @@ void TIC12400_Probe_NotifyInterruptFromIsr(void)
 {
     g_tic12400_probe.interrupt_count++;
     g_tic12400_probe.interrupt_pending = 1U;
+}
+
+uint8_t TIC12400_Probe_SetBatterySwitchMask(
+    uint32_t battery_switch_mask)
+{
+    TIC12400_Profile_t requested_profile =
+        TIC12400_Profile_CarrierBinary();
+    uint8_t succeeded;
+
+    requested_profile.battery_switch_mask = battery_switch_mask;
+    if (TIC12400_Profile_Validate(
+            &requested_profile,
+            TIC12400_PROFILE_CARRIER_FITTED_MASK) !=
+        TIC12400_PROFILE_OK)
+    {
+        return 0U;
+    }
+
+    if ((battery_switch_mask ==
+         tic12400_requested_battery_switch_mask) &&
+        (g_tic12400_probe.configuration_passed != 0U) &&
+        (g_tic12400_probe.monitoring_started != 0U))
+    {
+        return 1U;
+    }
+
+    tic12400_requested_battery_switch_mask = battery_switch_mask;
+    TIC12400_SwitchFilter_Init(&tic12400_switch_filter);
+    HAL_NVIC_DisableIRQ(TIC12400_INT_EXTI_IRQn);
+    TIC12400_ProbeConfigureInputs();
+    HAL_NVIC_EnableIRQ(TIC12400_INT_EXTI_IRQn);
+
+    succeeded =
+        (g_tic12400_probe.configuration_passed != 0U) ? 1U : 0U;
+    TIC12400_Recovery_RecordInitialResult(
+        &tic12400_recovery_state,
+        HAL_GetTick(),
+        succeeded);
+    if (succeeded != 0U)
+    {
+        g_tic12400_probe.online = 1U;
+        g_tic12400_probe.result = TIC12400_RESULT_OK;
+    }
+    else
+    {
+        g_tic12400_probe.result =
+            g_tic12400_probe.configuration_result;
+        TIC12400_ProbeMarkOffline();
+    }
+    TIC12400_ProbeSyncRecoverySnapshot();
+    return succeeded;
 }
 
 uint8_t TIC12400_Probe_GetSwitchState(

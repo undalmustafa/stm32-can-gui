@@ -236,6 +236,67 @@ void test_EncodeTic12400SwitchState_matches_wire_format(void)
         payload[7]);
 }
 
+void test_EncodeTic12400Profile_matches_wire_format(void)
+{
+    CAN_Protocol_Tic12400Profile_t profile = {
+        .battery_switch_mask = 0x00000281UL,
+        .battery_capable_mask = 0x000003FFUL,
+        .generation = 0x23U,
+        .configuration_valid = 1U,
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodeTic12400Profile(&profile, payload);
+
+    TEST_ASSERT_EQUAL_UINT8(0x81U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(0x02U, payload[1]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[2]);
+    TEST_ASSERT_EQUAL_UINT8(0xFFU, payload[3]);
+    TEST_ASSERT_EQUAL_UINT8(0x03U, payload[4]);
+    TEST_ASSERT_EQUAL_UINT8(0x00U, payload[5]);
+    TEST_ASSERT_EQUAL_UINT8(0x23U, payload[6]);
+    TEST_ASSERT_EQUAL_UINT8(
+        CAN_PROTOCOL_TIC12400_PROFILE_CONFIGURATION_VALID,
+        payload[7]);
+}
+
+void test_DecodeTic12400PolarityCommand_validates_mask_and_reserved_bytes(
+    void)
+{
+    uint8_t payload[8] = {
+        CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY,
+        0x81U,
+        0x02U,
+        0U,
+        0U,
+        0U,
+        0U,
+        0U,
+    };
+    uint32_t battery_switch_mask = 0U;
+
+    TEST_ASSERT_EQUAL_UINT8(
+        1U,
+        CAN_Protocol_DecodeTic12400PolarityCommand(
+            payload, &battery_switch_mask));
+    TEST_ASSERT_EQUAL_HEX32(0x00000281UL, battery_switch_mask);
+
+    payload[2] = 0x04U;
+    TEST_ASSERT_EQUAL_UINT8(
+        0U,
+        CAN_Protocol_DecodeTic12400PolarityCommand(
+            payload, &battery_switch_mask));
+    payload[2] = 0x02U;
+    payload[7] = 1U;
+    TEST_ASSERT_EQUAL_UINT8(
+        0U,
+        CAN_Protocol_DecodeTic12400PolarityCommand(
+            payload, &battery_switch_mask));
+    TEST_ASSERT_EQUAL_UINT8(
+        0U,
+        CAN_Protocol_DecodeTic12400PolarityCommand(NULL, NULL));
+}
+
 void test_CalculateCommandToken_uses_sae_j1850_crc8(void)
 {
     const uint8_t payload[8] =
@@ -266,6 +327,9 @@ int main(void)
     RUN_TEST(test_EncodeTic12400Status_matches_wire_format);
     RUN_TEST(test_EncodeTic12400AdcGroup_matches_wire_format);
     RUN_TEST(test_EncodeTic12400SwitchState_matches_wire_format);
+    RUN_TEST(test_EncodeTic12400Profile_matches_wire_format);
+    RUN_TEST(
+        test_DecodeTic12400PolarityCommand_validates_mask_and_reserved_bytes);
     RUN_TEST(test_CalculateCommandToken_uses_sae_j1850_crc8);
     return UNITY_END();
 }

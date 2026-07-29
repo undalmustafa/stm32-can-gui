@@ -35,6 +35,9 @@ uint8_t CAN_CommandGuard_IsPrivileged(
         case CAN_PROTOCOL_CMD_PWM_SELF_TEST:
             return (payload[1] == 0U) ? 0U : 1U;
 
+        case CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY:
+            return 1U;
+
         default:
             return 1U;
     }

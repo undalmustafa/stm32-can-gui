@@ -21,6 +21,8 @@ sys.path.insert(0, str(GUI_DIRECTORY))
 from can_gui_app.tic12400_controller import Tic12400Controller  # noqa: E402
 from can_gui_app.tic12400_panel import Tic12400Panel  # noqa: E402
 from can_gui_app.protocol import (  # noqa: E402
+    TIC12400_PROFILE_CONFIGURATION_VALID,
+    TIC12400_PROFILE_RX_ID,
     TIC12400_STATUS_RX_ID,
     TIC12400_SWITCH_DATA_VALID,
     TIC12400_SWITCH_STATE_RX_ID,
@@ -40,7 +42,12 @@ def expect(condition, description):
 
 def main():
     app = QApplication.instance() or QApplication([])
-    panel = Tic12400Panel()
+    polarity_requests = []
+    panel = Tic12400Panel(
+        polarity_requested=(
+            lambda mask: polarity_requests.append(mask) or True
+        )
+    )
     controller = Tic12400Controller(
         renderer=panel.render,
         clock=lambda: 12.0,
@@ -52,6 +59,19 @@ def main():
     controller.handle_message(Message(
         TIC12400_STATUS_RX_ID,
         [0x3F, 0x20, 0, 0, 0, 0, 8, 0],
+    ))
+    controller.handle_message(Message(
+        TIC12400_PROFILE_RX_ID,
+        [
+            0,
+            0,
+            0,
+            0xFF,
+            0x03,
+            0,
+            1,
+            TIC12400_PROFILE_CONFIGURATION_VALID,
+        ],
     ))
     closed = (1 << 0) | (1 << 22)
     valid = 0xFFEFFF
@@ -72,8 +92,8 @@ def main():
 
     expect(panel.status_label.text() == "Switch monitoring active",
            "healthy switch monitoring is shown")
-    expect(panel.channel_table.columnCount() == 2,
-           "end-user table contains only switch and state")
+    expect(panel.channel_table.columnCount() == 3,
+           "switch table includes applied polarity")
     expect(panel.channel_table.item(0, 1).text() == "CLOSED",
            "closed input is rendered")
     expect(panel.channel_table.item(1, 1).text() == "OPEN",
@@ -82,6 +102,45 @@ def main():
            "IN12 is visibly unavailable")
     expect(panel.channel_table.item(22, 1).text() == "CLOSED",
            "high bitmap channels are rendered correctly")
+    expect(panel._polarity_combos[0].currentText() == "− Ground",
+           "configurable inputs render confirmed ground polarity")
+    expect(
+        panel.channel_table.item(10, 2).text() ==
+        "− Ground (fixed)",
+        "IN10-IN23 are visibly locked to ground polarity",
+    )
+    expect(panel.apply_polarity_button.isEnabled(),
+           "polarity apply is enabled after profile confirmation")
+
+    panel._polarity_combos[0].setCurrentIndex(1)
+    panel.apply_polarity_button.click()
+    app.processEvents()
+    expect(polarity_requests == [1],
+           "apply sends the selected battery-input mask")
+    expect(
+        panel.polarity_status_label.text() ==
+        "Polarity requested — awaiting MCU confirmation",
+        "GUI waits for firmware confirmation",
+    )
+    controller.handle_message(Message(
+        TIC12400_PROFILE_RX_ID,
+        [
+            1,
+            0,
+            0,
+            0xFF,
+            0x03,
+            0,
+            2,
+            TIC12400_PROFILE_CONFIGURATION_VALID,
+        ],
+    ))
+    app.processEvents()
+    expect(
+        panel.polarity_status_label.text() ==
+        "Polarity profile applied",
+        "confirmed polarity clears the pending state",
+    )
 
     controller.handle_message(Message(
         TIC12400_STATUS_RX_ID,

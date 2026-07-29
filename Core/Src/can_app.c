@@ -14,6 +14,7 @@
 #include "pwm_control.h"
 #include "input_capture.h"
 #include "pwm_self_test.h"
+#include "tic12400_probe.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
 #define CAN_CONTROL_ACCESS_WINDOW_MS    240000UL
 
@@ -255,6 +256,19 @@ static CAN_CommandValidationResult_t CAN_Validate_Command(
             }
 
             return CAN_COMMAND_VALID;
+
+        case CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY:
+        {
+            uint32_t battery_switch_mask;
+
+            if (CAN_Protocol_DecodeTic12400PolarityCommand(
+                    data, &battery_switch_mask) == 0U)
+            {
+                return CAN_COMMAND_INVALID_PAYLOAD;
+            }
+
+            return CAN_COMMAND_VALID;
+        }
 
         default:
             return CAN_COMMAND_UNKNOWN;
@@ -756,10 +770,6 @@ void CAN_Process_Rx_Command(void)
 
         can_rx_stats.commands_accepted++;
         ack_flags = CAN_PROTOCOL_COMMAND_ACK_FLAG_EXECUTED;
-        CAN_Send_Command_Ack(
-            command,
-            CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
-            ack_flags);
 
         switch (command)
         {
@@ -848,9 +858,29 @@ void CAN_Process_Rx_Command(void)
                 CAN_Send_Pwm_Self_Test_Status();
                 break;
 
+            case CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY:
+            {
+                uint32_t battery_switch_mask;
+
+                if ((CAN_Protocol_DecodeTic12400PolarityCommand(
+                         RxData, &battery_switch_mask) == 0U) ||
+                    (TIC12400_Probe_SetBatterySwitchMask(
+                         battery_switch_mask) == 0U))
+                {
+                    ack_flags &=
+                        (uint8_t)~CAN_PROTOCOL_COMMAND_ACK_FLAG_EXECUTED;
+                }
+                break;
+            }
+
             default:
                 break;
         }
+
+        CAN_Send_Command_Ack(
+            command,
+            CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
+            ack_flags);
     }
 
     if ((processed_count == CAN_APP_RX_FRAME_BUDGET_PER_PROCESS) &&

@@ -40,6 +40,8 @@ def main():
            "TIC12400 ADC ID is generated")
     expect(protocol.TIC12400_SWITCH_STATE_RX_ID == 0x554,
            "TIC12400 switch-state ID is generated")
+    expect(protocol.TIC12400_PROFILE_RX_ID == 0x555,
+           "TIC12400 applied-profile ID is generated")
     expect(protocol.SYSTEM_REQUEST_SLOT_1 == 0x01
            and protocol.SYSTEM_REQUEST_PWM == 0x10,
            "system request flags are generated")
@@ -58,6 +60,8 @@ def main():
            "TIC12400 debounce count is generated")
     expect(protocol.TIC12400_ADC_CHANNEL_COUNT == 24,
            "TIC12400 channel count is generated")
+    expect(protocol.TIC12400_BATTERY_CAPABLE_MASK == 0x3FF,
+           "TIC12400 IN0-IN9 capability mask is generated")
     expect(protocol.TIC12400_ADC_CODES_PER_FRAME == 3,
            "TIC12400 ADC frame width is generated")
     expect(protocol.TIC12400_ADC_GROUP_COUNT == 8,
@@ -70,6 +74,8 @@ def main():
            "TIC12400 SPI service failure is named")
     expect(protocol.CMD_PWM_SELF_TEST == 0x41,
            "PWM built-in-test command is defined")
+    expect(protocol.CMD_TIC12400_SET_POLARITY == 0x50,
+           "TIC12400 polarity command is defined")
     expect(protocol.command_token([0x10, 2, 1, 0, 0, 0, 0, 0]) == 0x8C,
            "command ACK token uses CRC-8/SAE-J1850")
     expect(protocol.GUI_COMMAND_ID_EXT == generated.GUI_COMMAND_ID_EXT,

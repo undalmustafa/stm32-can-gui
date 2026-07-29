@@ -150,6 +150,14 @@ typedef struct
     uint8_t data_valid;
 } CAN_Protocol_Tic12400SwitchState_t;
 
+typedef struct
+{
+    uint32_t battery_switch_mask;
+    uint32_t battery_capable_mask;
+    uint8_t generation;
+    uint8_t configuration_valid;
+} CAN_Protocol_Tic12400Profile_t;
+
 uint16_t CAN_Protocol_ReadU16LE(const uint8_t *data);
 uint32_t CAN_Protocol_ReadU32LE(const uint8_t *data);
 void CAN_Protocol_WriteU32LE(uint8_t *data, uint32_t value);
@@ -163,6 +171,10 @@ uint8_t CAN_Protocol_IsValidId(uint8_t is_extended,
 uint8_t CAN_Protocol_DecodeRtcAlarmCommand(
     const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE],
     CAN_Protocol_RtcAlarmCommand_t *command);
+
+uint8_t CAN_Protocol_DecodeTic12400PolarityCommand(
+    const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE],
+    uint32_t *battery_switch_mask);
 
 void CAN_Protocol_EncodeRtcStatus(CAN_Protocol_RtcStatusCode_t status_code,
                                   uint8_t hal_status,
@@ -211,6 +223,10 @@ void CAN_Protocol_EncodeTic12400AdcGroup(
 
 void CAN_Protocol_EncodeTic12400SwitchState(
     const CAN_Protocol_Tic12400SwitchState_t *state,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodeTic12400Profile(
+    const CAN_Protocol_Tic12400Profile_t *profile,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 #endif /* CAN_PROTOCOL_H */

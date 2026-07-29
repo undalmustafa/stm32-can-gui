@@ -99,6 +99,11 @@ def generate_c_header(yaml_path, out_path):
             f"{tic12400_transport.get('adc_channel_count', 24)}U\n"
         )
         out.write(
+            "#define CAN_PROTOCOL_TIC12400_BATTERY_CAPABLE_MASK "
+            f"0x{tic12400_transport.get(
+                'battery_capable_mask', 0x3FF):06X}UL\n"
+        )
+        out.write(
             "#define CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME "
             f"{tic12400_transport.get('adc_codes_per_frame', 3)}U\n"
         )
@@ -125,6 +130,13 @@ def generate_c_header(yaml_path, out_path):
             bit = val["bit"]
             out.write(
                 f"#define CAN_PROTOCOL_TIC12400_SWITCH_{name} "
+                f"0x{(1 << bit):02X}U\n"
+            )
+        for key, val in data.get("tic12400_profile_flags", {}).items():
+            name = key.upper()
+            bit = val["bit"]
+            out.write(
+                f"#define CAN_PROTOCOL_TIC12400_PROFILE_{name} "
                 f"0x{(1 << bit):02X}U\n"
             )
         for key, val in data.get("tic12400_status_flags", {}).items():

@@ -54,6 +54,9 @@ static void test_state_enabling_commands_require_service_access(void)
          0U, 1U, 0U, 0U, 0U, 0U, 0U};
     const uint8_t self_test_start[8] =
         {CAN_PROTOCOL_CMD_PWM_SELF_TEST, 1U, 0U, 0U, 0U, 0U, 0U, 0U};
+    const uint8_t polarity_change[8] =
+        {CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY,
+         1U, 0U, 0U, 0U, 0U, 0U, 0U};
 
     TEST_ASSERT_EQUAL_UINT8(
         1U, CAN_CommandGuard_IsPrivileged(pwm_start));
@@ -65,6 +68,8 @@ static void test_state_enabling_commands_require_service_access(void)
         1U, CAN_CommandGuard_IsPrivileged(counter_start));
     TEST_ASSERT_EQUAL_UINT8(
         1U, CAN_CommandGuard_IsPrivileged(self_test_start));
+    TEST_ASSERT_EQUAL_UINT8(
+        1U, CAN_CommandGuard_IsPrivileged(polarity_change));
 }
 
 static void test_unknown_and_null_inputs_are_conservative(void)

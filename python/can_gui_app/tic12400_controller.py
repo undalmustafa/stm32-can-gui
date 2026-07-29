@@ -3,7 +3,11 @@
 import time
 
 from .protocol import (
+    CMD_TIC12400_SET_POLARITY,
     TIC12400_ADC_CHANNEL_COUNT,
+    TIC12400_BATTERY_CAPABLE_MASK,
+    TIC12400_PROFILE_CONFIGURATION_VALID,
+    TIC12400_PROFILE_RX_ID,
     TIC12400_RESULT_NAMES,
     TIC12400_STATUS_ADC_CHARACTERIZATION,
     TIC12400_STATUS_CONFIGURATION_VALID,
@@ -32,9 +36,11 @@ class Tic12400Controller:
     FITTED_MASK = (
         (1 << TIC12400_ADC_CHANNEL_COUNT) - 1
     ) & ~(1 << NOT_FITTED_CHANNEL)
+    BATTERY_CAPABLE_MASK = TIC12400_BATTERY_CAPABLE_MASK
 
-    def __init__(self, renderer, clock=None):
+    def __init__(self, renderer, command_sender=None, clock=None):
         self._renderer = renderer
+        self._command_sender = command_sender
         self._clock = clock or time.monotonic
         self.device_status = {
             "received": False,
@@ -63,6 +69,7 @@ class Tic12400Controller:
                     if channel != self.NOT_FITTED_CHANNEL
                     else "NOT_FITTED"
                 ),
+                "polarity": "UNAVAILABLE",
             }
             for channel in range(TIC12400_ADC_CHANNEL_COUNT)
         ]
@@ -76,12 +83,22 @@ class Tic12400Controller:
             "stale_frames": 0,
             "updated_at": None,
         }
+        self.profile = {
+            "received": False,
+            "configuration_valid": False,
+            "battery_switch_mask": 0,
+            "battery_capable_mask": self.BATTERY_CAPABLE_MASK,
+            "generation": None,
+            "malformed_frames": 0,
+            "updated_at": None,
+        }
 
     def render(self):
         self._renderer(
             device_status=self.device_status,
             channels=self.channels,
             switch_state=self.switch_state,
+            profile=self.profile,
         )
 
     @staticmethod
@@ -101,7 +118,32 @@ class Tic12400Controller:
             self._handle_switch_state(msg)
             return True
 
+        if msg.arbitration_id == TIC12400_PROFILE_RX_ID:
+            self._handle_profile(msg)
+            return True
+
         return False
+
+    def request_polarity(self, battery_switch_mask):
+        battery_switch_mask = int(battery_switch_mask)
+        if ((battery_switch_mask < 0) or
+                (battery_switch_mask & ~self.BATTERY_CAPABLE_MASK)):
+            raise ValueError(
+                "Only IN0-IN9 support battery-connected polarity"
+            )
+        if self._command_sender is None:
+            return False
+
+        return self._command_sender([
+            CMD_TIC12400_SET_POLARITY,
+            battery_switch_mask & 0xFF,
+            (battery_switch_mask >> 8) & 0xFF,
+            (battery_switch_mask >> 16) & 0xFF,
+            0,
+            0,
+            0,
+            0,
+        ])
 
     def _handle_status(self, msg):
         data = list(msg.data)
@@ -224,5 +266,51 @@ class Tic12400Controller:
                 )
             else:
                 channel["state"] = "UNAVAILABLE"
+
+        self.render()
+
+    def _handle_profile(self, msg):
+        data = list(msg.data)
+        if len(data) != 8:
+            self.profile["malformed_frames"] += 1
+            return
+
+        battery_switch_mask = int.from_bytes(
+            bytes(data[0:3]), "little"
+        )
+        battery_capable_mask = int.from_bytes(
+            bytes(data[3:6]), "little"
+        )
+        flags = data[7]
+
+        if ((flags & ~TIC12400_PROFILE_CONFIGURATION_VALID) != 0 or
+                (battery_capable_mask & ~self.FITTED_MASK) != 0 or
+                (battery_switch_mask & ~battery_capable_mask) != 0):
+            self.profile["malformed_frames"] += 1
+            return
+
+        configuration_valid = bool(
+            flags & TIC12400_PROFILE_CONFIGURATION_VALID
+        )
+        self.profile.update({
+            "received": True,
+            "configuration_valid": configuration_valid,
+            "battery_switch_mask": battery_switch_mask,
+            "battery_capable_mask": battery_capable_mask,
+            "generation": data[6],
+            "updated_at": self._clock(),
+        })
+
+        for channel in self.channels:
+            index = channel["channel"]
+            bit = 1 << index
+            if not channel["fitted"]:
+                channel["polarity"] = "NOT_FITTED"
+            elif not configuration_valid:
+                channel["polarity"] = "UNAVAILABLE"
+            elif battery_switch_mask & bit:
+                channel["polarity"] = "BATTERY"
+            else:
+                channel["polarity"] = "GROUND"
 
         self.render()
