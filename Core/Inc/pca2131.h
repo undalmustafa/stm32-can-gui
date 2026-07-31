@@ -3,6 +3,8 @@
 
 #include "stm32h7xx_hal.h"
 
+#define PCA2131_I2C_TIMEOUT_MS 10U
+
 typedef enum
 {
     PCA2131_RESULT_OK = 0,

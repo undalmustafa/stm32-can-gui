@@ -2,7 +2,6 @@
 
 #include <stddef.h>
 
-#define TIC12400_SPI_TIMEOUT_MS            10U
 #define TIC12400_CS_SETUP_DELAY_US          1U
 #define TIC12400_CS_HOLD_DELAY_US           1U
 #define TIC12400_INTERFRAME_DELAY_US        5U

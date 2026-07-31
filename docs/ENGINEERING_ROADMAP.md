@@ -154,10 +154,15 @@ Hedef kabul testi:
 
 ### 2.2 WCET ve latency ölçümü
 
-- DWT CYCCNT ile main loop ve her servis için current/min/max/overrun tut.
-- SPI/I2C timeout'larını servis bütçesiyle ilişkilendir.
-- CAN command-to-ACK latency histogramı üret.
-- Ölçümleri heartbeat/diagnostic frame'lerine ve GUI grafiğine taşı.
+- [x] DWT CYCCNT ile main loop ve sekiz servis için current/min/max/budget ve
+  overrun count tut. Sayaç wraparound farkını unsigned çıkarımla işle.
+- [x] TIC12400 SPI ve PCA2131 I2C 10 ms HAL timeout'larını 12 ms servis
+  bütçesine bağla; CAN için 25 ms, toplam loop için 50 ms bütçe tanımla.
+- [x] CAN frame'in FIFO'dan alınmasından ACK'in transport'a teslimine kadar
+  9 kovalı latency histogramı ve yaklaşık p50/p95/p99/max üret.
+- [x] Servis timing özetini `0x561`, ACK özetini `0x562` diagnostic frame'ine
+  taşı.
+- [ ] Ölçümleri GUI timing görünümü ve sınırlı geçmiş grafiğine taşı.
 
 Kabul kriteri: p50/p95/p99/max loop ve ACK gecikmesi, normal yük ve enjekte
 edilmiş çevrebirim arızası için raporlanmalıdır.

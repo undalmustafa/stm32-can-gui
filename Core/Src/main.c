@@ -26,6 +26,7 @@
 #include "app_fault.h"
 #include "app_safe_state.h"
 #include "app_startup.h"
+#include "app_timing.h"
 #include "rtc_app.h"
 #include "app_log.h"
 #include "app_reset_reason.h"
@@ -136,6 +137,8 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   App_Startup_Result_t init_result;
+  uint32_t loop_timing_start;
+  uint32_t service_timing_start;
 
   /* USER CODE END 1 */
 
@@ -159,6 +162,8 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+
+  App_Timing_Init(SystemCoreClock);
 
   /* USER CODE END SysInit */
 
@@ -323,19 +328,47 @@ int main(void)
   while (1)
   {
 
+    loop_timing_start = App_Timing_Begin();
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 
+	  service_timing_start = App_Timing_Begin();
 	  TIC12400_Probe_Process();
+	  App_Timing_End(APP_TIMING_SERVICE_TIC12400_PROBE,
+	                 service_timing_start);
+
+	  service_timing_start = App_Timing_Begin();
 	  App_Control_Process();
+	  App_Timing_End(APP_TIMING_SERVICE_CONTROL, service_timing_start);
+
+	  service_timing_start = App_Timing_Begin();
 	  RTC_Process();
-	  Input_Capture_Process();
 	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_RTC_SERVICE);
+	  App_Timing_End(APP_TIMING_SERVICE_RTC, service_timing_start);
+
+	  service_timing_start = App_Timing_Begin();
+	  Input_Capture_Process();
+	  App_Timing_End(APP_TIMING_SERVICE_INPUT_CAPTURE,
+	                 service_timing_start);
+
+	  service_timing_start = App_Timing_Begin();
 	  CAN_App_Process();
+	  App_Timing_End(APP_TIMING_SERVICE_CAN_APP, service_timing_start);
+
+	  service_timing_start = App_Timing_Begin();
 	  TIC12400_CAN_Process();
+	  App_Timing_End(APP_TIMING_SERVICE_TIC12400_CAN,
+	                 service_timing_start);
+
+	  service_timing_start = App_Timing_Begin();
 	  App_Watchdog_CheckIn(APP_WATCHDOG_HEARTBEAT_MAIN_LOOP);
 	  App_Watchdog_Process();
+	  App_Timing_End(APP_TIMING_SERVICE_WATCHDOG,
+	                 service_timing_start);
+
+	  App_Timing_End(APP_TIMING_SERVICE_MAIN_LOOP, loop_timing_start);
 
   }
   /* USER CODE END 3 */

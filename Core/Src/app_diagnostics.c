@@ -11,6 +11,8 @@ static uint32_t last_logged_rx_budget_hit_count;
 static uint32_t last_logged_rx_watermark_count;
 static uint32_t last_logged_rx_full_count;
 static uint32_t last_logged_rx_message_lost_count;
+static uint32_t
+    last_logged_timing_overrun_count[APP_TIMING_SERVICE_COUNT];
 
 static void App_Diagnostics_LogCounterDelta(
     uint32_t current_count,
@@ -37,8 +39,11 @@ static void App_Diagnostics_LogCounterDelta(
 
 static void App_Diagnostics_Capture(uint32_t now)
 {
+    uint32_t service;
+
     CAN_App_GetRxStats(&diagnostics_snapshot.can_rx);
     CAN_Transport_GetStats(&diagnostics_snapshot.can_tx);
+    App_Timing_GetSnapshot(&diagnostics_snapshot.timing);
 
     diagnostics_snapshot.uptime_ms = now;
     diagnostics_snapshot.update_count++;
@@ -157,16 +162,58 @@ static void App_Diagnostics_Capture(uint32_t now)
         &last_logged_rx_message_lost_count,
         APP_LOG_SEVERITY_FAULT,
         APP_LOG_EVENT_CAN_RX_MESSAGE_LOST);
+
+    for (service = 0U;
+         service < (uint32_t)APP_TIMING_SERVICE_COUNT;
+         service++)
+    {
+        uint32_t current_count =
+            diagnostics_snapshot.timing.service[service].overrun_count;
+        uint32_t previous_count =
+            last_logged_timing_overrun_count[service];
+
+        if (current_count < previous_count)
+        {
+            last_logged_timing_overrun_count[service] = current_count;
+        }
+        else if (current_count > previous_count)
+        {
+            uint32_t delta = current_count - previous_count;
+            uint32_t packed_service_delta =
+                (service & 0xFFU) |
+                ((delta > 0x00FFFFFFUL ? 0x00FFFFFFUL : delta) << 8U);
+
+            diagnostics_snapshot.latched_issue_flags |=
+                APP_DIAGNOSTICS_ISSUE_TIMING_OVERRUN;
+            (void)App_Log_Push(
+                APP_LOG_SOURCE_SYSTEM,
+                APP_LOG_SEVERITY_WARNING,
+                APP_LOG_EVENT_TIMING_OVERRUN,
+                packed_service_delta,
+                App_Timing_CyclesToMicroseconds(
+                    diagnostics_snapshot.timing
+                        .service[service].maximum_cycles));
+            last_logged_timing_overrun_count[service] = current_count;
+        }
+    }
 }
 
 void App_Diagnostics_Init(void)
 {
+    uint32_t service;
+
     diagnostics_snapshot = (App_Diagnostics_Snapshot_t){0};
     last_logged_queue_overflow_count = 0U;
     last_logged_rx_budget_hit_count = 0U;
     last_logged_rx_watermark_count = 0U;
     last_logged_rx_full_count = 0U;
     last_logged_rx_message_lost_count = 0U;
+    for (service = 0U;
+         service < (uint32_t)APP_TIMING_SERVICE_COUNT;
+         service++)
+    {
+        last_logged_timing_overrun_count[service] = 0U;
+    }
     last_diagnostics_update_tick = HAL_GetTick();
     App_Diagnostics_Capture(last_diagnostics_update_tick);
 }

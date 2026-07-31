@@ -108,6 +108,41 @@ void test_EncodeCanRxHealth_matches_wire_format(void)
     TEST_ASSERT_EQUAL_HEX8(0x9AU, payload[7]);
 }
 
+void test_EncodeTimingTelemetry_matches_wire_format(void)
+{
+    CAN_Protocol_TimingService_t service = {
+        .service_id = 3U,
+        .flags = CAN_PROTOCOL_TIMING_SERVICE_ENABLED |
+                 CAN_PROTOCOL_TIMING_SERVICE_OVERRUN_LATCHED,
+        .current_us = 0x1234U,
+        .minimum_us = 0x5678U,
+        .maximum_us = 0x9ABCU
+    };
+    CAN_Protocol_TimingAckLatency_t ack = {
+        .p50_us = 100U,
+        .p95_us = 1000U,
+        .p99_us = 5000U,
+        .maximum_us = 30000U
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodeTimingService(&service, payload);
+    TEST_ASSERT_EQUAL_HEX8(0x03U, payload[0]);
+    TEST_ASSERT_EQUAL_HEX8(0x05U, payload[1]);
+    TEST_ASSERT_EQUAL_HEX8(0x34U, payload[2]);
+    TEST_ASSERT_EQUAL_HEX8(0x12U, payload[3]);
+    TEST_ASSERT_EQUAL_HEX8(0x78U, payload[4]);
+    TEST_ASSERT_EQUAL_HEX8(0x56U, payload[5]);
+    TEST_ASSERT_EQUAL_HEX8(0xBCU, payload[6]);
+    TEST_ASSERT_EQUAL_HEX8(0x9AU, payload[7]);
+
+    CAN_Protocol_EncodeTimingAckLatency(&ack, payload);
+    TEST_ASSERT_EQUAL_HEX16(100U, CAN_Protocol_ReadU16LE(&payload[0]));
+    TEST_ASSERT_EQUAL_HEX16(1000U, CAN_Protocol_ReadU16LE(&payload[2]));
+    TEST_ASSERT_EQUAL_HEX16(5000U, CAN_Protocol_ReadU16LE(&payload[4]));
+    TEST_ASSERT_EQUAL_HEX16(30000U, CAN_Protocol_ReadU16LE(&payload[6]));
+}
+
 void test_EncodePwmStatus_includes_control_policy(void)
 {
     CAN_Protocol_PwmStatus_t status = {
@@ -346,6 +381,7 @@ int main(void)
     RUN_TEST(test_IsValidId_extended_rejects_0x20000000);
     RUN_TEST(test_EncodeSystemStatus_matches_struct);
     RUN_TEST(test_EncodeCanRxHealth_matches_wire_format);
+    RUN_TEST(test_EncodeTimingTelemetry_matches_wire_format);
     RUN_TEST(test_EncodePwmStatus_includes_control_policy);
     RUN_TEST(test_EncodePwmSelfTestStatus_matches_wire_format);
     RUN_TEST(test_EncodePwmSelfTestResult_matches_wire_format);

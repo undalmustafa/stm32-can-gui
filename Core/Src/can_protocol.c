@@ -277,6 +277,27 @@ void CAN_Protocol_EncodeCanRxHealth(
     CAN_Protocol_WriteU16LE(&payload[6], health->watermark_events);
 }
 
+void CAN_Protocol_EncodeTimingService(
+    const CAN_Protocol_TimingService_t *timing,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = timing->service_id;
+    payload[1] = timing->flags;
+    CAN_Protocol_WriteU16LE(&payload[2], timing->current_us);
+    CAN_Protocol_WriteU16LE(&payload[4], timing->minimum_us);
+    CAN_Protocol_WriteU16LE(&payload[6], timing->maximum_us);
+}
+
+void CAN_Protocol_EncodeTimingAckLatency(
+    const CAN_Protocol_TimingAckLatency_t *timing,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    CAN_Protocol_WriteU16LE(&payload[0], timing->p50_us);
+    CAN_Protocol_WriteU16LE(&payload[2], timing->p95_us);
+    CAN_Protocol_WriteU16LE(&payload[4], timing->p99_us);
+    CAN_Protocol_WriteU16LE(&payload[6], timing->maximum_us);
+}
+
 void CAN_Protocol_EncodeLogHeartbeat(
     const CAN_Protocol_LogHeartbeat_t *heartbeat,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])

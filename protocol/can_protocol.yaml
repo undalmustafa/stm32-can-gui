@@ -127,6 +127,18 @@ identifiers:
     direction: mcu_to_gui
     description: "MCU FDCAN RX FIFO pressure and loss telemetry"
 
+  timing_service:
+    id: 0x0561
+    type: standard
+    direction: mcu_to_gui
+    description: "DWT service execution timing telemetry"
+
+  timing_ack_latency:
+    id: 0x0562
+    type: standard
+    direction: mcu_to_gui
+    description: "Command RX-to-ACK enqueue latency percentiles"
+
 command_transport:
   identifier_mode: fixed
   serialized_requests: true
@@ -413,6 +425,14 @@ can_rx_health_flags:
     bit: 3
   hal_error:
     bit: 4
+
+timing_service_flags:
+  enabled:
+    bit: 0
+  current_overrun:
+    bit: 1
+  overrun_latched:
+    bit: 2
 
 pwm_status_control_flags:
   requested:

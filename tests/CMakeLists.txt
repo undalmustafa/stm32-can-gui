@@ -93,6 +93,10 @@ add_executable(
 )
 target_link_libraries(test_can_rx_health unity)
 
+add_executable(test_app_timing test_app_timing.c ../Core/Src/app_timing.c)
+target_compile_definitions(test_app_timing PRIVATE APP_TIMING_HOST_TEST)
+target_link_libraries(test_app_timing unity)
+
 # Register tests
 enable_testing()
 add_test(NAME test_can_protocol COMMAND test_can_protocol)
@@ -109,3 +113,4 @@ add_test(NAME test_can_command_guard COMMAND test_can_command_guard)
 add_test(NAME test_app_fault COMMAND test_app_fault)
 add_test(NAME test_app_startup COMMAND test_app_startup)
 add_test(NAME test_can_rx_health COMMAND test_can_rx_health)
+add_test(NAME test_app_timing COMMAND test_app_timing)

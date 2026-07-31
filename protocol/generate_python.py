@@ -62,6 +62,7 @@ def generate_python_module(yaml_path, out_path):
             ("system_status_override_flags", "SYSTEM_OVERRIDE"),
             ("pwm_status_control_flags", "PWM_CONTROL"),
             ("can_rx_health_flags", "CAN_RX_HEALTH"),
+            ("timing_service_flags", "TIMING_SERVICE"),
         ):
             for key, val in data.get(section, {}).items():
                 name = key.upper()

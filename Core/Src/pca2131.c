@@ -21,7 +21,6 @@
 #define PCA2131_ALARM_DISABLE_BIT       0x80U
 #define PCA2131_ALARM_PM_BIT            0x20U
 #define PCA2131_SR_RESET_CPR            0xA4U
-#define PCA2131_I2C_TIMEOUT_MS          10U
 
 static uint8_t PCA2131_BcdToDec(uint8_t bcd)
 {

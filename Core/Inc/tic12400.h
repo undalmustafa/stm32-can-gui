@@ -30,6 +30,7 @@
 #define TIC12400_ADC_PAIR_COUNT           12U
 #define TIC12400_ADC_CODE_MASK            0x03FFUL
 #define TIC12400_ADC_SECOND_CODE_SHIFT    10U
+#define TIC12400_SPI_TIMEOUT_MS            10U
 
 typedef enum
 {

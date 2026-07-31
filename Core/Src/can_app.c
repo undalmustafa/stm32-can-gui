@@ -12,12 +12,15 @@
 #include "app_log.h"
 #include "app_watchdog.h"
 #include "app_log_can.h"
+#include "app_timing.h"
 #include "pwm_control.h"
 #include "input_capture.h"
 #include "pwm_self_test.h"
 #include "tic12400_probe.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
 #define CAN_CONTROL_ACCESS_WINDOW_MS    240000UL
+#define CAN_TIMING_SERVICE_PERIOD_MS    100U
+#define CAN_TIMING_ACK_PERIOD_MS        500U
 
 extern FDCAN_HandleTypeDef hfdcan1;
 
@@ -51,6 +54,9 @@ static uint8_t control_access_active;
 static uint32_t control_access_deadline;
 static uint32_t control_policy_update_applied;
 static uint32_t control_output_update_applied;
+static uint32_t timing_service_next_tick;
+static uint32_t timing_ack_next_tick;
+static uint8_t timing_service_index;
 
 volatile CAN_App_State_t g_canAppState;
 
@@ -72,8 +78,10 @@ static uint8_t CAN_Is_Control_Access_Open(void);
 static void CAN_Send_Command_Ack(
     uint8_t command,
     CAN_Protocol_CommandAckStatus_t status,
-    uint8_t flags);
+    uint8_t flags,
+    uint32_t frame_start_cycles);
 static void CAN_Send_Rx_Health(void);
+static void CAN_Timing_Telemetry_Process(void);
 
 static uint16_t CAN_SaturateU16(uint32_t value)
 {
@@ -387,7 +395,8 @@ static uint8_t CAN_Is_Control_Access_Open(void)
 static void CAN_Send_Command_Ack(
     uint8_t command,
     CAN_Protocol_CommandAckStatus_t status,
-    uint8_t flags)
+    uint8_t flags,
+    uint32_t frame_start_cycles)
 {
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE] = {0};
     uint32_t now = HAL_GetTick();
@@ -427,6 +436,10 @@ static void CAN_Send_Command_Ack(
     {
         can_rx_stats.command_ack_tx_failures++;
     }
+
+    App_Timing_RecordAckElapsed(
+        frame_start_cycles,
+        App_Timing_Now());
 }
 
 static void CAN_Reset_Slot(CAN_TxSlot_t *slot)
@@ -580,6 +593,10 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
     control_access_deadline = 0U;
     control_policy_update_applied = UINT32_MAX;
     control_output_update_applied = UINT32_MAX;
+    timing_service_next_tick =
+        HAL_GetTick() + CAN_TIMING_SERVICE_PERIOD_MS;
+    timing_ack_next_tick = HAL_GetTick() + CAN_TIMING_ACK_PERIOD_MS;
+    timing_service_index = 0U;
 
     CAN_Transport_Init(NULL);
     App_Log_Can_Init();
@@ -751,6 +768,7 @@ void CAN_App_Process(void)
     CAN_Apply_SlotPolicy();
     CAN_Send_Pwm_Self_Test_Result();
     System_Status_Process();
+    CAN_Timing_Telemetry_Process();
     App_Log_Can_Process();
     CAN_Process_TxSlots();
 
@@ -766,6 +784,7 @@ void CAN_Process_Rx_Command(void)
     uint8_t command;
     uint8_t ack_flags;
     uint32_t processed_count = 0U;
+    uint32_t frame_start_cycles;
 
     while ((processed_count < CAN_APP_RX_FRAME_BUDGET_PER_PROCESS) &&
            (HAL_FDCAN_GetRxFifoFillLevel(
@@ -784,6 +803,7 @@ void CAN_Process_Rx_Command(void)
 
         processed_count++;
         can_rx_stats.frames_received++;
+        frame_start_cycles = App_Timing_Begin();
 
         if ((RxHeader.IdType != FDCAN_EXTENDED_ID) ||
             (RxHeader.Identifier != CAN_PROTOCOL_GUI_COMMAND_ID_EXT))
@@ -816,7 +836,8 @@ void CAN_Process_Rx_Command(void)
             CAN_Send_Command_Ack(
                 command,
                 CAN_PROTOCOL_COMMAND_ACK_UNKNOWN_COMMAND,
-                0U);
+                0U,
+                frame_start_cycles);
             continue;
         }
 
@@ -827,7 +848,8 @@ void CAN_Process_Rx_Command(void)
             CAN_Send_Command_Ack(
                 command,
                 CAN_PROTOCOL_COMMAND_ACK_INVALID_PAYLOAD,
-                0U);
+                0U,
+                frame_start_cycles);
             continue;
         }
 
@@ -839,7 +861,8 @@ void CAN_Process_Rx_Command(void)
             CAN_Send_Command_Ack(
                 command,
                 CAN_PROTOCOL_COMMAND_ACK_ACCESS_DENIED,
-                0U);
+                0U,
+                frame_start_cycles);
             continue;
         }
 
@@ -955,7 +978,8 @@ void CAN_Process_Rx_Command(void)
         CAN_Send_Command_Ack(
             command,
             CAN_PROTOCOL_COMMAND_ACK_ACCEPTED,
-            ack_flags);
+            ack_flags,
+            frame_start_cycles);
     }
 
     if ((processed_count == CAN_APP_RX_FRAME_BUDGET_PER_PROCESS) &&
@@ -1269,6 +1293,80 @@ static void CAN_Send_Rx_Health(void)
         CAN_PROTOCOL_CAN_RX_HEALTH_TX_ID,
         CAN_TRANSPORT_ID_STANDARD,
         tx_data);
+}
+
+static void CAN_Timing_Telemetry_Process(void)
+{
+    App_Timing_Snapshot_t snapshot;
+    App_Timing_AckSummary_t ack_summary;
+    CAN_Protocol_TimingService_t service_timing;
+    CAN_Protocol_TimingAckLatency_t ack_timing;
+    App_Timing_ServiceStats_t *service_stats;
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE] = {0};
+    uint32_t now = HAL_GetTick();
+
+    if ((int32_t)(now - timing_service_next_tick) >= 0)
+    {
+        do
+        {
+            timing_service_next_tick += CAN_TIMING_SERVICE_PERIOD_MS;
+        }
+        while ((int32_t)(now - timing_service_next_tick) >= 0);
+
+        App_Timing_GetSnapshot(&snapshot);
+        service_stats = &snapshot.service[timing_service_index];
+        service_timing.service_id = timing_service_index;
+        service_timing.flags =
+            ((snapshot.enabled != 0U)
+                ? CAN_PROTOCOL_TIMING_SERVICE_ENABLED : 0U) |
+            ((service_stats->current_cycles >
+              service_stats->budget_cycles)
+                ? CAN_PROTOCOL_TIMING_SERVICE_CURRENT_OVERRUN : 0U) |
+            ((service_stats->overrun_count != 0U)
+                ? CAN_PROTOCOL_TIMING_SERVICE_OVERRUN_LATCHED : 0U);
+        service_timing.current_us = CAN_SaturateU16(
+            App_Timing_CyclesToMicroseconds(
+                service_stats->current_cycles));
+        service_timing.minimum_us = CAN_SaturateU16(
+            App_Timing_CyclesToMicroseconds(
+                service_stats->minimum_cycles));
+        service_timing.maximum_us = CAN_SaturateU16(
+            App_Timing_CyclesToMicroseconds(
+                service_stats->maximum_cycles));
+        CAN_Protocol_EncodeTimingService(&service_timing, payload);
+        (void)CAN_Transport_SendClassicLatest(
+            CAN_PROTOCOL_TIMING_SERVICE_TX_ID,
+            CAN_TRANSPORT_ID_STANDARD,
+            payload);
+
+        timing_service_index++;
+        if (timing_service_index >= (uint8_t)APP_TIMING_SERVICE_COUNT)
+        {
+            timing_service_index = 0U;
+        }
+    }
+
+    if ((int32_t)(now - timing_ack_next_tick) < 0)
+    {
+        return;
+    }
+
+    do
+    {
+        timing_ack_next_tick += CAN_TIMING_ACK_PERIOD_MS;
+    }
+    while ((int32_t)(now - timing_ack_next_tick) >= 0);
+
+    App_Timing_GetAckSummary(&ack_summary);
+    ack_timing.p50_us = CAN_SaturateU16(ack_summary.p50_us);
+    ack_timing.p95_us = CAN_SaturateU16(ack_summary.p95_us);
+    ack_timing.p99_us = CAN_SaturateU16(ack_summary.p99_us);
+    ack_timing.maximum_us = CAN_SaturateU16(ack_summary.maximum_us);
+    CAN_Protocol_EncodeTimingAckLatency(&ack_timing, payload);
+    (void)CAN_Transport_SendClassicLatest(
+        CAN_PROTOCOL_TIMING_ACK_LATENCY_TX_ID,
+        CAN_TRANSPORT_ID_STANDARD,
+        payload);
 }
 
 void CAN_Send_Pwm_Status(void)

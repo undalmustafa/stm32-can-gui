@@ -306,6 +306,8 @@ Multi-byte values are little-endian.
 | `0x55E` | Built-in-test status |
 | `0x55F` | Built-in-test point result |
 | `0x560` | MCU FDCAN RX FIFO pressure and loss telemetry |
+| `0x561` | DWT current/minimum/maximum service execution timing |
+| `0x562` | Command RX-to-ACK enqueue latency percentiles |
 
 ### Commands
 
@@ -351,6 +353,9 @@ not this summary, as the protocol source of truth.
   CAN task, and RTC task remain healthy. Debug builds freeze it while halted.
 - **Event log:** stores 64 CRC-protected records in 2 KiB of retained RAM and
   synchronizes them to the GUI for CSV export.
+- **Timing:** uses the Cortex-M7 DWT cycle counter to retain current, minimum,
+  maximum, budget, and overrun statistics for the main loop and each service.
+  Command RX-to-ACK enqueue latency is summarized as p50/p95/p99/max.
 
 GUI traffic health is based on the age of the most recent valid MCU frame:
 

@@ -81,6 +81,23 @@ typedef struct
 
 typedef struct
 {
+    uint8_t service_id;
+    uint8_t flags;
+    uint16_t current_us;
+    uint16_t minimum_us;
+    uint16_t maximum_us;
+} CAN_Protocol_TimingService_t;
+
+typedef struct
+{
+    uint16_t p50_us;
+    uint16_t p95_us;
+    uint16_t p99_us;
+    uint16_t maximum_us;
+} CAN_Protocol_TimingAckLatency_t;
+
+typedef struct
+{
     uint32_t latest_sequence;
     uint8_t record_count;
     uint8_t ready;
@@ -204,6 +221,14 @@ void CAN_Protocol_EncodeSystemStatus(
 
 void CAN_Protocol_EncodeCanRxHealth(
     const CAN_Protocol_CanRxHealth_t *health,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodeTimingService(
+    const CAN_Protocol_TimingService_t *timing,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodeTimingAckLatency(
+    const CAN_Protocol_TimingAckLatency_t *timing,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 void CAN_Protocol_EncodeLogHeartbeat(
