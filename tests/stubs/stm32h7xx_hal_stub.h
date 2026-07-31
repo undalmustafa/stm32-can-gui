@@ -75,7 +75,18 @@ typedef struct
 typedef struct
 {
   FDCAN_GlobalTypeDef* Instance;
+  uint32_t ErrorCode;
 } FDCAN_HandleTypeDef;
+
+typedef struct
+{
+  uint32_t IdType;
+  uint32_t FilterIndex;
+  uint32_t FilterType;
+  uint32_t FilterConfig;
+  uint32_t FilterID1;
+  uint32_t FilterID2;
+} FDCAN_FilterTypeDef;
 
 extern FDCAN_GlobalTypeDef test_fdcan1_instance;
 #define FDCAN1 (&test_fdcan1_instance)
@@ -91,6 +102,13 @@ extern FDCAN_GlobalTypeDef test_fdcan1_instance;
 #define FDCAN_TX_BUFFER0  0x00000001U
 #define FDCAN_TX_BUFFER1  0x00000002U
 #define FDCAN_TX_BUFFER2  0x00000004U
+#define FDCAN_FILTER_MASK              0x00000001U
+#define FDCAN_FILTER_TO_RXFIFO0        0x00000002U
+#define FDCAN_REJECT                   0x00000003U
+#define FDCAN_REJECT_REMOTE            0x00000004U
+#define FDCAN_RX_FIFO0                 0x00000000U
+#define FDCAN_RX_FIFO_BLOCKING         0x00000000U
+#define FDCAN_CFG_RX_FIFO0             0x00000000U
 #define FDCAN_IT_ERROR_PASSIVE          (1UL << 0)
 #define FDCAN_IT_BUS_OFF                (1UL << 1)
 #define FDCAN_IT_TX_COMPLETE            (1UL << 2)
@@ -119,6 +137,23 @@ extern uint32_t HAL_FDCAN_GetTxFifoFreeLevel(FDCAN_HandleTypeDef *hfdcan);
 extern HAL_StatusTypeDef HAL_FDCAN_AddMessageToTxFifoQ(FDCAN_HandleTypeDef *hfdcan, FDCAN_TxHeaderTypeDef *pTxHeader, uint8_t *pTxData);
 extern HAL_StatusTypeDef HAL_FDCAN_Stop(FDCAN_HandleTypeDef *hfdcan);
 extern HAL_StatusTypeDef HAL_FDCAN_Start(FDCAN_HandleTypeDef *hfdcan);
+extern HAL_StatusTypeDef HAL_FDCAN_ConfigFilter(
+    FDCAN_HandleTypeDef *hfdcan,
+    FDCAN_FilterTypeDef *sFilterConfig);
+extern HAL_StatusTypeDef HAL_FDCAN_ConfigGlobalFilter(
+    FDCAN_HandleTypeDef *hfdcan,
+    uint32_t NonMatchingStd,
+    uint32_t NonMatchingExt,
+    uint32_t RejectRemoteStd,
+    uint32_t RejectRemoteExt);
+extern HAL_StatusTypeDef HAL_FDCAN_ConfigRxFifoOverwrite(
+    FDCAN_HandleTypeDef *hfdcan,
+    uint32_t RxFifo,
+    uint32_t OperationMode);
+extern HAL_StatusTypeDef HAL_FDCAN_ConfigFifoWatermark(
+    FDCAN_HandleTypeDef *hfdcan,
+    uint32_t Fifo,
+    uint32_t Watermark);
 extern HAL_StatusTypeDef HAL_FDCAN_ActivateNotification(
     FDCAN_HandleTypeDef *hfdcan,
     uint32_t ActiveITs,

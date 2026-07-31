@@ -134,14 +134,15 @@ void HAL_FDCAN_TxBufferCompleteCallback(FDCAN_HandleTypeDef *hfdcan,
     }
 }
 
-HAL_StatusTypeDef CAN_Recovery_EnableNotifications(void)
+HAL_StatusTypeDef CAN_Recovery_EnableNotifications(
+    FDCAN_HandleTypeDef *hfdcan)
 {
     /*
      * Recovery restarts the peripheral, so the complete application
      * notification contract must be restored here as one atomic policy.
      */
     return HAL_FDCAN_ActivateNotification(
-        &hfdcan1,
+        hfdcan,
         FDCAN_IT_BUS_OFF |
         FDCAN_IT_ERROR_PASSIVE |
         FDCAN_IT_TX_COMPLETE |
@@ -312,7 +313,7 @@ void CAN_Handle_BusOff_Recovery(void)
         recovery_phase = CAN_RECOVERY_PHASE_NOTIFICATION;
     }
 
-    hal_status = CAN_Recovery_EnableNotifications();
+    hal_status = CAN_Recovery_EnableNotifications(&hfdcan1);
 
     if (hal_status != HAL_OK)
     {

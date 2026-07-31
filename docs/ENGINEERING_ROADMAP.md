@@ -209,8 +209,11 @@ statik kalite kapıları bekliyor.
   recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
   edilmemesi, notification restore, TX-complete doğrulaması, yeni bus-off ile
   stale doğrulamanın reddi, log coalescing ve tick wrap kapsanıyor.
-- [ ] `can_app.c`, `rtc_app.c` ve `tic12400_probe.c` için state-machine odaklı
-  test seam'leri çıkar.
+- [x] `can_app.c` FDCAN init zincirini gerçek üretim yolunda ayrı seam'e
+  çıkar; success ve peripheral/filter/global-filter/FIFO mode/watermark/start/
+  notification hata aşamalarını, transport cleanup ve startup loguyla test et.
+- [ ] `can_app.c` RX/command/access-window yolları ile `rtc_app.c` ve
+  `tic12400_probe.c` için kalan state-machine odaklı test seam'lerini çıkar.
 - [ ] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; ardından
   `-Werror` kapısını aç.
 - [ ] Cppcheck veya clang-tidy raporunu CI artifact'i, kritik bulguları gate

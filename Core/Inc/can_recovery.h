@@ -38,7 +38,8 @@ typedef struct
 
 /* Main-loop only; call before enabling any FDCAN interrupt notification. */
 void CAN_Recovery_Init(void);
-HAL_StatusTypeDef CAN_Recovery_EnableNotifications(void);
+HAL_StatusTypeDef CAN_Recovery_EnableNotifications(
+    FDCAN_HandleTypeDef *hfdcan);
 void CAN_Handle_BusOff_Recovery(void);
 void CAN_Recovery_GetStats(CAN_Recovery_Stats_t *stats);
 

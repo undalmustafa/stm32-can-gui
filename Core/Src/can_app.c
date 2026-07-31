@@ -2,6 +2,7 @@
 #include "app_control.h"
 #include "app_control_policy.h"
 #include "can_app.h"
+#include "can_app_init.h"
 #include "can_protocol.h"
 #include "can_command_guard.h"
 #include "can_transport.h"
@@ -58,8 +59,6 @@ static uint32_t timing_service_next_tick;
 static uint32_t timing_ack_next_tick;
 static uint8_t timing_service_index;
 
-volatile CAN_App_State_t g_canAppState;
-
 typedef enum
 {
     CAN_COMMAND_VALID = 0,
@@ -70,8 +69,6 @@ typedef enum
 static void CAN_Process_TxSlot(CAN_TxSlot_t *slot);
 static void CAN_Handle_LED_Command(uint8_t *data);
 static void CAN_Apply_SlotPolicy(void);
-static CAN_App_InitResult_t CAN_App_RecordInitFailure(
-    CAN_App_InitResult_t result);
 static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
                                  uint8_t command);
 static uint8_t CAN_Is_Control_Access_Open(void);
@@ -562,33 +559,10 @@ static void CAN_Start_Slot_Counter(
     slot->last_tx_time = HAL_GetTick() - slot->cycle_time_ms;
 }
 
-static CAN_App_InitResult_t CAN_App_RecordInitFailure(
-    CAN_App_InitResult_t result)
-{
-    g_canAppState.available = 0U;
-    g_canAppState.init_result = result;
-    g_canAppState.hal_error = hfdcan1.ErrorCode;
-
-    CAN_Transport_Init(NULL);
-    (void)App_Log_Push(
-        APP_LOG_SOURCE_CAN,
-        APP_LOG_SEVERITY_FAULT,
-        APP_LOG_EVENT_CAN_STARTUP_FAILED,
-        (uint32_t)result,
-        g_canAppState.hal_error);
-
-    return result;
-}
-
 CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
 {
-    FDCAN_FilterTypeDef sFilterConfig;
-
-    g_canAppState = (CAN_App_State_t){0};
-    g_canAppState.init_attempts = 1U;
     can_rx_stats = (CAN_App_RxStats_t){0};
     CAN_RxHealth_Init();
-    CAN_Recovery_Init();
     control_access_requested = 0U;
     control_access_active = 0U;
     control_access_deadline = 0U;
@@ -599,98 +573,13 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
     timing_ack_next_tick = HAL_GetTick() + CAN_TIMING_ACK_PERIOD_MS;
     timing_service_index = 0U;
 
-    CAN_Transport_Init(NULL);
     App_Log_Can_Init();
 
     CAN_Reset_Slot(&tx_slot_1);
     CAN_Reset_Slot(&tx_slot_2);
     App_Diagnostics_Init();
 
-    if (peripheral_ready == 0U)
-    {
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_PERIPHERAL_UNAVAILABLE);
-    }
-
-    CAN_Transport_Init(&hfdcan1);
-
-    /* Accept only the fixed extended GUI command identifier. */
-    sFilterConfig.IdType = FDCAN_EXTENDED_ID;
-    sFilterConfig.FilterIndex = 0;
-    sFilterConfig.FilterType = FDCAN_FILTER_MASK;
-    sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = CAN_PROTOCOL_GUI_COMMAND_ID_EXT;
-    sFilterConfig.FilterID2 = 0x1FFFFFFFUL;
-
-    if (HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig) != HAL_OK)
-    {
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_FILTER_ERROR);
-    }
-
-    if (HAL_FDCAN_ConfigGlobalFilter(&hfdcan1,
-                                     FDCAN_REJECT,
-                                     FDCAN_REJECT,
-                                     FDCAN_REJECT_REMOTE,
-                                     FDCAN_REJECT_REMOTE) != HAL_OK)
-    {
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_GLOBAL_FILTER_ERROR);
-    }
-
-    /* Preserve command ordering and reject excess traffic explicitly. */
-    if (HAL_FDCAN_ConfigRxFifoOverwrite(
-            &hfdcan1,
-            FDCAN_RX_FIFO0,
-            FDCAN_RX_FIFO_BLOCKING) != HAL_OK)
-    {
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_FIFO_MODE_ERROR);
-    }
-
-    if (HAL_FDCAN_ConfigFifoWatermark(
-            &hfdcan1,
-            FDCAN_CFG_RX_FIFO0,
-            CAN_APP_RX_FIFO0_WATERMARK) != HAL_OK)
-    {
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_FIFO_WATERMARK_ERROR);
-    }
-
-    if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
-    {
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_START_ERROR);
-    }
-
-    /* USER CODE BEGIN CAN_App_Init BusOff */
-    /* Enable bus-off, error-passive and TX-complete notifications. Recovery
-       is accepted only after a real transmission completes on the bus.
-       This requires the FDCAN1 interrupt (NVIC: FDCAN1_IT0_IRQn) to be
-       enabled in CubeMX and stm32h7xx_it.c to forward it to
-       HAL_FDCAN_IRQHandler - see notes below. */
-    if (CAN_Recovery_EnableNotifications() != HAL_OK)
-    {
-        (void)HAL_FDCAN_Stop(&hfdcan1);
-        return CAN_App_RecordInitFailure(
-            CAN_APP_INIT_NOTIFICATION_ERROR);
-    }
-    /* USER CODE END CAN_App_Init BusOff */
-
-    g_canAppState.available = 1U;
-    g_canAppState.init_result = CAN_APP_INIT_OK;
-    g_canAppState.hal_error = 0U;
-    return CAN_APP_INIT_OK;
-}
-
-uint8_t CAN_App_IsAvailable(void)
-{
-    return g_canAppState.available;
-}
-
-CAN_App_State_t CAN_App_GetState(void)
-{
-    return (CAN_App_State_t)g_canAppState;
+    return CAN_App_InitHardware(&hfdcan1, peripheral_ready);
 }
 
 void CAN_App_GetRxStats(CAN_App_RxStats_t *stats)

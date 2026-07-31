@@ -310,7 +310,11 @@ void test_invalid_callbacks_are_ignored_and_init_clears_state(void)
 {
     CAN_Recovery_Stats_t stats;
     FDCAN_GlobalTypeDef other_instance = {0};
-    FDCAN_HandleTypeDef other_handle = {&other_instance};
+    FDCAN_HandleTypeDef other_handle =
+    {
+        .Instance = &other_instance,
+        .ErrorCode = 0U
+    };
 
     HAL_FDCAN_ErrorStatusCallback(NULL, FDCAN_IT_BUS_OFF);
     HAL_FDCAN_ErrorStatusCallback(&other_handle, FDCAN_IT_BUS_OFF);
