@@ -247,6 +247,18 @@ def main():
     expect(frames[0].arbitration_id == rtc_time_id,
            "known STM32 frame reaches the application router")
 
+    bus.rx_items.append(FakeMessage(
+        protocol.CAN_RX_HEALTH_RX_ID,
+        data=[0x07, 32, 2, 0, 3, 0, 4, 0],
+    ))
+    session.poll()
+    mcu_rx_health = session.get_health_metrics()["mcu_can_rx_health"]
+    expect(mcu_rx_health["message_lost_events"] == 2,
+           "MCU RX loss telemetry is retained by the session")
+    expect(mcu_rx_health["fifo_full_events"] == 3
+           and mcu_rx_health["watermark_events"] == 4,
+           "MCU RX pressure counters reach health metrics")
+
     budget_bus = FakeBus()
     budget_session, _, budget_frames, _, _, _ = create_session(
         session_type, budget_bus, clock, max_frames=2

@@ -174,6 +174,29 @@ def main():
     expect(views[-1]["code"] == "BUS_HEAVY",
            "a new error frame invalidates historical-latch recovery")
 
+    mcu_metrics = {
+        "connected_at": 299.0,
+        "last_stm32_rx_time": 299.9,
+        "rx_count": 50,
+        "rx_budget_hit_count": 0,
+        "stm32_rx_count": 50,
+        "mcu_can_rx_health": {
+            "hal_error": False,
+            "message_lost_events": 2,
+            "fifo_full_events": 3,
+            "budget_exhausted": True,
+            "max_fifo_fill": 32,
+        },
+    }
+    clock[0] = 300.0
+    monitor, _, views = create_monitor(
+        module, FakeBus(raw_status=0), mcu_metrics
+    )
+    monitor.monitor()
+    expect(views[-1]["severity"] == "FAULT"
+           and views[-1]["code"] == "MCU_RX_MESSAGE_LOST",
+           "MCU FIFO message loss takes precedence in CAN health")
+
     print("PASS: GUI CAN health state, sticky BUSHEAVY recovery and log dedup")
 
 

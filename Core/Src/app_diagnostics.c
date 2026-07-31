@@ -8,6 +8,32 @@ static App_Diagnostics_Snapshot_t diagnostics_snapshot;
 static uint32_t last_diagnostics_update_tick;
 static uint32_t last_logged_queue_overflow_count;
 static uint32_t last_logged_rx_budget_hit_count;
+static uint32_t last_logged_rx_watermark_count;
+static uint32_t last_logged_rx_full_count;
+static uint32_t last_logged_rx_message_lost_count;
+
+static void App_Diagnostics_LogCounterDelta(
+    uint32_t current_count,
+    uint32_t *last_logged_count,
+    App_Log_Severity_t severity,
+    App_Log_EventCode_t event_code)
+{
+    if (current_count < *last_logged_count)
+    {
+        *last_logged_count = current_count;
+    }
+    else if (current_count > *last_logged_count)
+    {
+        uint32_t delta = current_count - *last_logged_count;
+
+        (void)App_Log_Push(APP_LOG_SOURCE_CAN,
+                           severity,
+                           event_code,
+                           delta,
+                           current_count);
+        *last_logged_count = current_count;
+    }
+}
 
 static void App_Diagnostics_Capture(uint32_t now)
 {
@@ -79,6 +105,19 @@ static void App_Diagnostics_Capture(uint32_t now)
             APP_DIAGNOSTICS_ISSUE_CAN_RX_BUDGET;
     }
 
+    if ((diagnostics_snapshot.can_rx.rx_watermark_events != 0U) ||
+        (diagnostics_snapshot.can_rx.rx_full_events != 0U))
+    {
+        diagnostics_snapshot.latched_issue_flags |=
+            APP_DIAGNOSTICS_ISSUE_CAN_RX_PRESSURE;
+    }
+
+    if (diagnostics_snapshot.can_rx.rx_message_lost_events != 0U)
+    {
+        diagnostics_snapshot.latched_issue_flags |=
+            APP_DIAGNOSTICS_ISSUE_CAN_RX_LOST;
+    }
+
     if (diagnostics_snapshot.can_rx.rx_budget_hits <
         last_logged_rx_budget_hit_count)
     {
@@ -102,6 +141,22 @@ static void App_Diagnostics_Capture(uint32_t now)
         last_logged_rx_budget_hit_count =
             diagnostics_snapshot.can_rx.rx_budget_hits;
     }
+
+    App_Diagnostics_LogCounterDelta(
+        diagnostics_snapshot.can_rx.rx_watermark_events,
+        &last_logged_rx_watermark_count,
+        APP_LOG_SEVERITY_WARNING,
+        APP_LOG_EVENT_CAN_RX_FIFO_WATERMARK);
+    App_Diagnostics_LogCounterDelta(
+        diagnostics_snapshot.can_rx.rx_full_events,
+        &last_logged_rx_full_count,
+        APP_LOG_SEVERITY_WARNING,
+        APP_LOG_EVENT_CAN_RX_FIFO_FULL);
+    App_Diagnostics_LogCounterDelta(
+        diagnostics_snapshot.can_rx.rx_message_lost_events,
+        &last_logged_rx_message_lost_count,
+        APP_LOG_SEVERITY_FAULT,
+        APP_LOG_EVENT_CAN_RX_MESSAGE_LOST);
 }
 
 void App_Diagnostics_Init(void)
@@ -109,6 +164,9 @@ void App_Diagnostics_Init(void)
     diagnostics_snapshot = (App_Diagnostics_Snapshot_t){0};
     last_logged_queue_overflow_count = 0U;
     last_logged_rx_budget_hit_count = 0U;
+    last_logged_rx_watermark_count = 0U;
+    last_logged_rx_full_count = 0U;
+    last_logged_rx_message_lost_count = 0U;
     last_diagnostics_update_tick = HAL_GetTick();
     App_Diagnostics_Capture(last_diagnostics_update_tick);
 }

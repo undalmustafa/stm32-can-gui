@@ -1,6 +1,12 @@
 """Wire-level constants and pure helpers for the STM32 CAN protocol."""
 
 from can_protocol_generated import (
+    CAN_RX_HEALTH_BUDGET_EXHAUSTED,
+    CAN_RX_HEALTH_FIFO_FULL_SEEN,
+    CAN_RX_HEALTH_HAL_ERROR,
+    CAN_RX_HEALTH_MESSAGE_LOST,
+    CAN_RX_HEALTH_TX_ID,
+    CAN_RX_HEALTH_WATERMARK_SEEN,
     CMD_LED_CONTROL,
     CMD_LOG_GET_INFO,
     CMD_LOG_READ_SEQUENCE,
@@ -103,6 +109,7 @@ TIC12400_STATUS_RX_ID = TIC12400_STATUS_TX_ID
 TIC12400_ADC_RX_ID = TIC12400_ADC_TX_ID
 TIC12400_SWITCH_STATE_RX_ID = TIC12400_SWITCH_STATE_TX_ID
 TIC12400_PROFILE_RX_ID = TIC12400_PROFILE_TX_ID
+CAN_RX_HEALTH_RX_ID = CAN_RX_HEALTH_TX_ID
 
 STM32_LOG_PROTOCOL_VERSION = 1
 STM32_LOG_RECORD_SIZE = 32
@@ -174,6 +181,7 @@ STM32_APPLICATION_RX_IDS = {
     TIC12400_ADC_RX_ID,
     TIC12400_SWITCH_STATE_RX_ID,
     TIC12400_PROFILE_RX_ID,
+    CAN_RX_HEALTH_RX_ID,
 }
 
 STM32_LOG_EVENT_NAMES = {
@@ -188,6 +196,9 @@ STM32_LOG_EVENT_NAMES = {
     0x0107: "CAN_CONTROL_ACCESS_OPENED",
     0x0108: "CAN_RX_BUDGET_EXHAUSTED",
     0x0109: "CAN_STARTUP_FAILED",
+    0x010A: "CAN_RX_FIFO_WATERMARK",
+    0x010B: "CAN_RX_FIFO_FULL",
+    0x010C: "CAN_RX_MESSAGE_LOST",
     0x0200: "RTC_INIT_OK",
     0x0201: "RTC_INIT_FAILED",
     0x0202: "RTC_READ_FAILED",
@@ -234,6 +245,9 @@ def decode_stm32_log_event_detail(event_code: int,
     if event_code == 0x0108:
         return f"NEW_HITS={int(data_0)}; TOTAL_HITS={int(data_1)}"
 
+    if event_code in {0x010A, 0x010B, 0x010C}:
+        return f"NEW_EVENTS={int(data_0)}; TOTAL_EVENTS={int(data_1)}"
+
     if event_code == 0x0109:
         stage_names = {
             1: "PERIPHERAL_UNAVAILABLE",
@@ -241,6 +255,8 @@ def decode_stm32_log_event_detail(event_code: int,
             3: "GLOBAL_FILTER_ERROR",
             4: "START_ERROR",
             5: "NOTIFICATION_ERROR",
+            6: "FIFO_MODE_ERROR",
+            7: "FIFO_WATERMARK_ERROR",
         }
         stage = int(data_0)
         return (
@@ -266,6 +282,29 @@ def decode_stm32_log_event_detail(event_code: int,
         )
 
     return ""
+
+
+def decode_can_rx_health(payload):
+    """Decode the MCU FDCAN RX FIFO health telemetry frame."""
+    if len(payload) != 8:
+        raise ValueError("CAN RX health payload must contain 8 bytes")
+
+    data = [int(value) & 0xFF for value in payload]
+    flags = data[0]
+    return {
+        "flags": flags,
+        "watermark_seen": bool(flags & CAN_RX_HEALTH_WATERMARK_SEEN),
+        "fifo_full_seen": bool(flags & CAN_RX_HEALTH_FIFO_FULL_SEEN),
+        "message_lost": bool(flags & CAN_RX_HEALTH_MESSAGE_LOST),
+        "budget_exhausted": bool(
+            flags & CAN_RX_HEALTH_BUDGET_EXHAUSTED
+        ),
+        "hal_error": bool(flags & CAN_RX_HEALTH_HAL_ERROR),
+        "max_fifo_fill": data[1],
+        "message_lost_events": data[2] | (data[3] << 8),
+        "fifo_full_events": data[4] | (data[5] << 8),
+        "watermark_events": data[6] | (data[7] << 8),
+    }
 
 STM32_LOG_SOURCE_NAMES = {
     0: "SYSTEM",

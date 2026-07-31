@@ -121,6 +121,12 @@ identifiers:
     direction: mcu_to_gui
     description: "Applied TIC12400 switch-polarity profile"
 
+  can_rx_health:
+    id: 0x0560
+    type: standard
+    direction: mcu_to_gui
+    description: "MCU FDCAN RX FIFO pressure and loss telemetry"
+
 command_transport:
   identifier_mode: fixed
   serialized_requests: true
@@ -394,6 +400,18 @@ system_status_override_flags:
   led_1_overridden:
     bit: 2
   pwm_blocked:
+    bit: 4
+
+can_rx_health_flags:
+  watermark_seen:
+    bit: 0
+  fifo_full_seen:
+    bit: 1
+  message_lost:
+    bit: 2
+  budget_exhausted:
+    bit: 3
+  hal_error:
     bit: 4
 
 pwm_status_control_flags:

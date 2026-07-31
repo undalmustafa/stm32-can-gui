@@ -113,21 +113,44 @@ Hedef kabul testi:
 
 ## Faz 2 — CAN alım dayanıklılığı ve zaman kanıtı
 
-Durum: Bekliyor; Faz 1'e bağımlı.
+Durum: 2.1 yazılım dilimi tamamlandı, hedef HIL kabul testi bekliyor. 2.2 ve
+2.3 bekliyor.
 
 ### 2.1 CAN RX
 
-- RX FIFO0 derinliğini message RAM bütçesine göre artır.
-- `RX_FIFO0_NEW_MESSAGE`, watermark/full ve `MESSAGE_LOST` bildirimlerini
+- [x] RX FIFO0 derinliğini 3'ten 32 elemana artır. Bir standard filter word,
+  iki extended-filter word, 128 RX FIFO word ve 12 TX FIFO word ile toplam
+  kullanım 2560 word SRAMCAN bütçesinin 143 word'üdür.
+- [x] FIFO0'ı blocking modda tut; kapasite üstünde en eski komutu ezmek yerine
+  yeni frame'i bilinçli olarak reddet.
+- [x] 24-eleman watermark ile `RX_FIFO0_NEW_MESSAGE`, watermark/full ve
+  `MESSAGE_LOST` bildirimlerini
   etkinleştir.
-- ISR yalnızca bounded iş yapmalı; parse/command execution main-loop
+- [x] ISR yalnızca flag eşleme, fill-level örnekleme ve 32-bit sayaç artırma
+  yapmalı; parse/command execution main-loop
   context'inde kalmalı.
-- Lost/full/watermark sayaçlarını health telemetry ve event log'a ekle.
-- Burst, bus-off sırasında RX ve FIFO overflow host/HIL testleri ekle.
+- [x] Lost/full/watermark sayaçlarını `0x560` health telemetry, GUI CAN health
+  durumu, live diagnostics ve 100 ms'de bir birleştirilen event log'a ekle.
+- [x] 32-frame burst ile full/lost sayaç davranışının host testlerini ekle.
+- [ ] 500 kbit/s gerçek bus burst, bus-off sırasında RX ve kapasite üstü FIFO
+  overflow HIL testlerini tamamla.
 
 Kabul kriteri: 500 kbit/s'te tanımlanan maksimum burst boyunca frame kaybı
 olmamalı; kapasite üstü trafik bilinçli olarak düşürülmeli ve sayaçta görünür
 olmalıdır.
+
+Hedef kabul testi:
+
+1. İkinci CAN node'dan sabit extended komut ID'siyle art arda 32 adet 8-byte
+   Classic CAN frame gönder; `message_lost_events == 0` ve
+   `max_fifo_fill <= 32` doğrula.
+2. Main-loop'a kontrollü gecikme enjekte ederek 33 ve üzeri frame gönder;
+   blocking FIFO'nun eski komutları koruduğunu, `full` ve `message_lost`
+   sayaçlarının arttığını doğrula.
+3. FIFO doluyken bus-off üret; recovery sonrası RX bildirimlerinin yeniden
+   etkin olduğunu ve yeni frame'lerin işlendiğini doğrula.
+4. `0x560` payload'ındaki watermark/full/lost sayaçlarını ve event log'daki
+   `0x010A..0x010C` kayıtlarını aynı trafikle karşılaştır.
 
 ### 2.2 WCET ve latency ölçümü
 

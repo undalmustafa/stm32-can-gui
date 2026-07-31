@@ -430,6 +430,56 @@ class CanHealthMonitor:
                 return
             self.stm32_rx_degraded = False
 
+        mcu_rx_health = metrics.get("mcu_can_rx_health")
+        if mcu_rx_health is not None:
+            if mcu_rx_health["hal_error"]:
+                self.set_health(
+                    "FAULT",
+                    "MCU_RX_HAL_ERROR",
+                    "STM32 reported an FDCAN receive HAL error",
+                )
+                return
+
+            if mcu_rx_health["message_lost_events"] != 0:
+                self.set_health(
+                    "FAULT",
+                    "MCU_RX_MESSAGE_LOST",
+                    (
+                        f"LOST={mcu_rx_health['message_lost_events']} "
+                        f"FULL={mcu_rx_health['fifo_full_events']} "
+                        f"MAX_FILL={mcu_rx_health['max_fifo_fill']}"
+                    ),
+                )
+                return
+
+            if mcu_rx_health["fifo_full_events"] != 0:
+                self.set_health(
+                    "WARN",
+                    "MCU_RX_FIFO_FULL",
+                    (
+                        f"FULL={mcu_rx_health['fifo_full_events']} "
+                        f"MAX_FILL={mcu_rx_health['max_fifo_fill']}"
+                    ),
+                )
+                return
+
+            if mcu_rx_health["budget_exhausted"]:
+                self.set_health(
+                    "WARN",
+                    "MCU_RX_BACKLOG",
+                    f"MAX_FILL={mcu_rx_health['max_fifo_fill']}",
+                )
+                return
+
         self.set_health(
-            "OK", mode_name, f"STM32_RX_AGE={rx_age * 1000.0:.0f} ms"
+            "OK",
+            mode_name,
+            (
+                f"STM32_RX_AGE={rx_age * 1000.0:.0f} ms"
+                + (
+                    f" MCU_RX_MAX_FILL={mcu_rx_health['max_fifo_fill']}"
+                    if mcu_rx_health is not None
+                    else ""
+                )
+            ),
         )

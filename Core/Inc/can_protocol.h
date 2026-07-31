@@ -72,6 +72,15 @@ typedef struct
 
 typedef struct
 {
+    uint8_t flags;
+    uint8_t max_fifo_fill;
+    uint16_t message_lost_events;
+    uint16_t fifo_full_events;
+    uint16_t watermark_events;
+} CAN_Protocol_CanRxHealth_t;
+
+typedef struct
+{
     uint32_t latest_sequence;
     uint8_t record_count;
     uint8_t ready;
@@ -191,6 +200,10 @@ void CAN_Protocol_EncodeRtcAlarmEvent(
 
 void CAN_Protocol_EncodeSystemStatus(
     const CAN_Protocol_SystemStatus_t *system_status,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
+
+void CAN_Protocol_EncodeCanRxHealth(
+    const CAN_Protocol_CanRxHealth_t *health,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 void CAN_Protocol_EncodeLogHeartbeat(

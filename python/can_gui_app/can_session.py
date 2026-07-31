@@ -5,6 +5,7 @@ import time
 import can
 
 from .protocol import (
+    CAN_RX_HEALTH_RX_ID,
     COMMAND_ACK_ACCEPTED,
     COMMAND_ACK_ACCESS_DENIED,
     COMMAND_ACK_FLAG_ACCESS_OPEN,
@@ -17,6 +18,7 @@ from .protocol import (
     STM32_APPLICATION_RX_IDS,
     STM32_LOG_RESPONSE_RX_ID,
     command_token,
+    decode_can_rx_health,
 )
 
 
@@ -67,6 +69,7 @@ class CanSession:
         self.command_ack_timeout_count = 0
         self.command_retry_count = 0
         self.command_reject_count = 0
+        self.mcu_can_rx_health = None
 
     def connect(self, interface, channel, bitrate):
         interface = str(interface).strip().lower()
@@ -101,6 +104,7 @@ class CanSession:
         self.command_ack_timeout_count = 0
         self.command_retry_count = 0
         self.command_reject_count = 0
+        self.mcu_can_rx_health = None
 
         self._event_writer(
             source="CAN",
@@ -128,6 +132,7 @@ class CanSession:
             "command_retry_count": self.command_retry_count,
             "command_reject_count": self.command_reject_count,
             "command_queue_depth": len(self.command_queue),
+            "mcu_can_rx_health": self.mcu_can_rx_health,
         }
 
     def send_command(self, data):
@@ -449,6 +454,19 @@ class CanSession:
 
                 if msg.arbitration_id == STM32_LOG_RESPONSE_RX_ID:
                     self.last_log_response_rx_time = now
+
+                if msg.arbitration_id == CAN_RX_HEALTH_RX_ID:
+                    try:
+                        self.mcu_can_rx_health = decode_can_rx_health(
+                            msg.data
+                        )
+                    except ValueError as error:
+                        self._health_reporter(
+                            "WARN",
+                            "MCU_RX_HEALTH_INVALID",
+                            type(error).__name__,
+                            str(error),
+                        )
 
             self._frame_handler(msg)
 

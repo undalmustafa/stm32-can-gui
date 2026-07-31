@@ -42,6 +42,8 @@ def main():
            "TIC12400 switch-state ID is generated")
     expect(protocol.TIC12400_PROFILE_RX_ID == 0x555,
            "TIC12400 applied-profile ID is generated")
+    expect(protocol.CAN_RX_HEALTH_RX_ID == 0x560,
+           "MCU CAN RX health ID is generated")
     expect(protocol.SYSTEM_REQUEST_SLOT_1 == 0x01
            and protocol.SYSTEM_REQUEST_PWM == 0x10,
            "system request flags are generated")
@@ -121,6 +123,16 @@ def main():
         "firmware RX saturation counts are decoded",
     )
     expect(
+        protocol.STM32_LOG_EVENT_NAMES[0x010C] ==
+        "CAN_RX_MESSAGE_LOST",
+        "firmware RX loss event is named",
+    )
+    expect(
+        protocol.decode_stm32_log_event_detail(0x010C, 2, 9) ==
+        "NEW_EVENTS=2; TOTAL_EVENTS=9",
+        "firmware RX loss counts are decoded",
+    )
+    expect(
         protocol.STM32_LOG_EVENT_NAMES[0x0109] ==
         "CAN_STARTUP_FAILED",
         "firmware degraded-startup event is named",
@@ -130,6 +142,17 @@ def main():
         "STAGE=START_ERROR; FDCAN_ERROR=0x00000020",
         "firmware degraded-startup stage is decoded",
     )
+    rx_health = protocol.decode_can_rx_health(
+        [0x0F, 32, 0x34, 0x12, 0x78, 0x56, 0xBC, 0x9A]
+    )
+    expect(rx_health["message_lost"]
+           and rx_health["budget_exhausted"],
+           "CAN RX health flags decode")
+    expect(rx_health["max_fifo_fill"] == 32
+           and rx_health["message_lost_events"] == 0x1234
+           and rx_health["fifo_full_events"] == 0x5678
+           and rx_health["watermark_events"] == 0x9ABC,
+           "CAN RX health counters decode little-endian")
     expect(
         protocol.decode_stm32_log_event_detail(
             0x0500,

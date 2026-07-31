@@ -86,6 +86,13 @@ target_link_libraries(test_app_fault unity)
 add_executable(test_app_startup test_app_startup.c ../Core/Src/app_startup.c)
 target_link_libraries(test_app_startup unity)
 
+add_executable(
+    test_can_rx_health
+    test_can_rx_health.c
+    ../Core/Src/can_rx_health.c
+)
+target_link_libraries(test_can_rx_health unity)
+
 # Register tests
 enable_testing()
 add_test(NAME test_can_protocol COMMAND test_can_protocol)
@@ -101,3 +108,4 @@ add_test(NAME test_pwm_self_test COMMAND test_pwm_self_test)
 add_test(NAME test_can_command_guard COMMAND test_can_command_guard)
 add_test(NAME test_app_fault COMMAND test_app_fault)
 add_test(NAME test_app_startup COMMAND test_app_startup)
+add_test(NAME test_can_rx_health COMMAND test_can_rx_health)

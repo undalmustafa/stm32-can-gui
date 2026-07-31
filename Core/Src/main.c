@@ -63,6 +63,8 @@
 #define APP_FDCAN_NOMINAL_BITRATE_HZ      \
   (APP_FDCAN_KERNEL_CLOCK_HZ / APP_FDCAN_NOMINAL_PRESCALER / \
    APP_FDCAN_NOMINAL_TQ_COUNT)
+#define APP_FDCAN_MESSAGE_RAM_WORDS        \
+  (1UL + 2UL + (CAN_APP_RX_FIFO0_ELEMENTS * 4UL) + (3UL * 4UL))
 
 _Static_assert(HSE_VALUE == 8000000UL,
                "Board clock tree requires the 8 MHz ST-LINK MCO");
@@ -74,6 +76,12 @@ _Static_assert(APP_FDCAN_KERNEL_CLOCK_HZ == 32000000UL,
                "FDCAN kernel clock changed");
 _Static_assert(APP_FDCAN_NOMINAL_BITRATE_HZ == 500000UL,
                "FDCAN nominal bitrate changed");
+_Static_assert(CAN_APP_RX_FIFO0_ELEMENTS <= 64U,
+               "FDCAN RX FIFO0 exceeds the hardware limit");
+_Static_assert(CAN_APP_RX_FIFO0_WATERMARK < CAN_APP_RX_FIFO0_ELEMENTS,
+               "FDCAN RX FIFO0 watermark must leave burst headroom");
+_Static_assert(APP_FDCAN_MESSAGE_RAM_WORDS <= 2560UL,
+               "FDCAN message RAM allocation exceeds SRAMCAN");
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -432,7 +440,7 @@ static App_Startup_Result_t MX_FDCAN1_Init(void)
   hfdcan1.Init.MessageRAMOffset = 0;
   hfdcan1.Init.StdFiltersNbr = 1;
   hfdcan1.Init.ExtFiltersNbr = 1;
-  hfdcan1.Init.RxFifo0ElmtsNbr = 3;
+  hfdcan1.Init.RxFifo0ElmtsNbr = CAN_APP_RX_FIFO0_ELEMENTS;
   hfdcan1.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8;
   hfdcan1.Init.RxFifo1ElmtsNbr = 0;
   hfdcan1.Init.RxFifo1ElmtSize = FDCAN_DATA_BYTES_8;

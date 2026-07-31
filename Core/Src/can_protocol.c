@@ -266,6 +266,17 @@ void CAN_Protocol_EncodeSystemStatus(
     payload[7] = system_status->override_flags;
 }
 
+void CAN_Protocol_EncodeCanRxHealth(
+    const CAN_Protocol_CanRxHealth_t *health,
+    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
+{
+    payload[0] = health->flags;
+    payload[1] = health->max_fifo_fill;
+    CAN_Protocol_WriteU16LE(&payload[2], health->message_lost_events);
+    CAN_Protocol_WriteU16LE(&payload[4], health->fifo_full_events);
+    CAN_Protocol_WriteU16LE(&payload[6], health->watermark_events);
+}
+
 void CAN_Protocol_EncodeLogHeartbeat(
     const CAN_Protocol_LogHeartbeat_t *heartbeat,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])

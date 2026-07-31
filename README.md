@@ -305,6 +305,7 @@ Multi-byte values are little-endian.
 | `0x55D` | Input-capture measurement |
 | `0x55E` | Built-in-test status |
 | `0x55F` | Built-in-test point result |
+| `0x560` | MCU FDCAN RX FIFO pressure and loss telemetry |
 
 ### Commands
 
@@ -337,9 +338,11 @@ not this summary, as the protocol source of truth.
 
 ## Fault handling and diagnostics
 
-- **CAN:** detects error-passive and bus-off states, verifies completed
-  transmissions, and performs rate-limited recovery. If FDCAN cannot start,
-  local TIC12400, PWM, capture, RTC, and watchdog services continue.
+- **CAN:** uses a 32-element blocking RX FIFO with a 24-element watermark,
+  reports FIFO pressure/loss on `0x560`, detects error-passive and bus-off
+  states, verifies completed transmissions, and performs rate-limited
+  recovery. If FDCAN cannot start, local TIC12400, PWM, capture, RTC, and
+  watchdog services continue.
 - **TIC12400:** invalidates switch data on a failed service operation. After
   three consecutive failed batches it enters offline recovery, starting at
   500 ms and backing off to 8 s.
@@ -368,12 +371,10 @@ Run the host-side C tests:
 make -C tests test
 ```
 
-Run the Python GUI regression scripts:
+Run the Python GUI regression scripts through the test Makefile:
 
 ```bash
-for test_file in python/tests/test_gui_*.py; do
-    python/.venv/bin/python "$test_file"
-done
+make -C tests test-python
 ```
 
 Hardware validation still requires the target board, CAN transceiver,

@@ -6,6 +6,7 @@
 #include "can_command_guard.h"
 #include "can_transport.h"
 #include "can_recovery.h"
+#include "can_rx_health.h"
 #include "rtc_app.h"
 #include "app_diagnostics.h"
 #include "app_log.h"
@@ -72,6 +73,12 @@ static void CAN_Send_Command_Ack(
     uint8_t command,
     CAN_Protocol_CommandAckStatus_t status,
     uint8_t flags);
+static void CAN_Send_Rx_Health(void);
+
+static uint16_t CAN_SaturateU16(uint32_t value)
+{
+    return (value > UINT16_MAX) ? UINT16_MAX : (uint16_t)value;
+}
 
 static CAN_CommandValidationResult_t CAN_Validate_Command(
     const uint8_t data[CAN_PROTOCOL_PAYLOAD_SIZE])
@@ -567,6 +574,7 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
     g_canAppState = (CAN_App_State_t){0};
     g_canAppState.init_attempts = 1U;
     can_rx_stats = (CAN_App_RxStats_t){0};
+    CAN_RxHealth_Init();
     control_access_requested = 0U;
     control_access_active = 0U;
     control_access_deadline = 0U;
@@ -612,6 +620,25 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
             CAN_APP_INIT_GLOBAL_FILTER_ERROR);
     }
 
+    /* Preserve command ordering and reject excess traffic explicitly. */
+    if (HAL_FDCAN_ConfigRxFifoOverwrite(
+            &hfdcan1,
+            FDCAN_RX_FIFO0,
+            FDCAN_RX_FIFO_BLOCKING) != HAL_OK)
+    {
+        return CAN_App_RecordInitFailure(
+            CAN_APP_INIT_FIFO_MODE_ERROR);
+    }
+
+    if (HAL_FDCAN_ConfigFifoWatermark(
+            &hfdcan1,
+            FDCAN_CFG_RX_FIFO0,
+            CAN_APP_RX_FIFO0_WATERMARK) != HAL_OK)
+    {
+        return CAN_App_RecordInitFailure(
+            CAN_APP_INIT_FIFO_WATERMARK_ERROR);
+    }
+
     if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
     {
         return CAN_App_RecordInitFailure(
@@ -652,8 +679,56 @@ void CAN_App_GetRxStats(CAN_App_RxStats_t *stats)
 {
     if (stats != NULL)
     {
+        CAN_RxHealth_Stats_t health_stats;
+
         *stats = can_rx_stats;
+        CAN_RxHealth_GetStats(&health_stats);
+        stats->rx_new_message_events =
+            health_stats.new_message_events;
+        stats->rx_watermark_events = health_stats.watermark_events;
+        stats->rx_full_events = health_stats.full_events;
+        stats->rx_message_lost_events =
+            health_stats.message_lost_events;
+        stats->rx_max_fill_level = health_stats.max_fill_level;
     }
+}
+
+/*
+ * ISR context. HAL clears the hardware flags before calling this hook. The
+ * callback only maps flags, samples the fill level and updates counters;
+ * frame reads, validation, logging and command execution remain in main.
+ */
+void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan,
+                               uint32_t RxFifo0ITs)
+{
+    uint32_t events = 0U;
+    uint32_t fill_level;
+
+    if ((hfdcan == NULL) || (hfdcan->Instance != FDCAN1))
+    {
+        return;
+    }
+
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_NEW_MESSAGE) != 0U)
+    {
+        events |= CAN_RX_HEALTH_EVENT_NEW_MESSAGE;
+    }
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_WATERMARK) != 0U)
+    {
+        events |= CAN_RX_HEALTH_EVENT_WATERMARK;
+    }
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_FULL) != 0U)
+    {
+        events |= CAN_RX_HEALTH_EVENT_FULL;
+    }
+    if ((RxFifo0ITs & FDCAN_IT_RX_FIFO0_MESSAGE_LOST) != 0U)
+    {
+        events |= CAN_RX_HEALTH_EVENT_MESSAGE_LOST;
+    }
+
+    fill_level = HAL_FDCAN_GetRxFifoFillLevel(
+        hfdcan, FDCAN_RX_FIFO0);
+    CAN_RxHealth_RecordIsr(events, fill_level);
 }
 
 void CAN_App_Process(void)
@@ -1035,6 +1110,7 @@ void System_Status_Process(void)
         CAN_Send_Pwm_Status();
         CAN_Send_Input_Capture_Status();
         CAN_Send_Pwm_Self_Test_Status();
+        CAN_Send_Rx_Health();
     }
 }
 
@@ -1157,6 +1233,42 @@ void CAN_Send_System_Status(void)
     (void)CAN_Transport_SendClassicLatest(CAN_PROTOCOL_SYSTEM_STATUS_TX_ID,
                                           CAN_TRANSPORT_ID_STANDARD,
                                           txData);
+}
+
+static void CAN_Send_Rx_Health(void)
+{
+    CAN_App_RxStats_t stats;
+    CAN_Protocol_CanRxHealth_t health = {0};
+    uint8_t tx_data[CAN_PROTOCOL_PAYLOAD_SIZE] = {0};
+
+    CAN_App_GetRxStats(&stats);
+
+    health.flags =
+        ((stats.rx_watermark_events != 0U)
+            ? CAN_PROTOCOL_CAN_RX_HEALTH_WATERMARK_SEEN : 0U) |
+        ((stats.rx_full_events != 0U)
+            ? CAN_PROTOCOL_CAN_RX_HEALTH_FIFO_FULL_SEEN : 0U) |
+        ((stats.rx_message_lost_events != 0U)
+            ? CAN_PROTOCOL_CAN_RX_HEALTH_MESSAGE_LOST : 0U) |
+        ((stats.rx_budget_hits != 0U)
+            ? CAN_PROTOCOL_CAN_RX_HEALTH_BUDGET_EXHAUSTED : 0U) |
+        ((stats.hal_rx_errors != 0U)
+            ? CAN_PROTOCOL_CAN_RX_HEALTH_HAL_ERROR : 0U);
+    health.max_fifo_fill =
+        (stats.rx_max_fill_level > UINT8_MAX)
+            ? UINT8_MAX
+            : (uint8_t)stats.rx_max_fill_level;
+    health.message_lost_events =
+        CAN_SaturateU16(stats.rx_message_lost_events);
+    health.fifo_full_events = CAN_SaturateU16(stats.rx_full_events);
+    health.watermark_events =
+        CAN_SaturateU16(stats.rx_watermark_events);
+
+    CAN_Protocol_EncodeCanRxHealth(&health, tx_data);
+    (void)CAN_Transport_SendClassicLatest(
+        CAN_PROTOCOL_CAN_RX_HEALTH_TX_ID,
+        CAN_TRANSPORT_ID_STANDARD,
+        tx_data);
 }
 
 void CAN_Send_Pwm_Status(void)

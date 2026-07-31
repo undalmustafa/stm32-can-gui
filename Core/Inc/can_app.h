@@ -4,6 +4,8 @@
 #include <stdint.h>
 
 #define CAN_APP_RX_FRAME_BUDGET_PER_PROCESS 8U
+#define CAN_APP_RX_FIFO0_ELEMENTS           32U
+#define CAN_APP_RX_FIFO0_WATERMARK          24U
 
 typedef enum
 {
@@ -31,6 +33,11 @@ typedef struct
     uint32_t command_ack_tx_failures;
     uint32_t hal_rx_errors;
     uint32_t rx_budget_hits;
+    uint32_t rx_new_message_events;
+    uint32_t rx_watermark_events;
+    uint32_t rx_full_events;
+    uint32_t rx_message_lost_events;
+    uint32_t rx_max_fill_level;
     CAN_App_RxRejectReason_t last_reject_reason;
     uint8_t last_rejected_command;
 } CAN_App_RxStats_t;
@@ -42,7 +49,9 @@ typedef enum
     CAN_APP_INIT_FILTER_ERROR,
     CAN_APP_INIT_GLOBAL_FILTER_ERROR,
     CAN_APP_INIT_START_ERROR,
-    CAN_APP_INIT_NOTIFICATION_ERROR
+    CAN_APP_INIT_NOTIFICATION_ERROR,
+    CAN_APP_INIT_FIFO_MODE_ERROR,
+    CAN_APP_INIT_FIFO_WATERMARK_ERROR
 } CAN_App_InitResult_t;
 
 typedef struct

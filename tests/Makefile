@@ -1,6 +1,8 @@
 CC = gcc
+PYTHON ?= python3
 CFLAGS = -Wall -Wextra -Iunity -Istubs -I../Core/Inc -g -O0
 BUILD_DIR = build
+PYTHON_TESTS = $(wildcard ../python/tests/test_gui_*.py)
 
 TEST_PROTOCOL_SRC = test_can_protocol.c ../Core/Src/can_protocol.c unity/unity.c
 TEST_PCA2131_SRC = test_pca2131_validation.c ../Core/Src/pca2131.c stubs/pca2131_hal_stubs.c unity/unity.c
@@ -22,6 +24,8 @@ TEST_COMMAND_GUARD_SRC = test_can_command_guard.c \
 TEST_APP_LOG_SRC = test_app_log.c ../Core/Src/app_log.c unity/unity.c
 TEST_APP_FAULT_SRC = test_app_fault.c ../Core/Src/app_fault.c unity/unity.c
 TEST_APP_STARTUP_SRC = test_app_startup.c ../Core/Src/app_startup.c unity/unity.c
+TEST_CAN_RX_HEALTH_SRC = test_can_rx_health.c \
+	../Core/Src/can_rx_health.c unity/unity.c
 
 TEST_BINS = \
 	$(BUILD_DIR)/test_protocol \
@@ -37,9 +41,10 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_command_guard \
 	$(BUILD_DIR)/test_app_log \
 	$(BUILD_DIR)/test_app_fault \
-	$(BUILD_DIR)/test_app_startup
+	$(BUILD_DIR)/test_app_startup \
+	$(BUILD_DIR)/test_can_rx_health
 
-.PHONY: all test clean
+.PHONY: all test test-python clean
 
 all: $(TEST_BINS)
 
@@ -88,6 +93,9 @@ $(BUILD_DIR)/test_app_fault: $(TEST_APP_FAULT_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_app_startup: $(TEST_APP_STARTUP_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_can_rx_health: $(TEST_CAN_RX_HEALTH_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 test: all
 	$(BUILD_DIR)/test_protocol
 	$(BUILD_DIR)/test_pca2131
@@ -103,6 +111,12 @@ test: all
 	$(BUILD_DIR)/test_app_log
 	$(BUILD_DIR)/test_app_fault
 	$(BUILD_DIR)/test_app_startup
+	$(BUILD_DIR)/test_can_rx_health
+
+test-python:
+	@for test_file in $(PYTHON_TESTS); do \
+		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $$test_file || exit 1; \
+	done
 
 clean:
 	rm -f $(TEST_BINS)

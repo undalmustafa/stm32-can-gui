@@ -84,6 +84,30 @@ void test_EncodeSystemStatus_matches_struct(void)
     TEST_ASSERT_EQUAL_UINT8(0x10, payload[7]);
 }
 
+void test_EncodeCanRxHealth_matches_wire_format(void)
+{
+    CAN_Protocol_CanRxHealth_t health = {
+        .flags = CAN_PROTOCOL_CAN_RX_HEALTH_MESSAGE_LOST |
+                 CAN_PROTOCOL_CAN_RX_HEALTH_FIFO_FULL_SEEN,
+        .max_fifo_fill = 32U,
+        .message_lost_events = 0x1234U,
+        .fifo_full_events = 0x5678U,
+        .watermark_events = 0x9ABCU
+    };
+    uint8_t payload[8] = {0};
+
+    CAN_Protocol_EncodeCanRxHealth(&health, payload);
+
+    TEST_ASSERT_EQUAL_HEX8(0x06U, payload[0]);
+    TEST_ASSERT_EQUAL_UINT8(32U, payload[1]);
+    TEST_ASSERT_EQUAL_HEX8(0x34U, payload[2]);
+    TEST_ASSERT_EQUAL_HEX8(0x12U, payload[3]);
+    TEST_ASSERT_EQUAL_HEX8(0x78U, payload[4]);
+    TEST_ASSERT_EQUAL_HEX8(0x56U, payload[5]);
+    TEST_ASSERT_EQUAL_HEX8(0xBCU, payload[6]);
+    TEST_ASSERT_EQUAL_HEX8(0x9AU, payload[7]);
+}
+
 void test_EncodePwmStatus_includes_control_policy(void)
 {
     CAN_Protocol_PwmStatus_t status = {
@@ -321,6 +345,7 @@ int main(void)
     RUN_TEST(test_IsValidId_extended_max_0x1FFFFFFF);
     RUN_TEST(test_IsValidId_extended_rejects_0x20000000);
     RUN_TEST(test_EncodeSystemStatus_matches_struct);
+    RUN_TEST(test_EncodeCanRxHealth_matches_wire_format);
     RUN_TEST(test_EncodePwmStatus_includes_control_policy);
     RUN_TEST(test_EncodePwmSelfTestStatus_matches_wire_format);
     RUN_TEST(test_EncodePwmSelfTestResult_matches_wire_format);
