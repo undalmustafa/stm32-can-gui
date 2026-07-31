@@ -86,6 +86,7 @@ static uint32_t rtc_write_verify_deadline = 0U;
 static uint32_t last_rtc_poll_time = 0U;
 static uint8_t last_published_rtc_second = 0xFFU;
 static uint8_t rtc_force_publish = 1U;
+static uint8_t rtc_peripheral_ready;
 static uint8_t last_published_rtc_hundredth = 0xFFU;
 static RTC_AlarmSnapshot_t rtc_alarm_snapshot;
 static uint8_t rtc_alarm_read_pending = 0U;
@@ -334,10 +335,9 @@ void CAN_Send_RTC_Time(void)
                                           txData);
 }
 
-void PCA2131_Init_Check(void)
+void PCA2131_Init_Check(uint8_t peripheral_ready)
 {
-    PCA2131_Driver_Init(&rtc_device, &hi2c1);
-
+    rtc_peripheral_ready = (peripheral_ready != 0U) ? 1U : 0U;
     rtc.ready = 0U;
     rtc_alarm_snapshot = (RTC_AlarmSnapshot_t){0};
     rtc_alarm_read_pending = 1U;
@@ -349,6 +349,19 @@ void PCA2131_Init_Check(void)
     g_rtcWatchdogSnapshot = (RTC_WatchdogSnapshot_t){0};
     rtc_watchdog_read_pending = 1U;
     last_alarm_status_poll_time = HAL_GetTick();
+
+    if (rtc_peripheral_ready == 0U)
+    {
+        rtc.last_result = PCA2131_RESULT_DEVICE_NOT_READY;
+        rtc.last_status = HAL_ERROR;
+        rtc.last_error = 0U;
+        rtc_alarm_read_pending = 0U;
+        rtc_watchdog_read_pending = 0U;
+        rtc_init_state = RTC_INIT_STATE_COMPLETE;
+        return;
+    }
+
+    PCA2131_Driver_Init(&rtc_device, &hi2c1);
     rtc_init_deadline = HAL_GetTick() + RTC_INIT_SETTLE_DELAY_MS;
     rtc_init_state = RTC_INIT_STATE_WAIT_SETTLE;
 }
@@ -357,6 +370,11 @@ uint8_t RTC_RefreshWatchdogSnapshot(void)
 {
     PCA2131_WatchdogStatus_t watchdog_status = {0};
     PCA2131_OperationStatus_t operation_status;
+
+    if (rtc_peripheral_ready == 0U)
+    {
+        return 0U;
+    }
 
     operation_status = PCA2131_Driver_ReadWatchdogStatus(
         &rtc_device,
@@ -391,6 +409,11 @@ uint8_t RTC_RefreshAlarmSnapshot(void)
 {
     PCA2131_Alarm_t alarm = {0};
     PCA2131_OperationStatus_t status;
+
+    if (rtc_peripheral_ready == 0U)
+    {
+        return 0U;
+    }
 
     status = PCA2131_Driver_ReadAlarm(&rtc_device, &alarm);
 
@@ -982,6 +1005,14 @@ uint8_t PCA2131_SetDateTime(uint8_t hundredth,
     PCA2131_DateTime_t date_time = {0};
     PCA2131_OperationStatus_t status;
 
+    if (rtc_peripheral_ready == 0U)
+    {
+        CAN_Send_RTC_Status(CAN_PROTOCOL_RTC_STATUS_INIT_FAILED,
+                            HAL_ERROR,
+                            0U);
+        return 0U;
+    }
+
     if (rtc_init_state != RTC_INIT_STATE_COMPLETE)
     {
         CAN_Send_RTC_Status(CAN_PROTOCOL_RTC_STATUS_BUSY,
@@ -1228,6 +1259,11 @@ void RTC_Process(void)
     uint32_t now = HAL_GetTick();
     uint32_t poll_period_ms;
     uint8_t was_ready;
+
+    if (rtc_peripheral_ready == 0U)
+    {
+        return;
+    }
 
     if (RTC_ProcessInitialization(now) != 0U)
     {

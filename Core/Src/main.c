@@ -23,6 +23,9 @@
 /* USER CODE BEGIN Includes */
 #include "can_app.h"
 #include "app_control.h"
+#include "app_fault.h"
+#include "app_safe_state.h"
+#include "app_startup.h"
 #include "rtc_app.h"
 #include "app_log.h"
 #include "app_reset_reason.h"
@@ -43,7 +46,34 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define APP_PLL_M                         3UL
+#define APP_PLL_N                         96UL
+#define APP_PLL_P                         4UL
+#define APP_PLL_Q                         8UL
+#define APP_PLL_R                         4UL
+#define APP_FDCAN_NOMINAL_PRESCALER       4UL
+#define APP_FDCAN_NOMINAL_TIME_SEG1       12UL
+#define APP_FDCAN_NOMINAL_TIME_SEG2       3UL
+#define APP_FDCAN_NOMINAL_TQ_COUNT        \
+  (1UL + APP_FDCAN_NOMINAL_TIME_SEG1 + APP_FDCAN_NOMINAL_TIME_SEG2)
+#define APP_PLL_VCO_HZ                    \
+  ((HSE_VALUE * APP_PLL_N) / APP_PLL_M)
+#define APP_SYSCLK_HZ                     (APP_PLL_VCO_HZ / APP_PLL_P)
+#define APP_FDCAN_KERNEL_CLOCK_HZ         (APP_PLL_VCO_HZ / APP_PLL_Q)
+#define APP_FDCAN_NOMINAL_BITRATE_HZ      \
+  (APP_FDCAN_KERNEL_CLOCK_HZ / APP_FDCAN_NOMINAL_PRESCALER / \
+   APP_FDCAN_NOMINAL_TQ_COUNT)
 
+_Static_assert(HSE_VALUE == 8000000UL,
+               "Board clock tree requires the 8 MHz ST-LINK MCO");
+_Static_assert(APP_PLL_VCO_HZ == 256000000UL,
+               "PLL VCO clock changed");
+_Static_assert(APP_SYSCLK_HZ == 64000000UL,
+               "System clock changed");
+_Static_assert(APP_FDCAN_KERNEL_CLOCK_HZ == 32000000UL,
+               "FDCAN kernel clock changed");
+_Static_assert(APP_FDCAN_NOMINAL_BITRATE_HZ == 500000UL,
+               "FDCAN nominal bitrate changed");
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -68,18 +98,20 @@ TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 volatile uint8_t g_fdcan1_msp_ready;
+volatile uint8_t g_i2c1_msp_ready;
+volatile uint8_t g_spi3_msp_ready;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
-static uint8_t MX_FDCAN1_Init(void);
-static void MX_I2C1_Init(void);
-static void MX_SPI3_Init(void);
+static App_Startup_Result_t MX_FDCAN1_Init(void);
+static App_Startup_Result_t MX_I2C1_Init(void);
+static App_Startup_Result_t MX_SPI3_Init(void);
 static void MX_IWDG1_Init(void);
-static void MX_TIM2_Init(void);
-static void MX_TIM3_Init(void);
+static App_Startup_Result_t MX_TIM2_Init(void);
+static App_Startup_Result_t MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 /* USER CODE END PFP */
 
@@ -95,7 +127,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  uint8_t can_peripheral_ready;
+  App_Startup_Result_t init_result;
 
   /* USER CODE END 1 */
 
@@ -110,6 +142,7 @@ int main(void)
   /* USER CODE BEGIN Init */
 
   App_ResetReason_Capture();
+  App_Fault_CaptureBoot();
   App_Watchdog_Evidence_CaptureBoot(App_ResetReason_WasIwdgReset());
 
   /* USER CODE END Init */
@@ -123,30 +156,86 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  can_peripheral_ready = MX_FDCAN1_Init();
-  MX_I2C1_Init();
-  MX_SPI3_Init();
+  App_SafeState_Engage();
+  App_Startup_Init(APP_STARTUP_EXPECTED_RESOURCES);
+
+  /* IWDG is mandatory and starts before non-critical peripherals. */
   MX_IWDG1_Init();
-  MX_TIM2_Init();
-  MX_TIM3_Init();
-  /* USER CODE BEGIN 2 */
-  App_Log_Init();
-  if (PWM_Control_Init(&htim2,
-                       TIM_CHANNEL_1,
-                       1000000UL) != PWM_CONTROL_OK)
+  if (App_Watchdog_Init(&hiwdg1) != HAL_OK)
   {
-      Error_Handler();
+    Error_Handler();
   }
 
-  if (PWM_Control_Set(10000U, 90U) != PWM_CONTROL_OK)
+  init_result = MX_FDCAN1_Init();
+  App_Startup_Record(APP_STARTUP_RESOURCE_FDCAN, init_result);
+  init_result = MX_I2C1_Init();
+  App_Startup_Record(APP_STARTUP_RESOURCE_I2C, init_result);
+  init_result = MX_SPI3_Init();
+  App_Startup_Record(APP_STARTUP_RESOURCE_SPI, init_result);
+  init_result = MX_TIM2_Init();
+  App_Startup_Record(APP_STARTUP_RESOURCE_PWM_TIMER, init_result);
+  if (init_result != APP_STARTUP_RESULT_OK)
   {
-      Error_Handler();
+    App_SafeState_Engage();
   }
-  if (Input_Capture_Init(&htim3, 1000000UL) != INPUT_CAPTURE_OK)
+  init_result = MX_TIM3_Init();
+  App_Startup_Record(APP_STARTUP_RESOURCE_CAPTURE_TIMER, init_result);
+  /* USER CODE BEGIN 2 */
+  App_Log_Init();
+  App_Fault_Snapshot_t fault_snapshot;
+  App_Fault_GetSnapshot(&fault_snapshot);
+  if (fault_snapshot.valid != 0U)
   {
-      Error_Handler();
+    (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,
+                       APP_LOG_SEVERITY_FAULT,
+                       APP_LOG_EVENT_CPU_FAULT,
+                       fault_snapshot.type,
+                       fault_snapshot.pc);
+    (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,
+                       APP_LOG_SEVERITY_FAULT,
+                       APP_LOG_EVENT_CPU_FAULT_STATUS,
+                       fault_snapshot.cfsr,
+                       fault_snapshot.hfsr);
   }
-  TIC12400_Probe_Init(&hspi3);
+  if (App_Startup_IsReady(APP_STARTUP_RESOURCE_PWM_TIMER) != 0U)
+  {
+    init_result =
+        (PWM_Control_Init(&htim2,
+                          TIM_CHANNEL_1,
+                          1000000UL) == PWM_CONTROL_OK)
+        ? APP_STARTUP_RESULT_OK
+        : APP_STARTUP_RESULT_PWM_CONTROL_INIT;
+  }
+  else
+  {
+    init_result = APP_STARTUP_RESULT_PWM_CONTROL_INIT;
+  }
+  App_Startup_Record(APP_STARTUP_RESOURCE_PWM_CONTROL, init_result);
+
+  if ((init_result == APP_STARTUP_RESULT_OK) &&
+      (PWM_Control_Set(10000U, 90U) != PWM_CONTROL_OK))
+  {
+    init_result = APP_STARTUP_RESULT_PWM_CONTROL_DEFAULT;
+    App_Startup_Record(APP_STARTUP_RESOURCE_PWM_CONTROL, init_result);
+    App_SafeState_Engage();
+  }
+
+  if (App_Startup_IsReady(APP_STARTUP_RESOURCE_CAPTURE_TIMER) != 0U)
+  {
+    init_result =
+        (Input_Capture_Init(&htim3, 1000000UL) == INPUT_CAPTURE_OK)
+        ? APP_STARTUP_RESULT_OK
+        : APP_STARTUP_RESULT_INPUT_CAPTURE_INIT;
+  }
+  else
+  {
+    init_result = APP_STARTUP_RESULT_INPUT_CAPTURE_INIT;
+  }
+  App_Startup_Record(APP_STARTUP_RESOURCE_INPUT_CAPTURE, init_result);
+
+  TIC12400_Probe_Init(
+      &hspi3,
+      App_Startup_IsReady(APP_STARTUP_RESOURCE_SPI));
   PWM_SelfTest_Init();
   App_Control_Init();
   App_ResetReason_Snapshot_t reset_reason;
@@ -168,17 +257,14 @@ int main(void)
                        watchdog_evidence.missing_heartbeat_mask);
   }
 
-  (void)CAN_App_Init(can_peripheral_ready);
+  (void)CAN_App_Init(
+      App_Startup_IsReady(APP_STARTUP_RESOURCE_FDCAN));
   TIC12400_CAN_Init();
-  PCA2131_Init_Check();
+  PCA2131_Init_Check(
+      App_Startup_IsReady(APP_STARTUP_RESOURCE_I2C));
   if (CAN_App_IsAvailable() != 0U)
   {
     CAN_Send_System_Status();
-  }
-
-  if (App_Watchdog_Init(&hiwdg1) != HAL_OK)
-  {
-    Error_Handler();
   }
 
   /* USER CODE END 2 */
@@ -203,7 +289,25 @@ int main(void)
   BspCOMInit.HwFlowCtl  = COM_HWCONTROL_NONE;
   if (BSP_COM_Init(COM1, &BspCOMInit) != BSP_ERROR_NONE)
   {
-    Error_Handler();
+    App_Startup_Record(APP_STARTUP_RESOURCE_COM,
+                       APP_STARTUP_RESULT_COM_INIT);
+  }
+  else
+  {
+    App_Startup_Record(APP_STARTUP_RESOURCE_COM,
+                       APP_STARTUP_RESULT_OK);
+  }
+
+  App_Startup_Snapshot_t startup_snapshot;
+  App_Startup_GetSnapshot(&startup_snapshot);
+  if (startup_snapshot.degraded != 0U)
+  {
+    BSP_LED_On(LED_YELLOW);
+    (void)App_Log_Push(APP_LOG_SOURCE_SYSTEM,
+                       APP_LOG_SEVERITY_FAULT,
+                       APP_LOG_EVENT_STARTUP_DEGRADED,
+                       startup_snapshot.failed_mask,
+                       startup_snapshot.first_failure_result);
   }
 
   /* Infinite loop */
@@ -254,18 +358,21 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE
+                                   | RCC_OSCILLATORTYPE_HSI
+                                   | RCC_OSCILLATORTYPE_LSI;
+  RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
   RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
   RCC_OscInitStruct.HSICalibrationValue = 64;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 8;
-  RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
-  RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = APP_PLL_M;
+  RCC_OscInitStruct.PLL.PLLN = APP_PLL_N;
+  RCC_OscInitStruct.PLL.PLLP = APP_PLL_P;
+  RCC_OscInitStruct.PLL.PLLQ = APP_PLL_Q;
+  RCC_OscInitStruct.PLL.PLLR = APP_PLL_R;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_1;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -295,10 +402,11 @@ void SystemClock_Config(void)
 /**
   * @brief FDCAN1 Initialization Function
   * @param None
- * @retval 1 when the peripheral is ready, otherwise 0
+ * @retval Detailed startup result
  */
-static uint8_t MX_FDCAN1_Init(void)
+static App_Startup_Result_t MX_FDCAN1_Init(void)
 {
+  HAL_StatusTypeDef hal_status;
 
   /* USER CODE BEGIN FDCAN1_Init 0 */
 
@@ -313,10 +421,10 @@ static uint8_t MX_FDCAN1_Init(void)
   hfdcan1.Init.AutoRetransmission = ENABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 4;
+  hfdcan1.Init.NominalPrescaler = APP_FDCAN_NOMINAL_PRESCALER;
   hfdcan1.Init.NominalSyncJumpWidth = 4;
-  hfdcan1.Init.NominalTimeSeg1 = 12;
-  hfdcan1.Init.NominalTimeSeg2 = 3;
+  hfdcan1.Init.NominalTimeSeg1 = APP_FDCAN_NOMINAL_TIME_SEG1;
+  hfdcan1.Init.NominalTimeSeg2 = APP_FDCAN_NOMINAL_TIME_SEG2;
   hfdcan1.Init.DataPrescaler = 1;
   hfdcan1.Init.DataSyncJumpWidth = 1;
   hfdcan1.Init.DataTimeSeg1 = 1;
@@ -336,28 +444,30 @@ static uint8_t MX_FDCAN1_Init(void)
   hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
   g_fdcan1_msp_ready = 0U;
-  if (HAL_FDCAN_Init(&hfdcan1) != HAL_OK)
-  {
-    return 0U;
-  }
+  hal_status = HAL_FDCAN_Init(&hfdcan1);
   if (g_fdcan1_msp_ready == 0U)
   {
-    return 0U;
+    return APP_STARTUP_RESULT_FDCAN_MSP_CLOCK;
+  }
+  if (hal_status != HAL_OK)
+  {
+    return APP_STARTUP_RESULT_FDCAN_HAL_INIT;
   }
   /* USER CODE BEGIN FDCAN1_Init 2 */
 
   /* USER CODE END FDCAN1_Init 2 */
 
-  return 1U;
+  return APP_STARTUP_RESULT_OK;
 }
 
 /**
   * @brief I2C1 Initialization Function
   * @param None
-  * @retval None
+  * @retval Detailed startup result
   */
-static void MX_I2C1_Init(void)
+static App_Startup_Result_t MX_I2C1_Init(void)
 {
+  HAL_StatusTypeDef hal_status;
 
   /* USER CODE BEGIN I2C1_Init 0 */
 
@@ -375,37 +485,45 @@ static void MX_I2C1_Init(void)
   hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
   hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
   hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  g_i2c1_msp_ready = 0U;
+  hal_status = HAL_I2C_Init(&hi2c1);
+  if (g_i2c1_msp_ready == 0U)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_I2C_MSP_CLOCK;
+  }
+  if (hal_status != HAL_OK)
+  {
+    return APP_STARTUP_RESULT_I2C_HAL_INIT;
   }
 
   /** Configure Analogue filter
   */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_I2C_ANALOG_FILTER;
   }
 
   /** Configure Digital filter
   */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_I2C_DIGITAL_FILTER;
   }
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
 
+  return APP_STARTUP_RESULT_OK;
 }
 
 /**
   * @brief SPI3 Initialization Function
   * @param None
-  * @retval None
+  * @retval Detailed startup result
   */
-static void MX_SPI3_Init(void)
+static App_Startup_Result_t MX_SPI3_Init(void)
 {
+  HAL_StatusTypeDef hal_status;
   hspi3.Instance = SPI3;
   hspi3.Init.Mode = SPI_MODE_MASTER;
   hspi3.Init.Direction = SPI_DIRECTION_2LINES;
@@ -432,10 +550,18 @@ static void MX_SPI3_Init(void)
   hspi3.Init.MasterReceiverAutoSusp = SPI_MASTER_RX_AUTOSUSP_DISABLE;
   hspi3.Init.MasterKeepIOState = SPI_MASTER_KEEP_IO_STATE_ENABLE;
   hspi3.Init.IOSwap = SPI_IO_SWAP_DISABLE;
-  if (HAL_SPI_Init(&hspi3) != HAL_OK)
+  g_spi3_msp_ready = 0U;
+  hal_status = HAL_SPI_Init(&hspi3);
+  if (g_spi3_msp_ready == 0U)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_SPI_MSP_CLOCK;
   }
+  if (hal_status != HAL_OK)
+  {
+    return APP_STARTUP_RESULT_SPI_HAL_INIT;
+  }
+
+  return APP_STARTUP_RESULT_OK;
 }
 
 /**
@@ -475,9 +601,9 @@ static void MX_IWDG1_Init(void)
 /**
   * @brief TIM2 Initialization Function
   * @param None
-  * @retval None
+  * @retval Detailed startup result
   */
-static void MX_TIM2_Init(void)
+static App_Startup_Result_t MX_TIM2_Init(void)
 {
 
   /* USER CODE BEGIN TIM2_Init 0 */
@@ -499,22 +625,22 @@ static void MX_TIM2_Init(void)
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_PWM_TIMER_BASE;
   }
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
   if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_PWM_TIMER_CLOCK;
   }
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_PWM_TIMER_PWM;
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_PWM_TIMER_MASTER;
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 500;
@@ -522,19 +648,20 @@ static void MX_TIM2_Init(void)
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_PWM_TIMER_CHANNEL;
   }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
   HAL_TIM_MspPostInit(&htim2);
 
+  return APP_STARTUP_RESULT_OK;
 }
 
 /**
   * @brief TIM3 PWM input initialization (PA6, CH1 period / CH2 pulse)
   */
-static void MX_TIM3_Init(void)
+static App_Startup_Result_t MX_TIM3_Init(void)
 {
   TIM_IC_InitTypeDef sConfigIC = {0};
   TIM_SlaveConfigTypeDef sSlaveConfig = {0};
@@ -548,7 +675,7 @@ static void MX_TIM3_Init(void)
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_IC_Init(&htim3) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_CAPTURE_TIMER_INIT;
   }
 
   sSlaveConfig.SlaveMode = TIM_SLAVEMODE_RESET;
@@ -558,7 +685,7 @@ static void MX_TIM3_Init(void)
   sSlaveConfig.TriggerFilter = 0;
   if (HAL_TIM_SlaveConfigSynchro(&htim3, &sSlaveConfig) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_CAPTURE_TIMER_SLAVE;
   }
 
   sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
@@ -567,22 +694,24 @@ static void MX_TIM3_Init(void)
   sConfigIC.ICFilter = 0;
   if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_CAPTURE_TIMER_CHANNEL_1;
   }
 
   sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_FALLING;
   sConfigIC.ICSelection = TIM_ICSELECTION_INDIRECTTI;
   if (HAL_TIM_IC_ConfigChannel(&htim3, &sConfigIC, TIM_CHANNEL_2) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_CAPTURE_TIMER_CHANNEL_2;
   }
 
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
   {
-    Error_Handler();
+    return APP_STARTUP_RESULT_CAPTURE_TIMER_MASTER;
   }
+
+  return APP_STARTUP_RESULT_OK;
 }
 
 /**
@@ -673,8 +802,17 @@ void MPU_Config(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
+  uint32_t return_address =
+      (uint32_t)(uintptr_t)__builtin_return_address(0);
+
   __disable_irq();
+  App_SafeState_Engage();
+  App_Fault_RecordException(APP_FAULT_ERROR_HANDLER,
+                            NULL,
+                            return_address);
+  __DSB();
+  NVIC_SystemReset();
+
   while (1)
   {
   }

@@ -22,6 +22,9 @@ them even if CAN is unavailable.
 - Supports SocketCAN on Linux and PCAN-Basic on Windows.
 - Recovers from CAN and TIC12400 communication faults without stopping local
   safety behavior.
+- Continues in degraded mode when an optional I2C, SPI, timer, capture, or
+  debug-COM initialization fails; the yellow LED and retained event log expose
+  the failed startup resource.
 
 ## System overview
 
@@ -53,6 +56,11 @@ separate local policy layer and can override selected remote requests.
 - PCA2131 RTC board
 - A protected external supply for the TIC12400 `VS` rail
 - Optional jumper for PWM loopback testing
+
+The firmware uses the Nucleo ST-LINK 8 MHz MCO on `PH0/OSC_IN` as an HSE
+bypass clock. This reference drives the PLL and the 500 kbit/s FDCAN timing.
+Keep the on-board ST-LINK clock routing enabled; a board without that clock
+will intentionally remain in the reset path instead of running CAN from HSI.
 
 ### Core connections
 

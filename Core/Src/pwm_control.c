@@ -1,5 +1,7 @@
 #include "pwm_control.h"
 
+#include "app_safe_state.h"
+
 #include <stddef.h>
 
 #define PWM_CONTROL_MIN_FREQUENCY_HZ  1UL
@@ -134,6 +136,8 @@ PWM_Control_Result_t PWM_Control_Stop(void)
 
     if (HAL_TIM_PWM_Stop(pwm_timer, pwm_channel) != HAL_OK)
     {
+        App_SafeState_Engage();
+        g_pwmControlState.running = 0U;
         return PWM_Control_RecordResult(PWM_CONTROL_ERROR_HAL);
     }
 

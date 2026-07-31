@@ -22,6 +22,8 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "app_fault.h"
+#include "app_safe_state.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,11 +48,49 @@
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN PFP */
-
+void App_Fault_HandleException(const uint32_t *stack_frame,
+                               uint32_t exception_return,
+                               uint32_t fault_type)
+    __attribute__((used, noinline, noreturn));
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void App_Fault_HandleException(const uint32_t *stack_frame,
+                               uint32_t exception_return,
+                               uint32_t fault_type)
+{
+  const uint32_t stacking_error_mask =
+      SCB_CFSR_MSTKERR_Msk |
+      SCB_CFSR_MUNSTKERR_Msk |
+      SCB_CFSR_MLSPERR_Msk |
+      SCB_CFSR_STKERR_Msk |
+      SCB_CFSR_UNSTKERR_Msk |
+      SCB_CFSR_LSPERR_Msk;
+
+  __disable_irq();
+  App_SafeState_Engage();
+
+  if ((SCB->CFSR & stacking_error_mask) != 0U)
+  {
+    stack_frame = NULL;
+  }
+  else if ((exception_return & (1UL << 4)) == 0U)
+  {
+    /* Skip the floating-point extension to reach the basic exception frame. */
+    stack_frame = &stack_frame[18];
+  }
+
+  App_Fault_RecordException((App_Fault_Type_t)fault_type,
+                            stack_frame,
+                            exception_return);
+  __DSB();
+  NVIC_SystemReset();
+
+  while (1)
+  {
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -66,76 +106,76 @@ extern FDCAN_HandleTypeDef hfdcan1;
 /**
   * @brief This function handles Non maskable interrupt.
   */
-void NMI_Handler(void)
+__attribute__((naked)) void NMI_Handler(void)
 {
-  /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
-  /* USER CODE END NonMaskableInt_IRQn 0 */
-  /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
-   while (1)
-  {
-  }
-  /* USER CODE END NonMaskableInt_IRQn 1 */
+  __asm volatile(
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "movs r2, #1\n"
+      "b App_Fault_HandleException\n");
 }
 
 /**
   * @brief This function handles Hard fault interrupt.
   */
-void HardFault_Handler(void)
+__attribute__((naked)) void HardFault_Handler(void)
 {
-  /* USER CODE BEGIN HardFault_IRQn 0 */
-
-  /* USER CODE END HardFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_HardFault_IRQn 0 */
-    /* USER CODE END W1_HardFault_IRQn 0 */
-  }
+  __asm volatile(
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "movs r2, #2\n"
+      "b App_Fault_HandleException\n");
 }
 
 /**
   * @brief This function handles Memory management fault.
   */
-void MemManage_Handler(void)
+__attribute__((naked)) void MemManage_Handler(void)
 {
-  /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
-  /* USER CODE END MemoryManagement_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_MemoryManagement_IRQn 0 */
-    /* USER CODE END W1_MemoryManagement_IRQn 0 */
-  }
+  __asm volatile(
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "movs r2, #3\n"
+      "b App_Fault_HandleException\n");
 }
 
 /**
   * @brief This function handles Pre-fetch fault, memory access fault.
   */
-void BusFault_Handler(void)
+__attribute__((naked)) void BusFault_Handler(void)
 {
-  /* USER CODE BEGIN BusFault_IRQn 0 */
-
-  /* USER CODE END BusFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_BusFault_IRQn 0 */
-    /* USER CODE END W1_BusFault_IRQn 0 */
-  }
+  __asm volatile(
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "movs r2, #4\n"
+      "b App_Fault_HandleException\n");
 }
 
 /**
   * @brief This function handles Undefined instruction or illegal state.
   */
-void UsageFault_Handler(void)
+__attribute__((naked)) void UsageFault_Handler(void)
 {
-  /* USER CODE BEGIN UsageFault_IRQn 0 */
-
-  /* USER CODE END UsageFault_IRQn 0 */
-  while (1)
-  {
-    /* USER CODE BEGIN W1_UsageFault_IRQn 0 */
-    /* USER CODE END W1_UsageFault_IRQn 0 */
-  }
+  __asm volatile(
+      "tst lr, #4\n"
+      "ite eq\n"
+      "mrseq r0, msp\n"
+      "mrsne r0, psp\n"
+      "mov r1, lr\n"
+      "movs r2, #5\n"
+      "b App_Fault_HandleException\n");
 }
 
 /**

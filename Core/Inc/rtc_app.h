@@ -84,7 +84,7 @@ uint8_t PCA2131_Is_Valid_DateTime(uint8_t hundredth,
                                   uint8_t month,
                                   uint8_t year);
 
-void PCA2131_Init_Check(void);
+void PCA2131_Init_Check(uint8_t peripheral_ready);
 uint8_t PCA2131_UpdateTime(void);
 uint8_t PCA2131_SetTime(uint8_t hour, uint8_t minute, uint8_t second);
 uint8_t PCA2131_SetDateTime(uint8_t hundredth,

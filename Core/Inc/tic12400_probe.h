@@ -111,7 +111,8 @@ typedef struct
 
 extern volatile TIC12400_ProbeSnapshot_t g_tic12400_probe;
 
-void TIC12400_Probe_Init(SPI_HandleTypeDef *spi);
+void TIC12400_Probe_Init(SPI_HandleTypeDef *spi,
+                         uint8_t peripheral_ready);
 void TIC12400_Probe_Process(void);
 void TIC12400_Probe_NotifyInterruptFromIsr(void);
 uint8_t TIC12400_Probe_SetBatterySwitchMask(uint32_t battery_switch_mask);

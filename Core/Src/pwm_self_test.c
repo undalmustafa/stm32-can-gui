@@ -213,12 +213,24 @@ void PWM_SelfTest_Init(void)
 
 PWM_SelfTest_ResultCode_t PWM_SelfTest_Start(void)
 {
+    PWM_Control_State_t pwm_state;
+    Input_Capture_State_t capture_state;
+
     if (self_test_state.state == PWM_SELF_TEST_STATE_RUNNING)
     {
         return PWM_SELF_TEST_BUSY;
     }
 
-    saved_pwm_state = PWM_Control_GetState();
+    pwm_state = PWM_Control_GetState();
+    capture_state = Input_Capture_GetState();
+    if ((pwm_state.initialized == 0U) ||
+        (capture_state.initialized == 0U))
+    {
+        self_test_state.state = PWM_SELF_TEST_STATE_ERROR;
+        return PWM_SELF_TEST_CONTROL_ERROR;
+    }
+
+    saved_pwm_state = pwm_state;
     point_index = 0U;
     failed_points = 0U;
     failed_point_mask = 0U;

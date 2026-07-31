@@ -18,6 +18,7 @@ Input_Capture_Result_t Input_Capture_Init(
     }
 
     capture_timer = htim;
+    capture_state = (Input_Capture_State_t){0};
     capture_state.counter_clock_hz = counter_clock_hz;
 
     if (HAL_TIM_IC_Start(htim, TIM_CHANNEL_2) != HAL_OK)
@@ -35,6 +36,7 @@ Input_Capture_Result_t Input_Capture_Init(
                          TIM_FLAG_CC1 | TIM_FLAG_CC2 |
                          TIM_FLAG_CC1OF | TIM_FLAG_CC2OF);
     last_capture_time_ms = HAL_GetTick();
+    capture_state.initialized = 1U;
     return INPUT_CAPTURE_OK;
 }
 

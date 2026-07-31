@@ -79,6 +79,13 @@ add_executable(
 )
 target_link_libraries(test_can_command_guard unity)
 
+add_executable(test_app_fault test_app_fault.c ../Core/Src/app_fault.c)
+target_compile_definitions(test_app_fault PRIVATE APP_FAULT_HOST_TEST)
+target_link_libraries(test_app_fault unity)
+
+add_executable(test_app_startup test_app_startup.c ../Core/Src/app_startup.c)
+target_link_libraries(test_app_startup unity)
+
 # Register tests
 enable_testing()
 add_test(NAME test_can_protocol COMMAND test_can_protocol)
@@ -92,3 +99,5 @@ add_test(NAME test_app_control COMMAND test_app_control)
 add_test(NAME test_can_transport COMMAND test_can_transport)
 add_test(NAME test_pwm_self_test COMMAND test_pwm_self_test)
 add_test(NAME test_can_command_guard COMMAND test_can_command_guard)
+add_test(NAME test_app_fault COMMAND test_app_fault)
+add_test(NAME test_app_startup COMMAND test_app_startup)

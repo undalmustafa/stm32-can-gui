@@ -170,10 +170,12 @@ void HAL_FDCAN_MspDeInit(FDCAN_HandleTypeDef* hfdcan)
   */
 void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 {
+  extern volatile uint8_t g_i2c1_msp_ready;
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
   if(hi2c->Instance==I2C1)
   {
+    g_i2c1_msp_ready = 0U;
     /* USER CODE BEGIN I2C1_MspInit 0 */
 
     /* USER CODE END I2C1_MspInit 0 */
@@ -184,7 +186,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
     PeriphClkInitStruct.I2c123ClockSelection = RCC_I2C123CLKSOURCE_D2PCLK1;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
     {
-      Error_Handler();
+      return;
     }
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -201,6 +203,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
 
     /* Peripheral clock enable */
     __HAL_RCC_I2C1_CLK_ENABLE();
+    g_i2c1_msp_ready = 1U;
     /* USER CODE BEGIN I2C1_MspInit 1 */
 
     /* USER CODE END I2C1_MspInit 1 */
@@ -247,16 +250,18 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
   */
 void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
 {
+  extern volatile uint8_t g_spi3_msp_ready;
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   if(hspi->Instance==SPI3)
   {
+    g_spi3_msp_ready = 0U;
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SPI3;
     PeriphClkInitStruct.Spi123ClockSelection = RCC_SPI123CLKSOURCE_PLL;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
     {
-      Error_Handler();
+      return;
     }
 
     __HAL_RCC_SPI3_CLK_ENABLE();
@@ -273,6 +278,7 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+    g_spi3_msp_ready = 1U;
   }
 }
 

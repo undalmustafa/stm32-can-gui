@@ -179,6 +179,13 @@ SECTIONS
     . = ALIGN(32);
   } >BKPSRAM
 
+  .fault_retained (NOLOAD) :
+  {
+    . = ALIGN(32);
+    KEEP(*(.fault_retained))
+    . = ALIGN(32);
+  } >BKPSRAM
+
   .app_log_retained (NOLOAD) :
   {
     . = ALIGN(32);
@@ -207,7 +214,8 @@ SECTIONS
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
 
-  ASSERT((SIZEOF(.watchdog_retained) + SIZEOF(.app_log_retained))
+  ASSERT((SIZEOF(.watchdog_retained) + SIZEOF(.fault_retained)
+          + SIZEOF(.app_log_retained))
          <= LENGTH(BKPSRAM),
          "retained records exceed backup SRAM")
 }

@@ -14,6 +14,7 @@ typedef enum
 
 typedef struct
 {
+    uint8_t initialized;
     uint8_t signal_detected;
     uint32_t frequency_hz;
     uint8_t duty_percent;

@@ -90,11 +90,13 @@ void setUp(void)
     logged_source = 0U;
     logged_severity = 0U;
     log_count = 0U;
+    fake_pwm.initialized = 1U;
     fake_pwm.running = 1U;
     fake_pwm.requested_frequency_hz = 20000U;
     fake_pwm.actual_frequency_hz = 20000U;
     fake_pwm.duty_percent = 30U;
     fake_capture.signal_detected = 1U;
+    fake_capture.initialized = 1U;
     fake_capture.frequency_hz = 20000U;
     fake_capture.duty_percent = 30U;
     PWM_SelfTest_Init();
@@ -175,11 +177,22 @@ void test_cancel_restores_output(void)
         (uint8_t)(logged_data_0 & 0xFFU));
 }
 
+void test_start_rejects_unavailable_capture(void)
+{
+    fake_capture.initialized = 0U;
+
+    TEST_ASSERT_EQUAL(PWM_SELF_TEST_CONTROL_ERROR,
+                      PWM_SelfTest_Start());
+    TEST_ASSERT_EQUAL(PWM_SELF_TEST_STATE_ERROR,
+                      PWM_SelfTest_GetState().state);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_self_test_passes_and_restores_output);
     RUN_TEST(test_self_test_reports_measurement_failure);
     RUN_TEST(test_cancel_restores_output);
+    RUN_TEST(test_start_rejects_unavailable_capture);
     return UNITY_END();
 }

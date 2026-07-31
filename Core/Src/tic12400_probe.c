@@ -51,6 +51,7 @@ static uint32_t tic12400_requested_battery_switch_mask;
 static uint32_t tic12400_applied_battery_switch_mask;
 static uint8_t tic12400_profile_generation;
 static uint8_t tic12400_profile_applied;
+static uint8_t tic12400_peripheral_ready;
 
 static void TIC12400_ProbeSyncRecoverySnapshot(void)
 {
@@ -790,22 +791,37 @@ static uint8_t TIC12400_ProbeAttemptInitialize(void)
     return 0U;
 }
 
-void TIC12400_Probe_Init(SPI_HandleTypeDef *spi)
+void TIC12400_Probe_Init(SPI_HandleTypeDef *spi,
+                         uint8_t peripheral_ready)
 {
     uint8_t succeeded;
 
+    g_tic12400_probe = (TIC12400_ProbeSnapshot_t){0};
     tic12400_requested_battery_switch_mask = 0U;
     tic12400_applied_battery_switch_mask = 0U;
     tic12400_profile_generation = 0U;
     tic12400_profile_applied = 0U;
+    tic12400_peripheral_ready =
+        (peripheral_ready != 0U) ? 1U : 0U;
+    TIC12400_Recovery_Init(&tic12400_recovery_state);
+
+    if ((tic12400_peripheral_ready == 0U) || (spi == NULL))
+    {
+        TIC12400_Recovery_RecordInitialResult(
+            &tic12400_recovery_state,
+            HAL_GetTick(),
+            0U);
+        TIC12400_ProbeMarkOffline();
+        TIC12400_ProbeSyncRecoverySnapshot();
+        return;
+    }
+
     TIC12400_Driver_Init(&tic12400_device,
                          spi,
                          TIC12400_CS_GPIO_Port,
                          TIC12400_CS_Pin,
                          TIC12400_RESET_GPIO_Port,
                          TIC12400_RESET_Pin);
-    TIC12400_Recovery_Init(&tic12400_recovery_state);
-
     succeeded = TIC12400_ProbeAttemptInitialize();
     TIC12400_Recovery_RecordInitialResult(
         &tic12400_recovery_state,
@@ -823,6 +839,11 @@ void TIC12400_Probe_Process(void)
     uint32_t now;
     uint8_t succeeded;
     uint8_t became_offline;
+
+    if (tic12400_peripheral_ready == 0U)
+    {
+        return;
+    }
 
     if (g_tic12400_probe.monitoring_started == 0U)
     {
@@ -881,6 +902,11 @@ uint8_t TIC12400_Probe_SetBatterySwitchMask(
     TIC12400_Profile_t requested_profile =
         TIC12400_Profile_CarrierBinary();
     uint8_t succeeded;
+
+    if (tic12400_peripheral_ready == 0U)
+    {
+        return 0U;
+    }
 
     requested_profile.battery_switch_mask = battery_switch_mask;
     if (TIC12400_Profile_Validate(

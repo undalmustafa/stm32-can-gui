@@ -20,6 +20,8 @@ TEST_PWM_SELF_TEST_SRC = test_pwm_self_test.c ../Core/Src/pwm_self_test.c unity/
 TEST_COMMAND_GUARD_SRC = test_can_command_guard.c \
 	../Core/Src/can_command_guard.c ../Core/Src/can_protocol.c unity/unity.c
 TEST_APP_LOG_SRC = test_app_log.c ../Core/Src/app_log.c unity/unity.c
+TEST_APP_FAULT_SRC = test_app_fault.c ../Core/Src/app_fault.c unity/unity.c
+TEST_APP_STARTUP_SRC = test_app_startup.c ../Core/Src/app_startup.c unity/unity.c
 
 TEST_BINS = \
 	$(BUILD_DIR)/test_protocol \
@@ -33,7 +35,9 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_transport \
 	$(BUILD_DIR)/test_pwm_self_test \
 	$(BUILD_DIR)/test_command_guard \
-	$(BUILD_DIR)/test_app_log
+	$(BUILD_DIR)/test_app_log \
+	$(BUILD_DIR)/test_app_fault \
+	$(BUILD_DIR)/test_app_startup
 
 .PHONY: all test clean
 
@@ -78,6 +82,12 @@ $(BUILD_DIR)/test_command_guard: $(TEST_COMMAND_GUARD_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_app_log: $(TEST_APP_LOG_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -DAPP_LOG_HOST_TEST $^ -o $@
 
+$(BUILD_DIR)/test_app_fault: $(TEST_APP_FAULT_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -DAPP_FAULT_HOST_TEST $^ -o $@
+
+$(BUILD_DIR)/test_app_startup: $(TEST_APP_STARTUP_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 test: all
 	$(BUILD_DIR)/test_protocol
 	$(BUILD_DIR)/test_pca2131
@@ -91,6 +101,8 @@ test: all
 	$(BUILD_DIR)/test_pwm_self_test
 	$(BUILD_DIR)/test_command_guard
 	$(BUILD_DIR)/test_app_log
+	$(BUILD_DIR)/test_app_fault
+	$(BUILD_DIR)/test_app_startup
 
 clean:
 	rm -f $(TEST_BINS)
