@@ -20,7 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 /* USER CODE BEGIN Includes */
-
+#include "app_irq_policy.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -120,7 +120,9 @@ void HAL_FDCAN_MspInit(FDCAN_HandleTypeDef* hfdcan)
     HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
     /* FDCAN1 interrupt Init */
-    HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(FDCAN1_IT0_IRQn,
+                         APP_IRQ_PRIORITY_FDCAN1,
+                         APP_IRQ_SUBPRIORITY);
     HAL_NVIC_EnableIRQ(FDCAN1_IT0_IRQn);
     g_fdcan1_msp_ready = 1U;
     /* USER CODE BEGIN FDCAN1_MspInit 1 */

@@ -411,6 +411,8 @@ matches the schema.
 
 ## Detailed documentation
 
+- [Interrupt priority and ISR contract](docs/INTERRUPT_POLICY.md)
+- [Firmware reliability roadmap](docs/ENGINEERING_ROADMAP.md)
 - [PWM and input-capture roadmap](PWM_ROADMAP.md)
 - [TIC12400-Q1 roadmap](TIC12400_ROADMAP.md)
 - [Watchdog roadmap](docs/WATCHDOG_ROADMAP.md)

@@ -71,6 +71,7 @@ void CAN_App_Process(void);
 uint8_t CAN_App_IsAvailable(void);
 CAN_App_State_t CAN_App_GetState(void);
 void CAN_App_GetRxStats(CAN_App_RxStats_t *stats);
+/* ISR-safe: sets one volatile request flag; all policy/log work is deferred. */
 void CAN_App_RequestControlAccess(void);
 void CAN_Process_Rx_Command(void);
 void CAN_Process_TxSlots(void);

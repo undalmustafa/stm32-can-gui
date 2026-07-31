@@ -113,8 +113,8 @@ Hedef kabul testi:
 
 ## Faz 2 — CAN alım dayanıklılığı ve zaman kanıtı
 
-Durum: 2.1 ve 2.2 yazılım dilimleri tamamlandı, hedef HIL kabul testleri
-bekliyor. 2.3 bekliyor.
+Durum: 2.1, 2.2 ve 2.3 yazılım dilimleri tamamlandı; hedef HIL kabul testleri
+bekliyor.
 
 ### 2.1 CAN RX
 
@@ -184,10 +184,21 @@ Hedef kabul testi:
 
 ### 2.3 NVIC öncelik sözleşmesi
 
-- CAN, TIC12400 EXTI, SysTick ve gelecekteki timer interrupt'ları için yazılı
-  öncelik tablosu oluştur.
-- ISR içinde bloklayıcı HAL çağrısı yapılmamasını kod sözleşmesine ekle.
-- Timeout kaynağının kendisini engelleyen öncelik kombinasyonlarını test et.
+- [x] `NVIC_PRIORITYGROUP_4` altında safety timer `0`, SysTick `1`, FDCAN `2`,
+  TIC12400 EXTI `3`, gelecekteki application timer'lar `4..14` ve user button
+  `15` olacak şekilde yazılı öncelik tablosu oluştur.
+- [x] Sabitleri `app_irq_policy.h` içinde tek kaynak yap; HAL config, MSP/GPIO
+  init ve `can_gui.ioc` değerlerini aynı sözleşmeyle eşleştir.
+- [x] ISR içinde bloklayıcı HAL, log, transport ve state-machine çağrılarını
+  yasaklayan; yalnızca bounded flag/counter/status kopyasına izin veren çağrı
+  bağlamı sözleşmesini ekle.
+- [x] SysTick'in FDCAN, EXTI veya gelecekteki timer ile aynı/daha düşük
+  preemption priority'de olduğu kombinasyonları host testinde reddet.
+- [ ] Gerçek hedefte NVIC register audit ve eşzamanlı CAN/TIC12400 interrupt
+  storm kabul testini tamamla.
+
+Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
+`docs/INTERRUPT_POLICY.md` içindedir.
 
 ## Faz 3 — Test ve statik kalite kapıları
 

@@ -24,6 +24,7 @@
 #include "can_app.h"
 #include "app_control.h"
 #include "app_fault.h"
+#include "app_irq_policy.h"
 #include "app_safe_state.h"
 #include "app_startup.h"
 #include "app_timing.h"
@@ -83,6 +84,13 @@ _Static_assert(CAN_APP_RX_FIFO0_WATERMARK < CAN_APP_RX_FIFO0_ELEMENTS,
                "FDCAN RX FIFO0 watermark must leave burst headroom");
 _Static_assert(APP_FDCAN_MESSAGE_RAM_WORDS <= 2560UL,
                "FDCAN message RAM allocation exceeds SRAMCAN");
+_Static_assert(__NVIC_PRIO_BITS == 4U,
+               "IRQ policy requires 16 Cortex-M7 priority levels");
+_Static_assert(TICK_INT_PRIORITY == APP_IRQ_PRIORITY_SYSTICK,
+               "HAL tick priority diverges from the IRQ policy");
+_Static_assert(BSP_BUTTON_USER_IT_PRIORITY ==
+               APP_IRQ_PRIORITY_USER_BUTTON,
+               "BSP button priority diverges from the IRQ policy");
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -795,7 +803,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(TIC12400_INT_GPIO_Port, &GPIO_InitStruct);
 
-  HAL_NVIC_SetPriority(TIC12400_INT_EXTI_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(TIC12400_INT_EXTI_IRQn,
+                       APP_IRQ_PRIORITY_TIC12400_EXTI,
+                       APP_IRQ_SUBPRIORITY);
   HAL_NVIC_EnableIRQ(TIC12400_INT_EXTI_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */

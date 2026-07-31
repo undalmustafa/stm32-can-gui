@@ -3,6 +3,12 @@
 
 #include "stm32h7xx_hal.h"
 
+/*
+ * Context contract: public recovery functions run in the main loop. The HAL
+ * callbacks implemented by can_recovery.c only snapshot fixed-size status and
+ * increment monotonic counters; they never recover or log in ISR context.
+ */
+
 typedef enum
 {
     CAN_RECOVERY_STEP_NONE = 0,
