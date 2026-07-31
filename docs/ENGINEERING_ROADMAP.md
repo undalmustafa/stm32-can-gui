@@ -202,8 +202,8 @@ Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
 
 ## Faz 3 — Test ve statik kalite kapıları
 
-Durum: `can_recovery.c` host test dilimi tamamlandı; diğer state-machine ve
-statik kalite kapıları bekliyor.
+Durum: CAN recovery/init/validation/access/RX orchestration host test dilimleri
+tamamlandı; diğer state-machine ve statik kalite kapıları bekliyor.
 
 - [x] `can_recovery.c` için açık init/reset seam'i ve HAL-stub'lı bus-off
   recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
@@ -215,8 +215,10 @@ statik kalite kapıları bekliyor.
 - [x] `can_app.c` payload doğrulamasını ve B1 access-window state'ini gerçek
   üretim seam'lerine çıkar; request/update/query ayrımı, expiry ve tick wrap
   davranışını host testleriyle koru.
-- [ ] `can_app.c` RX FIFO orchestration/ACK yolları ile `rtc_app.c` ve
-  `tic12400_probe.c` için kalan state-machine odaklı test seam'lerini çıkar.
+- [x] `can_app.c` RX FIFO orchestration, frame gate, reject/ACK sonucu ve
+  sekiz-frame işlem bütçesini gerçek üretim fonksiyonu üzerinden hostta koru.
+- [ ] `rtc_app.c` ve `tic12400_probe.c` için kalan state-machine odaklı test
+  seam'lerini çıkar.
 - [ ] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; ardından
   `-Werror` kapısını aç.
 - [ ] Cppcheck veya clang-tidy raporunu CI artifact'i, kritik bulguları gate

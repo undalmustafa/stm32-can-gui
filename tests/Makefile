@@ -38,6 +38,9 @@ TEST_CAN_CONTROL_ACCESS_SRC = test_can_control_access.c \
 TEST_CAN_COMMAND_VALIDATION_SRC = test_can_command_validation.c \
 	../Core/Src/can_command_validation.c ../Core/Src/can_protocol.c \
 	../Core/Src/pca2131.c stubs/pca2131_hal_stubs.c unity/unity.c
+TEST_CAN_APP_RX_SRC = test_can_app_rx.c ../Core/Src/can_app.c \
+	../Core/Src/can_command_validation.c ../Core/Src/can_command_guard.c \
+	../Core/Src/can_control_access.c ../Core/Src/can_protocol.c unity/unity.c
 
 TEST_BINS = \
 	$(BUILD_DIR)/test_protocol \
@@ -60,7 +63,8 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_can_recovery \
 	$(BUILD_DIR)/test_can_app_init \
 	$(BUILD_DIR)/test_can_control_access \
-	$(BUILD_DIR)/test_can_command_validation
+	$(BUILD_DIR)/test_can_command_validation \
+	$(BUILD_DIR)/test_can_app_rx
 
 .PHONY: all test test-python clean
 
@@ -132,6 +136,10 @@ $(BUILD_DIR)/test_can_control_access: $(TEST_CAN_CONTROL_ACCESS_SRC) | $(BUILD_D
 $(BUILD_DIR)/test_can_command_validation: $(TEST_CAN_COMMAND_VALIDATION_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_can_app_rx: $(TEST_CAN_APP_RX_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections $^ \
+		-Wl,--gc-sections -o $@
+
 test: all
 	$(BUILD_DIR)/test_protocol
 	$(BUILD_DIR)/test_pca2131
@@ -154,6 +162,7 @@ test: all
 	$(BUILD_DIR)/test_can_app_init
 	$(BUILD_DIR)/test_can_control_access
 	$(BUILD_DIR)/test_can_command_validation
+	$(BUILD_DIR)/test_can_app_rx
 
 test-python:
 	@$(PYTHON) -m compileall -q \

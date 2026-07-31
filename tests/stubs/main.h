@@ -10,6 +10,11 @@ typedef enum
     LED_RED
 } Led_TypeDef;
 
+typedef enum
+{
+    BUTTON_USER = 0U
+} Button_TypeDef;
+
 void BSP_LED_On(Led_TypeDef led);
 void BSP_LED_Off(Led_TypeDef led);
 

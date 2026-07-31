@@ -94,10 +94,12 @@ extern FDCAN_GlobalTypeDef test_fdcan1_instance;
 #define FDCAN_STANDARD_ID 0x00000000U
 #define FDCAN_EXTENDED_ID 0x40000000U
 #define FDCAN_DATA_FRAME  0x00000000U
+#define FDCAN_REMOTE_FRAME 0x00000001U
 #define FDCAN_DLC_BYTES_8 0x00000008U
 #define FDCAN_ESI_ACTIVE  0x00000000U
 #define FDCAN_BRS_OFF     0x00000000U
 #define FDCAN_CLASSIC_CAN 0x00000000U
+#define FDCAN_FD_CAN      0x00000001U
 #define FDCAN_NO_TX_EVENTS 0x00000000U
 #define FDCAN_TX_BUFFER0  0x00000001U
 #define FDCAN_TX_BUFFER1  0x00000002U
@@ -134,6 +136,14 @@ extern HAL_StatusTypeDef HAL_SPI_TransmitReceive(
     uint32_t Timeout);
 extern uint32_t HAL_SPI_GetError(const SPI_HandleTypeDef *hspi);
 extern uint32_t HAL_FDCAN_GetTxFifoFreeLevel(FDCAN_HandleTypeDef *hfdcan);
+extern uint32_t HAL_FDCAN_GetRxFifoFillLevel(
+    FDCAN_HandleTypeDef *hfdcan,
+    uint32_t RxFifo);
+extern HAL_StatusTypeDef HAL_FDCAN_GetRxMessage(
+    FDCAN_HandleTypeDef *hfdcan,
+    uint32_t RxLocation,
+    FDCAN_RxHeaderTypeDef *pRxHeader,
+    uint8_t *pRxData);
 extern HAL_StatusTypeDef HAL_FDCAN_AddMessageToTxFifoQ(FDCAN_HandleTypeDef *hfdcan, FDCAN_TxHeaderTypeDef *pTxHeader, uint8_t *pTxData);
 extern HAL_StatusTypeDef HAL_FDCAN_Stop(FDCAN_HandleTypeDef *hfdcan);
 extern HAL_StatusTypeDef HAL_FDCAN_Start(FDCAN_HandleTypeDef *hfdcan);
