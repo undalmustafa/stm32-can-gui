@@ -212,7 +212,10 @@ statik kalite kapıları bekliyor.
 - [x] `can_app.c` FDCAN init zincirini gerçek üretim yolunda ayrı seam'e
   çıkar; success ve peripheral/filter/global-filter/FIFO mode/watermark/start/
   notification hata aşamalarını, transport cleanup ve startup loguyla test et.
-- [ ] `can_app.c` RX/command/access-window yolları ile `rtc_app.c` ve
+- [x] `can_app.c` payload doğrulamasını ve B1 access-window state'ini gerçek
+  üretim seam'lerine çıkar; request/update/query ayrımı, expiry ve tick wrap
+  davranışını host testleriyle koru.
+- [ ] `can_app.c` RX FIFO orchestration/ACK yolları ile `rtc_app.c` ve
   `tic12400_probe.c` için kalan state-machine odaklı test seam'lerini çıkar.
 - [ ] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; ardından
   `-Werror` kapısını aç.
@@ -229,7 +232,7 @@ statik kalite kapıları bekliyor.
 
 ## Faz 4 — Bakım borcu
 
-- `CAN_Is_Control_Access_Open()` fonksiyonunu update ve salt-okuma
+- [x] `CAN_Is_Control_Access_Open()` yan etkisini request, update ve salt-okuma
   fonksiyonlarına ayır.
 - B1 için debounce uygula.
 - Cache/MPU ve 64 MHz çalışma kararını ölçüm sonucu ile dokümante et.

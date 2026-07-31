@@ -5,6 +5,8 @@
 #include "can_app_init.h"
 #include "can_protocol.h"
 #include "can_command_guard.h"
+#include "can_command_validation.h"
+#include "can_control_access.h"
 #include "can_transport.h"
 #include "can_recovery.h"
 #include "can_rx_health.h"
@@ -19,7 +21,6 @@
 #include "pwm_self_test.h"
 #include "tic12400_probe.h"
 #define SYSTEM_STATUS_PERIOD_MS         500U
-#define CAN_CONTROL_ACCESS_WINDOW_MS    240000UL
 #define CAN_TIMING_SERVICE_PERIOD_MS    100U
 #define CAN_TIMING_ACK_PERIOD_MS        500U
 
@@ -50,28 +51,19 @@ static FDCAN_RxHeaderTypeDef RxHeader;
 static uint8_t RxData[8];
 static CAN_App_RxStats_t can_rx_stats;
 static uint32_t pwm_self_test_result_sequence_sent;
-static volatile uint8_t control_access_requested;
-static uint8_t control_access_active;
-static uint32_t control_access_deadline;
+static CAN_ControlAccess_t control_access;
 static uint32_t control_policy_update_applied;
 static uint32_t control_output_update_applied;
 static uint32_t timing_service_next_tick;
 static uint32_t timing_ack_next_tick;
 static uint8_t timing_service_index;
 
-typedef enum
-{
-    CAN_COMMAND_VALID = 0,
-    CAN_COMMAND_UNKNOWN,
-    CAN_COMMAND_INVALID_PAYLOAD
-} CAN_CommandValidationResult_t;
-
 static void CAN_Process_TxSlot(CAN_TxSlot_t *slot);
 static void CAN_Handle_LED_Command(uint8_t *data);
 static void CAN_Apply_SlotPolicy(void);
 static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
                                  uint8_t command);
-static uint8_t CAN_Is_Control_Access_Open(void);
+static void CAN_App_UpdateControlAccess(void);
 static void CAN_Send_Command_Ack(
     uint8_t command,
     CAN_Protocol_CommandAckStatus_t status,
@@ -83,208 +75,6 @@ static void CAN_Timing_Telemetry_Process(void);
 static uint16_t CAN_SaturateU16(uint32_t value)
 {
     return (value > UINT16_MAX) ? UINT16_MAX : (uint16_t)value;
-}
-
-static CAN_CommandValidationResult_t CAN_Validate_Command(
-    const uint8_t data[CAN_PROTOCOL_PAYLOAD_SIZE])
-{
-    uint8_t id_type;
-    uint32_t can_id;
-    CAN_Protocol_RtcAlarmCommand_t alarm_command;
-
-    switch (data[0])
-    {
-        case CAN_PROTOCOL_CMD_SET_SLOT_1:
-        case CAN_PROTOCOL_CMD_SET_SLOT_2:
-
-            /* Flags içinde yalnızca bit0 ve bit1 kullanılabilir. */
-            if ((data[1] & 0xFCU) != 0U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            id_type = ((data[1] & CAN_PROTOCOL_SLOT_FLAG_EXTENDED_ID) != 0U)
-                    ? 1U
-                    : 0U;
-
-            can_id = CAN_Protocol_ReadU32LE(&data[2]);
-
-            if (CAN_Protocol_IsValidId(id_type, can_id) == 0U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            /* Cycle time sıfır olamaz. */
-            if (CAN_Protocol_ReadU16LE(&data[6]) == 0U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_START_SLOT_1_COUNTER:
-        case CAN_PROTOCOL_CMD_START_SLOT_2_COUNTER:
-
-            /* Kullanılmayan baytların sıfır olması bekleniyor. */
-            if ((data[1] != 0U) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_LED_CONTROL:
-
-            if ((data[1] < 1U) || (data[1] > 2U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            if (data[2] > 1U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            if ((data[3] != 0U) ||
-                (data[4] != 0U) ||
-                (data[5] != 0U) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_RTC_SET_TIME:
-
-            if ((data[1] > 23U) ||
-                (data[2] > 59U) ||
-                (data[3] > 59U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            if ((data[4] != 0U) ||
-                (data[5] != 0U) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_RTC_SET_DATETIME:
-
-            if (PCA2131_Is_Valid_DateTime(
-                    data[1],
-                    data[2],
-                    data[3],
-                    data[4],
-                    data[5],
-                    (data[6] >> 5) & 0x07U,
-                    data[6] & 0x1FU,
-                    data[7]) == 0U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_RTC_SET_ALARM:
-
-            if (CAN_Protocol_DecodeRtcAlarmCommand(
-                    data, &alarm_command) == 0U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_LOG_GET_INFO:
-
-            if ((data[1] != 0U) ||
-                (data[2] != 0U) ||
-                (data[3] != 0U) ||
-                (data[4] != 0U) ||
-                (data[5] != 0U) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_LOG_READ_SEQUENCE:
-
-            if ((CAN_Protocol_ReadU32LE(&data[1]) == 0U) ||
-                (data[5] != 0U) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_PWM_SET:
-        {
-            uint32_t freq = CAN_Protocol_ReadU32LE(&data[1]);
-
-            if ((freq != 0U) &&
-                ((freq < 1U) || (freq > 1000000U)))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            if (data[5] > 100U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            if ((data[6] != 0U) || (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-        }
-
-        case CAN_PROTOCOL_CMD_PWM_SELF_TEST:
-
-            if ((data[1] > 1U) ||
-                (data[2] != 0U) ||
-                (data[3] != 0U) ||
-                (data[4] != 0U) ||
-                (data[5] != 0U) ||
-                (data[6] != 0U) ||
-                (data[7] != 0U))
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-
-        case CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY:
-        {
-            uint32_t battery_switch_mask;
-
-            if (CAN_Protocol_DecodeTic12400PolarityCommand(
-                    data, &battery_switch_mask) == 0U)
-            {
-                return CAN_COMMAND_INVALID_PAYLOAD;
-            }
-
-            return CAN_COMMAND_VALID;
-        }
-
-        default:
-            return CAN_COMMAND_UNKNOWN;
-    }
 }
 
 static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
@@ -359,34 +149,23 @@ static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
 
 void CAN_App_RequestControlAccess(void)
 {
-    control_access_requested = 1U;
+    CAN_ControlAccess_RequestFromIsr(&control_access);
 }
 
-static uint8_t CAN_Is_Control_Access_Open(void)
+static void CAN_App_UpdateControlAccess(void)
 {
     uint32_t now = HAL_GetTick();
 
-    if (control_access_requested != 0U)
+    if (CAN_ControlAccess_Update(&control_access, now) ==
+        CAN_CONTROL_ACCESS_OPENED)
     {
-        control_access_requested = 0U;
-        control_access_active = 1U;
-        control_access_deadline = now + CAN_CONTROL_ACCESS_WINDOW_MS;
         (void)App_Log_Push(
             APP_LOG_SOURCE_CAN,
             APP_LOG_SEVERITY_INFO,
             APP_LOG_EVENT_CAN_CONTROL_ACCESS_OPENED,
             CAN_CONTROL_ACCESS_WINDOW_MS,
-            control_access_deadline);
+            control_access.deadline);
     }
-
-    if ((control_access_active != 0U) &&
-        ((int32_t)(control_access_deadline - now) > 0))
-    {
-        return 1U;
-    }
-
-    control_access_active = 0U;
-    return 0U;
 }
 
 static void CAN_Send_Command_Ack(
@@ -400,10 +179,11 @@ static void CAN_Send_Command_Ack(
     uint32_t remaining_ms = 0U;
     CAN_Transport_Result_t result;
 
-    if (CAN_Is_Control_Access_Open() != 0U)
+    remaining_ms =
+        CAN_ControlAccess_RemainingMs(&control_access, now);
+    if (remaining_ms != 0U)
     {
         flags |= CAN_PROTOCOL_COMMAND_ACK_FLAG_ACCESS_OPEN;
-        remaining_ms = control_access_deadline - now;
     }
 
     payload[0] = CAN_PROTOCOL_VERSION;
@@ -563,9 +343,7 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
 {
     can_rx_stats = (CAN_App_RxStats_t){0};
     CAN_RxHealth_Init();
-    control_access_requested = 0U;
-    control_access_active = 0U;
-    control_access_deadline = 0U;
+    CAN_ControlAccess_Init(&control_access);
     control_policy_update_applied = UINT32_MAX;
     control_output_update_applied = UINT32_MAX;
     timing_service_next_tick =
@@ -676,6 +454,8 @@ void CAN_Process_Rx_Command(void)
     uint32_t processed_count = 0U;
     uint32_t frame_start_cycles;
 
+    CAN_App_UpdateControlAccess();
+
     while ((processed_count < CAN_APP_RX_FRAME_BUDGET_PER_PROCESS) &&
            (HAL_FDCAN_GetRxFifoFillLevel(
                 &hfdcan1, FDCAN_RX_FIFO0) > 0U))
@@ -717,9 +497,9 @@ void CAN_Process_Rx_Command(void)
         }
 
         command = RxData[0];
-        validation_result = CAN_Validate_Command(RxData);
+        validation_result = CAN_CommandValidation_Validate(RxData);
 
-        if (validation_result == CAN_COMMAND_UNKNOWN)
+        if (validation_result == CAN_COMMAND_VALIDATION_UNKNOWN)
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_UNKNOWN_COMMAND,
                                  command);
@@ -731,7 +511,7 @@ void CAN_Process_Rx_Command(void)
             continue;
         }
 
-        if (validation_result == CAN_COMMAND_INVALID_PAYLOAD)
+        if (validation_result == CAN_COMMAND_VALIDATION_INVALID_PAYLOAD)
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_INVALID_PAYLOAD,
                                  command);
@@ -743,8 +523,9 @@ void CAN_Process_Rx_Command(void)
             continue;
         }
 
+        CAN_App_UpdateControlAccess();
         if ((CAN_CommandGuard_IsPrivileged(RxData) != 0U) &&
-            (CAN_Is_Control_Access_Open() == 0U))
+            (CAN_ControlAccess_IsOpen(&control_access) == 0U))
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_ACCESS_DENIED,
                                  command);
