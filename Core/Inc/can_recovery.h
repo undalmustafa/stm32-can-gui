@@ -36,6 +36,8 @@ typedef struct
     uint8_t verification_pending;
 } CAN_Recovery_Stats_t;
 
+/* Main-loop only; call before enabling any FDCAN interrupt notification. */
+void CAN_Recovery_Init(void);
 HAL_StatusTypeDef CAN_Recovery_EnableNotifications(void);
 void CAN_Handle_BusOff_Recovery(void);
 void CAN_Recovery_GetStats(CAN_Recovery_Stats_t *stats);

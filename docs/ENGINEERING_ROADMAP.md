@@ -202,21 +202,27 @@ Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
 
 ## Faz 3 — Test ve statik kalite kapıları
 
-Durum: Faz 1 ile paralel yürütülebilir.
+Durum: `can_recovery.c` host test dilimi tamamlandı; diğer state-machine ve
+statik kalite kapıları bekliyor.
 
-- `can_recovery.c` için HAL-stub'lı bus-off recovery testleri ekle.
-- `can_app.c`, `rtc_app.c` ve `tic12400_probe.c` için state-machine odaklı
+- [x] `can_recovery.c` için açık init/reset seam'i ve HAL-stub'lı bus-off
+  recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
+  edilmemesi, notification restore, TX-complete doğrulaması, yeni bus-off ile
+  stale doğrulamanın reddi, log coalescing ve tick wrap kapsanıyor.
+- [ ] `can_app.c`, `rtc_app.c` ve `tic12400_probe.c` için state-machine odaklı
   test seam'leri çıkar.
-- `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; ardından
+- [ ] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; ardından
   `-Werror` kapısını aç.
-- Cppcheck veya clang-tidy raporunu CI artifact'i, kritik bulguları gate yap.
-- `.su` dosyalarından worst-case stack raporu üret; 1 KiB stack varsayımını
+- [ ] Cppcheck veya clang-tidy raporunu CI artifact'i, kritik bulguları gate
+  yap.
+- [ ] `.su` dosyalarından worst-case stack raporu üret; 1 KiB stack varsayımını
   ölçümle doğrula.
-- Modül header'larına çağrı bağlamını yaz: main-loop only, ISR-safe veya
+- [ ] Modül header'larına çağrı bağlamını yaz: main-loop only, ISR-safe veya
   internal.
-- İki Python workflow'unu tek sürüm ve tek bağımlılık kurulumuyla birleştir.
-- Python bağımlılıklarını kilitle ve kök lisans/third-party notices dosyalarını
-  ekle.
+- [ ] İki Python workflow'unu tek sürüm ve tek bağımlılık kurulumuyla
+  birleştir.
+- [ ] Python bağımlılıklarını kilitle ve kök lisans/third-party notices
+  dosyalarını ekle.
 
 ## Faz 4 — Bakım borcu
 

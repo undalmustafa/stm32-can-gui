@@ -68,8 +68,17 @@ typedef struct
 
 typedef struct
 {
-  void* Instance;
+  volatile uint32_t PSR;
+  volatile uint32_t ECR;
+} FDCAN_GlobalTypeDef;
+
+typedef struct
+{
+  FDCAN_GlobalTypeDef* Instance;
 } FDCAN_HandleTypeDef;
+
+extern FDCAN_GlobalTypeDef test_fdcan1_instance;
+#define FDCAN1 (&test_fdcan1_instance)
 
 #define FDCAN_STANDARD_ID 0x00000000U
 #define FDCAN_EXTENDED_ID 0x40000000U
@@ -82,6 +91,13 @@ typedef struct
 #define FDCAN_TX_BUFFER0  0x00000001U
 #define FDCAN_TX_BUFFER1  0x00000002U
 #define FDCAN_TX_BUFFER2  0x00000004U
+#define FDCAN_IT_ERROR_PASSIVE          (1UL << 0)
+#define FDCAN_IT_BUS_OFF                (1UL << 1)
+#define FDCAN_IT_TX_COMPLETE            (1UL << 2)
+#define FDCAN_IT_RX_FIFO0_NEW_MESSAGE   (1UL << 3)
+#define FDCAN_IT_RX_FIFO0_WATERMARK     (1UL << 4)
+#define FDCAN_IT_RX_FIFO0_FULL          (1UL << 5)
+#define FDCAN_IT_RX_FIFO0_MESSAGE_LOST  (1UL << 6)
 
 /* Mock HAL Functions used in our source */
 extern uint32_t HAL_GetTick(void);
@@ -101,5 +117,11 @@ extern HAL_StatusTypeDef HAL_SPI_TransmitReceive(
 extern uint32_t HAL_SPI_GetError(const SPI_HandleTypeDef *hspi);
 extern uint32_t HAL_FDCAN_GetTxFifoFreeLevel(FDCAN_HandleTypeDef *hfdcan);
 extern HAL_StatusTypeDef HAL_FDCAN_AddMessageToTxFifoQ(FDCAN_HandleTypeDef *hfdcan, FDCAN_TxHeaderTypeDef *pTxHeader, uint8_t *pTxData);
+extern HAL_StatusTypeDef HAL_FDCAN_Stop(FDCAN_HandleTypeDef *hfdcan);
+extern HAL_StatusTypeDef HAL_FDCAN_Start(FDCAN_HandleTypeDef *hfdcan);
+extern HAL_StatusTypeDef HAL_FDCAN_ActivateNotification(
+    FDCAN_HandleTypeDef *hfdcan,
+    uint32_t ActiveITs,
+    uint32_t BufferIndexes);
 
 #endif /* STM32H7XX_HAL_STUB_H */

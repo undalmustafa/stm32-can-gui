@@ -588,6 +588,7 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
     g_canAppState.init_attempts = 1U;
     can_rx_stats = (CAN_App_RxStats_t){0};
     CAN_RxHealth_Init();
+    CAN_Recovery_Init();
     control_access_requested = 0U;
     control_access_active = 0U;
     control_access_deadline = 0U;

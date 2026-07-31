@@ -29,6 +29,8 @@ TEST_CAN_RX_HEALTH_SRC = test_can_rx_health.c \
 TEST_APP_TIMING_SRC = test_app_timing.c ../Core/Src/app_timing.c unity/unity.c
 TEST_APP_IRQ_POLICY_SRC = test_app_irq_policy.c \
 	../Core/Src/app_irq_policy.c unity/unity.c
+TEST_CAN_RECOVERY_SRC = test_can_recovery.c \
+	../Core/Src/can_recovery.c unity/unity.c
 
 TEST_BINS = \
 	$(BUILD_DIR)/test_protocol \
@@ -47,7 +49,8 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_app_startup \
 	$(BUILD_DIR)/test_can_rx_health \
 	$(BUILD_DIR)/test_app_timing \
-	$(BUILD_DIR)/test_app_irq_policy
+	$(BUILD_DIR)/test_app_irq_policy \
+	$(BUILD_DIR)/test_can_recovery
 
 .PHONY: all test test-python clean
 
@@ -107,6 +110,9 @@ $(BUILD_DIR)/test_app_timing: $(TEST_APP_TIMING_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_app_irq_policy: $(TEST_APP_IRQ_POLICY_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_can_recovery: $(TEST_CAN_RECOVERY_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 test: all
 	$(BUILD_DIR)/test_protocol
 	$(BUILD_DIR)/test_pca2131
@@ -125,6 +131,7 @@ test: all
 	$(BUILD_DIR)/test_can_rx_health
 	$(BUILD_DIR)/test_app_timing
 	$(BUILD_DIR)/test_app_irq_policy
+	$(BUILD_DIR)/test_can_recovery
 
 test-python:
 	@$(PYTHON) -m compileall -q \

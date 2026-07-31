@@ -40,6 +40,35 @@ static uint32_t error_passive_log_suppressed_count = 0U;
 static CAN_Recovery_Phase_t recovery_phase = CAN_RECOVERY_PHASE_STOP;
 static CAN_Recovery_Stats_t recovery_stats;
 
+void CAN_Recovery_Init(void)
+{
+    bus_off_event_count = 0U;
+    last_bus_off_psr = 0U;
+    last_bus_off_ecr = 0U;
+    error_passive_event_count = 0U;
+    last_error_passive_psr = 0U;
+    last_error_passive_ecr = 0U;
+    tx_complete_event_count = 0U;
+
+    handled_bus_off_event_count = 0U;
+    scheduled_bus_off_event_count = 0U;
+    logged_bus_off_event_count = 0U;
+    logged_error_passive_event_count = 0U;
+    verification_bus_off_event_count = 0U;
+    verification_tx_complete_snapshot = 0U;
+    next_recovery_attempt_tick = 0U;
+    recovery_verification_pending = 0U;
+    bus_off_fault_episode_active = 0U;
+    bus_off_log_record_count = 0U;
+    bus_off_log_suppressed_count = 0U;
+    error_passive_log_record_count = 0U;
+    error_passive_log_suppressed_count = 0U;
+    recovery_phase = CAN_RECOVERY_PHASE_STOP;
+    recovery_stats = (CAN_Recovery_Stats_t){0};
+    recovery_stats.last_hal_status = HAL_OK;
+    recovery_stats.last_failed_step = CAN_RECOVERY_STEP_NONE;
+}
+
 static void CAN_Recovery_RecordFailure(CAN_Recovery_Step_t failed_step,
                                        HAL_StatusTypeDef hal_status)
 {
