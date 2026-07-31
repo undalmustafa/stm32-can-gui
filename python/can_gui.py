@@ -23,6 +23,8 @@ from can_gui_app.pwm_panel import PwmPanel
 from can_gui_app.theme import apply_application_theme
 from can_gui_app.tic12400_controller import Tic12400Controller
 from can_gui_app.tic12400_panel import Tic12400Panel
+from can_gui_app.timing_controller import TimingController
+from can_gui_app.timing_panel import TimingPanel
 
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox
 
@@ -53,6 +55,10 @@ class CanGui(QWidget):
         self.tic12400_controller = Tic12400Controller(
             renderer=self.tic12400_panel.render,
             command_sender=self.send_can_command,
+        )
+        self.timing_panel = TimingPanel()
+        self.timing_controller = TimingController(
+            renderer=self.timing_panel.render
         )
 
         self.can_connection_panel = CanConnectionPanel(
@@ -106,11 +112,13 @@ class CanGui(QWidget):
             rtc_panel=self.rtc_panel,
             pwm_panel=self.pwm_panel,
             tic12400_panel=self.tic12400_panel,
+            timing_panel=self.timing_panel,
         )
         self.setLayout(self.window_view.root_layout)
 
         self.can_app_controller.render_status()
         self.tic12400_controller.render()
+        self.timing_controller.render()
         self.event_log_panel.update_event_status()
         self.event_log_panel.update_stm32_status()
 
@@ -153,6 +161,8 @@ class CanGui(QWidget):
                 interface, channel, bitrate
             )
             self.can_health.reset_connection_state()
+            self.timing_controller.reset()
+            self.timing_controller.render()
             self.event_log_panel.reset_sync()
 
             self.set_can_health(
@@ -233,6 +243,9 @@ class CanGui(QWidget):
             return False
 
     def handle_application_message(self, msg):
+        if self.timing_controller.handle_message(msg):
+            return
+
         if self.rtc_controller.handle_message(msg):
             return
 

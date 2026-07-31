@@ -245,6 +245,32 @@ def main():
         "tic12400_channels",
     ], "TIC12400 page contains only end-user switch states")
 
+    timing = Panel()
+    timing.summary_group = widget("timing_summary")
+    timing.history_group = widget("timing_history")
+    view_with_timing = MainWindowView(
+        connection,
+        event_log,
+        can_app,
+        rtc,
+        timing_panel=timing,
+    )
+    expect(
+        [title for _page, title in view_with_timing.tabs.tabs] == [
+            "Control", "Live Data", "Timing", "Logs & Errors"
+        ],
+        "firmware timing telemetry has an optional dedicated page",
+    )
+    timing_scroll = view_with_timing.timing_page.layout.items[0]
+    timing_names = [
+        getattr(item, "name", item)
+        for item in timing_scroll.widget.layout.items
+    ]
+    expect(timing_names == [
+        "timing_summary",
+        "timing_history",
+    ], "Timing page contains service and ACK latency graphs")
+
     timer_calls = []
     timers = ApplicationTimers(
         can_rx_poll=lambda: timer_calls.append("rx"),

@@ -177,7 +177,7 @@ Select `SocketCAN (Linux)` or `PCAN (Windows)`, choose the interface, set
 
 ## Using the application
 
-The GUI is divided into five task-oriented pages:
+The GUI is divided into six task-oriented pages:
 
 | Page | Purpose |
 |---|---|
@@ -185,6 +185,7 @@ The GUI is divided into five task-oriented pages:
 | Live Data | Board telemetry and communication state |
 | PWM / Capture | PWM generation, measurement, and built-in test |
 | TIC12400 | Switch state and supported input-polarity configuration |
+| Timing | DWT service current/min/max/overrun and ACK latency graphs |
 | Logs / Errors | Retained events, faults, and synchronization status |
 
 ### Remote control and physical overrides

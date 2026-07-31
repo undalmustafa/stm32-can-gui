@@ -55,6 +55,8 @@ stm32_can_gui_final/
 | `protocol.py` | CAN ID, komut, durum ve payload sabitleri |
 | `can_session.py` | SocketCAN/PCAN bağlantısı, TX/RX ve taşıma sayaçları |
 | `can_health.py` | CAN health durum makinesi, BUS_HEAVY/BUS_OFF izleme ve log tekrar bastırma |
+| `timing_controller.py` | DWT servis/ACK telemetry decode state'i ve 120 örnekli sınırlı grafik geçmişi |
+| `timing_panel.py` | Servis current/min/max/overrun tablosu ve sparkline grafik görünümü |
 | `can_connection_panel.py` | Kanal/bitrate formu ve CAN Health görünümü |
 | `can_app_controller.py` | Slot/LED komutları ve STM32 uygulama durum mesajları |
 | `can_app_panel.py` | Slot/LED formu ve Values durum görünümü |

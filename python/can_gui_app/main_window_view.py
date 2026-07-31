@@ -16,13 +16,14 @@ class MainWindowView:
 
     def __init__(self, can_connection_panel, event_log_panel,
                  can_app_panel, rtc_panel, pwm_panel=None,
-                 tic12400_panel=None):
+                 tic12400_panel=None, timing_panel=None):
         self.can_connection_panel = can_connection_panel
         self.event_log_panel = event_log_panel
         self.can_app_panel = can_app_panel
         self.rtc_panel = rtc_panel
         self.pwm_panel = pwm_panel
         self.tic12400_panel = tic12400_panel
+        self.timing_panel = timing_panel
 
         self.header = self._build_header()
         self.tabs = QTabWidget()
@@ -39,6 +40,9 @@ class MainWindowView:
         if self.tic12400_panel is not None:
             self.tic12400_page = self._build_tic12400_page()
             self.tabs.addTab(self.tic12400_page, "TIC12400")
+        if self.timing_panel is not None:
+            self.timing_page = self._build_timing_page()
+            self.tabs.addTab(self.timing_page, "Timing")
         self.tabs.addTab(self.logs_page, "Logs & Errors")
 
         self.root_layout = QVBoxLayout()
@@ -157,4 +161,15 @@ class MainWindowView:
         layout.setColumnStretch(0, 1)
         layout.addWidget(self.tic12400_panel.channel_group, 0, 0)
         layout.setRowStretch(1, 1)
+        return self._scroll_page(content)
+
+    def _build_timing_page(self):
+        content = QWidget()
+        layout = QGridLayout(content)
+        layout.setContentsMargins(4, 8, 4, 8)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.addWidget(self.timing_panel.summary_group, 0, 0)
+        layout.addWidget(self.timing_panel.history_group, 1, 0)
+        layout.setRowStretch(2, 1)
         return self._scroll_page(content)

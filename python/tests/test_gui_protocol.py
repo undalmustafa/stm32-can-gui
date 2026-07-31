@@ -44,6 +44,9 @@ def main():
            "TIC12400 applied-profile ID is generated")
     expect(protocol.CAN_RX_HEALTH_RX_ID == 0x560,
            "MCU CAN RX health ID is generated")
+    expect(protocol.TIMING_SERVICE_RX_ID == 0x561
+           and protocol.TIMING_ACK_LATENCY_RX_ID == 0x562,
+           "firmware timing telemetry IDs are generated")
     expect(protocol.SYSTEM_REQUEST_SLOT_1 == 0x01
            and protocol.SYSTEM_REQUEST_PWM == 0x10,
            "system request flags are generated")
@@ -153,6 +156,37 @@ def main():
            and rx_health["fifo_full_events"] == 0x5678
            and rx_health["watermark_events"] == 0x9ABC,
            "CAN RX health counters decode little-endian")
+    service_timing = protocol.decode_timing_service(
+        [3, 0x07, 0x34, 0x12, 0x78, 0x56, 0xBC, 0x9A]
+    )
+    expect(service_timing == {
+        "service_id": 3,
+        "service_name": "RTC",
+        "enabled": True,
+        "current_overrun": True,
+        "overrun_latched": True,
+        "current_us": 0x1234,
+        "minimum_us": 0x5678,
+        "maximum_us": 0x9ABC,
+    }, "service timing frame decodes flags and little-endian values")
+    ack_timing = protocol.decode_timing_ack_latency(
+        [100, 0, 0xE8, 0x03, 0x88, 0x13, 0x30, 0x75]
+    )
+    expect(ack_timing == {
+        "p50_us": 100,
+        "p95_us": 1000,
+        "p99_us": 5000,
+        "maximum_us": 30000,
+    }, "ACK timing percentiles decode")
+    expect(
+        protocol.decode_stm32_log_event_detail(
+            0x0006,
+            3 | (2 << 8),
+            12001,
+        ) ==
+        "SERVICE=RTC; NEW_OVERRUNS=2; MAX_US=12001",
+        "timing overrun event detail decodes service and count",
+    )
     expect(
         protocol.decode_stm32_log_event_detail(
             0x0500,

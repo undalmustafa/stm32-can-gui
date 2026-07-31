@@ -113,8 +113,8 @@ Hedef kabul testi:
 
 ## Faz 2 — CAN alım dayanıklılığı ve zaman kanıtı
 
-Durum: 2.1 yazılım dilimi tamamlandı, hedef HIL kabul testi bekliyor. 2.2 ve
-2.3 bekliyor.
+Durum: 2.1 ve 2.2 yazılım dilimleri tamamlandı, hedef HIL kabul testleri
+bekliyor. 2.3 bekliyor.
 
 ### 2.1 CAN RX
 
@@ -162,10 +162,25 @@ Hedef kabul testi:
   9 kovalı latency histogramı ve yaklaşık p50/p95/p99/max üret.
 - [x] Servis timing özetini `0x561`, ACK özetini `0x562` diagnostic frame'ine
   taşı.
-- [ ] Ölçümleri GUI timing görünümü ve sınırlı geçmiş grafiğine taşı.
+- [x] Ölçümleri GUI timing tablosuna, servis başına 120 örnekli sparkline'a,
+  ACK p95 geçmiş grafiğine ve event-log decoder'ına taşı.
 
 Kabul kriteri: p50/p95/p99/max loop ve ACK gecikmesi, normal yük ve enjekte
 edilmiş çevrebirim arızası için raporlanmalıdır.
+
+Hedef kabul testi:
+
+1. En az 10 dakika normal yükte `MAIN_LOOP`, `TIC12400_PROBE`, `RTC` ve
+   `CAN_APP` min/max değerlerini kaydet; beklenmeyen overrun olmamalı.
+2. SPI MISO ve I2C SDA arızalarını ayrı ayrı enjekte et; 10 ms HAL timeout,
+   12 ms servis bütçesi ve 50 ms loop bütçesinin ölçülen max değerleriyle
+   uyumunu doğrula.
+3. En az 10.000 geçerli ve geçersiz komut gönder; `0x562` p50/p95/p99/max
+   RX-to-ACK-enqueue değerlerini GUI CSV/event kaydıyla raporla.
+4. DWT'yi debugger üzerinden kapat; `0x561` DWT OFF durumunun görünür
+   olduğunu ve ölçüm eksikliğinin sıfır süre gibi yorumlanmadığını doğrula.
+5. Normal ve fault-injection raporlarına firmware commit'i, clock frekansı,
+   CAN yükü ve ölçüm süresini ekle.
 
 ### 2.3 NVIC öncelik sözleşmesi
 

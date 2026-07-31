@@ -7,6 +7,11 @@ from can_protocol_generated import (
     CAN_RX_HEALTH_MESSAGE_LOST,
     CAN_RX_HEALTH_TX_ID,
     CAN_RX_HEALTH_WATERMARK_SEEN,
+    TIMING_ACK_LATENCY_TX_ID,
+    TIMING_SERVICE_CURRENT_OVERRUN,
+    TIMING_SERVICE_ENABLED,
+    TIMING_SERVICE_OVERRUN_LATCHED,
+    TIMING_SERVICE_TX_ID,
     CMD_LED_CONTROL,
     CMD_LOG_GET_INFO,
     CMD_LOG_READ_SEQUENCE,
@@ -110,6 +115,8 @@ TIC12400_ADC_RX_ID = TIC12400_ADC_TX_ID
 TIC12400_SWITCH_STATE_RX_ID = TIC12400_SWITCH_STATE_TX_ID
 TIC12400_PROFILE_RX_ID = TIC12400_PROFILE_TX_ID
 CAN_RX_HEALTH_RX_ID = CAN_RX_HEALTH_TX_ID
+TIMING_SERVICE_RX_ID = TIMING_SERVICE_TX_ID
+TIMING_ACK_LATENCY_RX_ID = TIMING_ACK_LATENCY_TX_ID
 
 STM32_LOG_PROTOCOL_VERSION = 1
 STM32_LOG_RECORD_SIZE = 32
@@ -182,10 +189,13 @@ STM32_APPLICATION_RX_IDS = {
     TIC12400_SWITCH_STATE_RX_ID,
     TIC12400_PROFILE_RX_ID,
     CAN_RX_HEALTH_RX_ID,
+    TIMING_SERVICE_RX_ID,
+    TIMING_ACK_LATENCY_RX_ID,
 }
 
 STM32_LOG_EVENT_NAMES = {
     STM32_LOG_EVENT_SYSTEM_BOOT: "SYSTEM_BOOT",
+    0x0006: "TIMING_OVERRUN",
     0x0100: "CAN_BUS_OFF",
     0x0101: "CAN_RECOVERY_OK",
     0x0102: "CAN_RECOVERY_FAILED",
@@ -240,6 +250,14 @@ def decode_stm32_log_event_detail(event_code: int,
         return (
             f"RESET_CAUSE={decode_reset_reason_mask(data_0)}; "
             f"RAW_RSR=0x{int(data_1) & 0xFFFFFFFF:08X}"
+        )
+
+    if event_code == 0x0006:
+        service_id = int(data_0) & 0xFF
+        new_overruns = (int(data_0) >> 8) & 0x00FFFFFF
+        return (
+            f"SERVICE={TIMING_SERVICE_NAMES.get(service_id, service_id)}; "
+            f"NEW_OVERRUNS={new_overruns}; MAX_US={int(data_1)}"
         )
 
     if event_code == 0x0108:
@@ -304,6 +322,59 @@ def decode_can_rx_health(payload):
         "message_lost_events": data[2] | (data[3] << 8),
         "fifo_full_events": data[4] | (data[5] << 8),
         "watermark_events": data[6] | (data[7] << 8),
+    }
+
+
+TIMING_SERVICE_NAMES = {
+    0: "MAIN_LOOP",
+    1: "TIC12400_PROBE",
+    2: "CONTROL",
+    3: "RTC",
+    4: "INPUT_CAPTURE",
+    5: "CAN_APP",
+    6: "TIC12400_CAN",
+    7: "WATCHDOG",
+}
+
+
+def decode_timing_service(payload):
+    """Decode one multiplexed DWT service timing sample."""
+    if len(payload) != 8:
+        raise ValueError("Timing service payload must contain 8 bytes")
+
+    data = [int(value) & 0xFF for value in payload]
+    service_id = data[0]
+    if service_id not in TIMING_SERVICE_NAMES:
+        raise ValueError(f"Unknown timing service ID: {service_id}")
+
+    flags = data[1]
+    return {
+        "service_id": service_id,
+        "service_name": TIMING_SERVICE_NAMES[service_id],
+        "enabled": bool(flags & TIMING_SERVICE_ENABLED),
+        "current_overrun": bool(
+            flags & TIMING_SERVICE_CURRENT_OVERRUN
+        ),
+        "overrun_latched": bool(
+            flags & TIMING_SERVICE_OVERRUN_LATCHED
+        ),
+        "current_us": data[2] | (data[3] << 8),
+        "minimum_us": data[4] | (data[5] << 8),
+        "maximum_us": data[6] | (data[7] << 8),
+    }
+
+
+def decode_timing_ack_latency(payload):
+    """Decode RX-to-ACK enqueue latency percentile telemetry."""
+    if len(payload) != 8:
+        raise ValueError("Timing ACK payload must contain 8 bytes")
+
+    data = [int(value) & 0xFF for value in payload]
+    return {
+        "p50_us": data[0] | (data[1] << 8),
+        "p95_us": data[2] | (data[3] << 8),
+        "p99_us": data[4] | (data[5] << 8),
+        "maximum_us": data[6] | (data[7] << 8),
     }
 
 STM32_LOG_SOURCE_NAMES = {

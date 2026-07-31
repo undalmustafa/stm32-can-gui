@@ -120,6 +120,8 @@ test: all
 	$(BUILD_DIR)/test_app_timing
 
 test-python:
+	@$(PYTHON) -m compileall -q \
+		../python/can_gui.py ../python/can_gui_app ../python/tests
 	@for test_file in $(PYTHON_TESTS); do \
 		PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $$test_file || exit 1; \
 	done
