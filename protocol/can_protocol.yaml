@@ -357,6 +357,12 @@ rtc_status_codes:
     mnemonic: "ALARM_FLAG_CLEAR_FAILED"
     description: "Previous alarm flag could not be cleared"
 
+  write_verify_mismatch:
+    code: 0xF2
+    severity: fault
+    mnemonic: "WRITE_VERIFY_MISMATCH"
+    description: "Calendar write/readback mismatch"
+
 # ---------------------------------------------------------------------------
 # RTC Alarm Event Codes (byte 0 of 0x558 telemetry)
 # ---------------------------------------------------------------------------

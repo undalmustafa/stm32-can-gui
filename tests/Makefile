@@ -6,6 +6,8 @@ PYTHON_TESTS = $(wildcard ../python/tests/test_gui_*.py)
 
 TEST_PROTOCOL_SRC = test_can_protocol.c ../Core/Src/can_protocol.c unity/unity.c
 TEST_PCA2131_SRC = test_pca2131_validation.c ../Core/Src/pca2131.c stubs/pca2131_hal_stubs.c unity/unity.c
+TEST_RTC_APP_SRC = test_rtc_app.c ../Core/Src/rtc_app.c \
+	../Core/Src/can_protocol.c unity/unity.c
 TEST_TIC12400_SRC = test_tic12400.c ../Core/Src/tic12400.c unity/unity.c
 TEST_TIC12400_SWITCH_SRC = test_tic12400_switch.c \
 	../Core/Src/tic12400_switch.c unity/unity.c
@@ -45,6 +47,7 @@ TEST_CAN_APP_RX_SRC = test_can_app_rx.c ../Core/Src/can_app.c \
 TEST_BINS = \
 	$(BUILD_DIR)/test_protocol \
 	$(BUILD_DIR)/test_pca2131 \
+	$(BUILD_DIR)/test_rtc_app \
 	$(BUILD_DIR)/test_tic12400 \
 	$(BUILD_DIR)/test_tic12400_switch \
 	$(BUILD_DIR)/test_tic12400_recovery \
@@ -78,6 +81,10 @@ $(BUILD_DIR)/test_protocol: $(TEST_PROTOCOL_SRC) | $(BUILD_DIR)
 
 $(BUILD_DIR)/test_pca2131: $(TEST_PCA2131_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
+
+$(BUILD_DIR)/test_rtc_app: $(TEST_RTC_APP_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -D__MAIN_H -include stubs/main.h \
+		-include ../Core/Inc/rtc_app.h $^ -o $@
 
 $(BUILD_DIR)/test_tic12400: $(TEST_TIC12400_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
@@ -143,6 +150,7 @@ $(BUILD_DIR)/test_can_app_rx: $(TEST_CAN_APP_RX_SRC) | $(BUILD_DIR)
 test: all
 	$(BUILD_DIR)/test_protocol
 	$(BUILD_DIR)/test_pca2131
+	$(BUILD_DIR)/test_rtc_app
 	$(BUILD_DIR)/test_tic12400
 	$(BUILD_DIR)/test_tic12400_switch
 	$(BUILD_DIR)/test_tic12400_recovery

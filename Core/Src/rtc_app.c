@@ -9,8 +9,14 @@
 #define RTC_I2C_RETRY_PERIOD_MS         1000U
 #define RTC_INIT_SETTLE_DELAY_MS        50U
 #define RTC_WRITE_VERIFY_DELAY_MS       20U
+#define RTC_WRITE_VERIFY_TOLERANCE_HUNDREDTHS 2ULL
 #define RTC_ALARM_VERIFY_DELAY_MS       1U
 #define RTC_ALARM_STATUS_POLL_PERIOD_MS 100U
+#define RTC_HUNDREDTHS_PER_SECOND       100ULL
+#define RTC_HUNDREDTHS_PER_MINUTE       6000ULL
+#define RTC_HUNDREDTHS_PER_HOUR         360000ULL
+#define RTC_HUNDREDTHS_PER_DAY          8640000ULL
+#define RTC_CALENDAR_CYCLE_DAYS         36525ULL
 
 extern I2C_HandleTypeDef hi2c1;
 
@@ -60,7 +66,8 @@ typedef enum
 {
     RTC_WRITE_LOG_STAGE_REJECTED_BUSY = 1U,
     RTC_WRITE_LOG_STAGE_DRIVER_WRITE,
-    RTC_WRITE_LOG_STAGE_READBACK
+    RTC_WRITE_LOG_STAGE_READBACK,
+    RTC_WRITE_LOG_STAGE_VERIFY_MISMATCH
 } RTC_WriteLogStage_t;
 
 typedef enum
@@ -83,6 +90,8 @@ static RTC_InitState_t rtc_init_state = RTC_INIT_STATE_NOT_STARTED;
 static uint32_t rtc_init_deadline = 0U;
 static RTC_WriteState_t rtc_write_state = RTC_WRITE_STATE_IDLE;
 static uint32_t rtc_write_verify_deadline = 0U;
+static uint32_t rtc_write_request_tick = 0U;
+static PCA2131_DateTime_t rtc_write_requested;
 static uint32_t last_rtc_poll_time = 0U;
 static uint8_t last_published_rtc_second = 0xFFU;
 static uint8_t rtc_force_publish = 1U;
@@ -128,6 +137,105 @@ static uint32_t RTC_PackFailureDetail(uint8_t stage,
     return ((uint32_t)stage << 24U) |
            ((result & 0xFFFFUL) << 8U) |
            ((uint32_t)hal_status & 0xFFUL);
+}
+
+static uint8_t RTC_IsLeapYear(uint8_t year)
+{
+    return ((year % 4U) == 0U) ? 1U : 0U;
+}
+
+static uint32_t RTC_DaysBeforeMonth(uint8_t month, uint8_t year)
+{
+    static const uint16_t days_before_month[12] =
+    {
+        0U, 31U, 59U, 90U, 120U, 151U,
+        181U, 212U, 243U, 273U, 304U, 334U
+    };
+    uint32_t days = days_before_month[month - 1U];
+
+    if ((month > 2U) && (RTC_IsLeapYear(year) != 0U))
+    {
+        days++;
+    }
+
+    return days;
+}
+
+static uint64_t RTC_DateTimeToHundredths(
+    const PCA2131_DateTime_t *date_time)
+{
+    uint32_t days_before_year;
+    uint32_t day_index;
+
+    /* Years are encoded as 00..99 and interpreted as 2000..2099. */
+    days_before_year = ((uint32_t)date_time->year * 365U) +
+                       (((uint32_t)date_time->year + 3U) / 4U);
+    day_index = days_before_year +
+                RTC_DaysBeforeMonth(date_time->month, date_time->year) +
+                ((uint32_t)date_time->day - 1U);
+
+    return ((uint64_t)day_index * RTC_HUNDREDTHS_PER_DAY) +
+           ((uint64_t)date_time->hour * RTC_HUNDREDTHS_PER_HOUR) +
+           ((uint64_t)date_time->minute * RTC_HUNDREDTHS_PER_MINUTE) +
+           ((uint64_t)date_time->second * RTC_HUNDREDTHS_PER_SECOND) +
+           (uint64_t)date_time->hundredth;
+}
+
+static uint8_t RTC_DateTimeMatchesPendingWrite(uint32_t now)
+{
+    PCA2131_DateTime_t actual = {0};
+    uint64_t cycle_hundredths =
+        RTC_CALENDAR_CYCLE_DAYS * RTC_HUNDREDTHS_PER_DAY;
+    uint64_t elapsed_hundredths =
+        (uint64_t)(now - rtc_write_request_tick) / 10ULL;
+    uint64_t requested_hundredths;
+    uint64_t expected_hundredths;
+    uint64_t actual_hundredths;
+    uint64_t difference;
+    uint64_t elapsed_days;
+    uint8_t expected_weekday;
+
+    if ((rtc.calendar_valid == 0U) || (rtc.osf != 0U))
+    {
+        return 0U;
+    }
+
+    actual.hundredth = rtc.hundredth;
+    actual.second = rtc.second;
+    actual.minute = rtc.minute;
+    actual.hour = rtc.hour;
+    actual.day = rtc.day;
+    actual.weekday = rtc.weekday;
+    actual.month = rtc.month;
+    actual.year = rtc.year;
+
+    requested_hundredths = RTC_DateTimeToHundredths(&rtc_write_requested);
+    expected_hundredths =
+        (requested_hundredths + elapsed_hundredths) % cycle_hundredths;
+    actual_hundredths = RTC_DateTimeToHundredths(&actual);
+    difference = (actual_hundredths > expected_hundredths)
+               ? (actual_hundredths - expected_hundredths)
+               : (expected_hundredths - actual_hundredths);
+    if (difference > (cycle_hundredths / 2ULL))
+    {
+        difference = cycle_hundredths - difference;
+    }
+
+    elapsed_days =
+        (((uint64_t)rtc_write_requested.hour * RTC_HUNDREDTHS_PER_HOUR) +
+         ((uint64_t)rtc_write_requested.minute *
+          RTC_HUNDREDTHS_PER_MINUTE) +
+         ((uint64_t)rtc_write_requested.second *
+          RTC_HUNDREDTHS_PER_SECOND) +
+         (uint64_t)rtc_write_requested.hundredth +
+         elapsed_hundredths) / RTC_HUNDREDTHS_PER_DAY;
+    expected_weekday = (uint8_t)(
+        ((uint64_t)rtc_write_requested.weekday + elapsed_days) % 7ULL);
+
+    return ((difference <= RTC_WRITE_VERIFY_TOLERANCE_HUNDREDTHS) &&
+            (rtc.weekday == expected_weekday))
+         ? 1U
+         : 0U;
 }
 
 static void RTC_LogWriteFailure(RTC_WriteLogStage_t stage,
@@ -337,18 +445,32 @@ void CAN_Send_RTC_Time(void)
 
 void PCA2131_Init_Check(uint8_t peripheral_ready)
 {
+    uint32_t now = HAL_GetTick();
+
+    rtc_device = (PCA2131_Device_t){0};
+    rtc = (PCA2131_RTC_t){0};
     rtc_peripheral_ready = (peripheral_ready != 0U) ? 1U : 0U;
-    rtc.ready = 0U;
+    rtc_init_state = RTC_INIT_STATE_NOT_STARTED;
+    rtc_init_deadline = 0U;
+    rtc_write_state = RTC_WRITE_STATE_IDLE;
+    rtc_write_verify_deadline = 0U;
+    rtc_write_request_tick = 0U;
+    rtc_write_requested = (PCA2131_DateTime_t){0};
+    last_rtc_poll_time = now;
+    last_published_rtc_second = 0xFFU;
+    last_published_rtc_hundredth = 0xFFU;
+    rtc_force_publish = 1U;
     rtc_alarm_snapshot = (RTC_AlarmSnapshot_t){0};
     rtc_alarm_read_pending = 1U;
     rtc_alarm_write_state = RTC_ALARM_WRITE_STATE_IDLE;
     rtc_alarm_write_status = (RTC_AlarmWriteStatus_t){0};
+    rtc_alarm_verify_deadline = 0U;
     rtc_alarm_event_diagnostics = (RTC_AlarmEventDiagnostics_t){0};
     rtc_alarm_runtime_failure_active = 0U;
     rtc_alarm_runtime_failure_stage = RTC_ALARM_LOG_STAGE_STATUS_READ;
     g_rtcWatchdogSnapshot = (RTC_WatchdogSnapshot_t){0};
     rtc_watchdog_read_pending = 1U;
-    last_alarm_status_poll_time = HAL_GetTick();
+    last_alarm_status_poll_time = now;
 
     if (rtc_peripheral_ready == 0U)
     {
@@ -362,7 +484,7 @@ void PCA2131_Init_Check(uint8_t peripheral_ready)
     }
 
     PCA2131_Driver_Init(&rtc_device, &hi2c1);
-    rtc_init_deadline = HAL_GetTick() + RTC_INIT_SETTLE_DELAY_MS;
+    rtc_init_deadline = now + RTC_INIT_SETTLE_DELAY_MS;
     rtc_init_state = RTC_INIT_STATE_WAIT_SETTLE;
 }
 
@@ -1084,8 +1206,11 @@ uint8_t PCA2131_SetDateTime(uint8_t hundredth,
     rtc.year = year;
     rtc.osf = 0U;
     rtc.calendar_valid = 1U;
+    rtc_write_requested = date_time;
+    rtc_write_request_tick = HAL_GetTick();
 
-    rtc_write_verify_deadline = HAL_GetTick() + RTC_WRITE_VERIFY_DELAY_MS;
+    rtc_write_verify_deadline =
+        rtc_write_request_tick + RTC_WRITE_VERIFY_DELAY_MS;
     rtc_write_state = RTC_WRITE_STATE_WAIT_READBACK;
 
     return 1U;
@@ -1111,6 +1236,20 @@ static uint8_t RTC_ProcessPendingWrite(uint32_t now)
                             rtc.last_status,
                             rtc.last_error);
         RTC_LogWriteFailure(RTC_WRITE_LOG_STAGE_READBACK,
+                            rtc.last_result,
+                            rtc.last_status,
+                            rtc.last_error);
+        CAN_Send_RTC_Time();
+        return 1U;
+    }
+
+    if (RTC_DateTimeMatchesPendingWrite(now) == 0U)
+    {
+        CAN_Send_RTC_Status(
+            CAN_PROTOCOL_RTC_STATUS_WRITE_VERIFY_MISMATCH,
+            rtc.last_status,
+            rtc.last_error);
+        RTC_LogWriteFailure(RTC_WRITE_LOG_STAGE_VERIFY_MISMATCH,
                             rtc.last_result,
                             rtc.last_status,
                             rtc.last_error);

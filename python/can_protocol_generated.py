@@ -155,6 +155,7 @@ RTC_STATUS_DEFINITIONS = {
     0xEF: ('FAULT', 'ALARM_READBACK_FAILED', 'Alarm register readback failed'),
     0xF0: ('FAULT', 'ALARM_VERIFY_MISMATCH', 'Alarm write/readback mismatch'),
     0xF1: ('FAULT', 'ALARM_FLAG_CLEAR_FAILED', 'Previous alarm flag could not be cleared'),
+    0xF2: ('FAULT', 'WRITE_VERIFY_MISMATCH', 'Calendar write/readback mismatch'),
 }
 
 # RTC Communication Fault Codes
