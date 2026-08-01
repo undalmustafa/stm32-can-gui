@@ -15,6 +15,9 @@ TEST_TIC12400_RECOVERY_SRC = test_tic12400_recovery.c \
 	../Core/Src/tic12400_recovery.c unity/unity.c
 TEST_TIC12400_PROFILE_SRC = test_tic12400_profile.c \
 	../Core/Src/tic12400_profile.c unity/unity.c
+TEST_TIC12400_PROBE_SRC = test_tic12400_probe.c \
+	../Core/Src/tic12400_probe.c ../Core/Src/tic12400_profile.c \
+	../Core/Src/tic12400_recovery.c ../Core/Src/tic12400_switch.c unity/unity.c
 TEST_APP_CONTROL_POLICY_SRC = test_app_control_policy.c \
 	../Core/Src/app_control_policy.c unity/unity.c
 TEST_APP_CONTROL_SRC = test_app_control.c \
@@ -52,6 +55,7 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_tic12400_switch \
 	$(BUILD_DIR)/test_tic12400_recovery \
 	$(BUILD_DIR)/test_tic12400_profile \
+	$(BUILD_DIR)/test_tic12400_probe \
 	$(BUILD_DIR)/test_app_control_policy \
 	$(BUILD_DIR)/test_app_control \
 	$(BUILD_DIR)/test_transport \
@@ -96,6 +100,9 @@ $(BUILD_DIR)/test_tic12400_recovery: $(TEST_TIC12400_RECOVERY_SRC) | $(BUILD_DIR
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(BUILD_DIR)/test_tic12400_profile: $(TEST_TIC12400_PROFILE_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(BUILD_DIR)/test_tic12400_probe: $(TEST_TIC12400_PROBE_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(BUILD_DIR)/test_app_control_policy: $(TEST_APP_CONTROL_POLICY_SRC) | $(BUILD_DIR)
@@ -155,6 +162,7 @@ test: all
 	$(BUILD_DIR)/test_tic12400_switch
 	$(BUILD_DIR)/test_tic12400_recovery
 	$(BUILD_DIR)/test_tic12400_profile
+	$(BUILD_DIR)/test_tic12400_probe
 	$(BUILD_DIR)/test_app_control_policy
 	$(BUILD_DIR)/test_app_control
 	$(BUILD_DIR)/test_transport

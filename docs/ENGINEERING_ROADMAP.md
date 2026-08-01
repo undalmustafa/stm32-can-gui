@@ -202,8 +202,8 @@ Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
 
 ## Faz 3 — Test ve statik kalite kapıları
 
-Durum: CAN recovery/init/validation/access/RX orchestration ve RTC host test
-dilimleri tamamlandı; diğer state-machine ve statik kalite kapıları bekliyor.
+Durum: CAN, RTC ve TIC12400 probe host state-machine test dilimleri tamamlandı;
+statik kalite kapıları bekliyor.
 
 - [x] `can_recovery.c` için açık init/reset seam'i ve HAL-stub'lı bus-off
   recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
@@ -220,7 +220,9 @@ dilimleri tamamlandı; diğer state-machine ve statik kalite kapıları bekliyor
 - [x] `rtc_app.c` init/reconnect, tarih-saat ve alarm write/readback, tick wrap
   ve alarm-event retry akışlarını gerçek üretim fonksiyonları üzerinden hostta
   koru; re-init state resetini ve takvim readback eşleşmesini fail-closed yap.
-- [ ] `tic12400_probe.c` için kalan state-machine odaklı test seam'lerini çıkar.
+- [x] `tic12400_probe.c` validation/configuration/CRC, interrupt/fallback
+  service, offline/re-init ve profile reconfiguration akışlarını gerçek üretim
+  fonksiyonları üzerinden hostta koru; başarısız SPI verisini fail-closed tut.
 - [ ] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; ardından
   `-Werror` kapısını aç.
 - [ ] Cppcheck veya clang-tidy raporunu CI artifact'i, kritik bulguları gate

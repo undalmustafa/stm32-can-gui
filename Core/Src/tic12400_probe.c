@@ -445,6 +445,12 @@ static uint8_t TIC12400_ProbeSampleInputs(void)
         &tic12400_device,
         TIC12400_REGISTER_INT_STAT);
     TIC12400_ProbeStoreTransaction(&interrupt_status);
+    if (interrupt_status.result != TIC12400_RESULT_OK)
+    {
+        TIC12400_ProbeRecordServiceFailure(&interrupt_status);
+        return 0U;
+    }
+
     g_tic12400_probe.last_int_status = interrupt_status.data;
     if (interrupt_status.data != 0U)
     {
@@ -454,11 +460,6 @@ static uint8_t TIC12400_ProbeSampleInputs(void)
     if ((interrupt_status.data & TIC12400_INT_STATUS_SSC) != 0U)
     {
         g_tic12400_probe.ssc_events++;
-    }
-    if (interrupt_status.result != TIC12400_RESULT_OK)
-    {
-        TIC12400_ProbeRecordServiceFailure(&interrupt_status);
-        return 0U;
     }
 
     /*
@@ -794,22 +795,27 @@ static uint8_t TIC12400_ProbeAttemptInitialize(void)
 void TIC12400_Probe_Init(SPI_HandleTypeDef *spi,
                          uint8_t peripheral_ready)
 {
+    uint32_t now = HAL_GetTick();
     uint8_t succeeded;
 
     g_tic12400_probe = (TIC12400_ProbeSnapshot_t){0};
+    tic12400_device = (TIC12400_Device_t){0};
+    tic12400_active_profile = (TIC12400_Profile_t){0};
+    TIC12400_SwitchFilter_Init(&tic12400_switch_filter);
+    tic12400_last_service_tick = now;
     tic12400_requested_battery_switch_mask = 0U;
     tic12400_applied_battery_switch_mask = 0U;
     tic12400_profile_generation = 0U;
     tic12400_profile_applied = 0U;
     tic12400_peripheral_ready =
-        (peripheral_ready != 0U) ? 1U : 0U;
+        ((peripheral_ready != 0U) && (spi != NULL)) ? 1U : 0U;
     TIC12400_Recovery_Init(&tic12400_recovery_state);
 
-    if ((tic12400_peripheral_ready == 0U) || (spi == NULL))
+    if (tic12400_peripheral_ready == 0U)
     {
         TIC12400_Recovery_RecordInitialResult(
             &tic12400_recovery_state,
-            HAL_GetTick(),
+            now,
             0U);
         TIC12400_ProbeMarkOffline();
         TIC12400_ProbeSyncRecoverySnapshot();
