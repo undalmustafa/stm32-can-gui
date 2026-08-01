@@ -54,6 +54,7 @@ MAP := $(BUILD_DIR)/$(TARGET).map
 LIST := $(BUILD_DIR)/$(TARGET).list
 
 ARCH_FLAGS := -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb
+WARNING_FLAGS := -Wall -Wextra -Wconversion -Wshadow -Wundef -Werror
 DEFINES := -DUSE_PWR_DIRECT_SMPS_SUPPLY -DUSE_HAL_DRIVER -DSTM32H7A3xxQ
 INCLUDES := \
 	-ICore/Inc \
@@ -74,7 +75,7 @@ endif
 
 CPPFLAGS := $(DEFINES) $(INCLUDES)
 CFLAGS := $(ARCH_FLAGS) $(OPT_FLAGS) -std=gnu11 -ffunction-sections \
-	-fdata-sections -fstack-usage -Wall -MMD -MP
+	-fdata-sections -fstack-usage $(WARNING_FLAGS) -MMD -MP
 ASFLAGS := $(ARCH_FLAGS) $(OPT_FLAGS) $(DEFINES) -x assembler-with-cpp -MMD -MP
 LDFLAGS := $(ARCH_FLAGS) -T$(LINKER_SCRIPT) --specs=nosys.specs \
 	--specs=nano.specs -Wl,-Map=$(MAP) -Wl,--gc-sections -static

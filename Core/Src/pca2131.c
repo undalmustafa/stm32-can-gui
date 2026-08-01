@@ -150,7 +150,7 @@ static uint8_t PCA2131_EncodeAlarmHour(
     }
     else
     {
-        hour_12 = field->value - 12U;
+        hour_12 = (uint8_t)(field->value - 12U);
         pm_bit = PCA2131_ALARM_PM_BIT;
     }
 

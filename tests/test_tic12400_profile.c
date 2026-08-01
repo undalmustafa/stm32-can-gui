@@ -57,7 +57,7 @@ void test_profile_allows_battery_switches_only_on_in0_to_in9(void)
 
 void test_profile_rejects_modes_on_disabled_inputs(void)
 {
-    profile.enabled_mask &= ~(1UL << 4);
+    profile.enabled_mask &= ~(uint32_t)(1UL << 4U);
     profile.adc_mode_mask = 1UL << 4;
 
     TEST_ASSERT_EQUAL(

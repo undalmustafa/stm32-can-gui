@@ -1,6 +1,7 @@
 CC = gcc
 PYTHON ?= python3
-CFLAGS = -Wall -Wextra -Iunity -Istubs -I../Core/Inc -g -O0
+WARNING_FLAGS = -Wall -Wextra -Wconversion -Wshadow -Wundef -Werror
+CFLAGS = $(WARNING_FLAGS) -Iunity -Istubs -I../Core/Inc -g -O0
 BUILD_DIR = build
 PYTHON_TESTS = $(wildcard ../python/tests/test_gui_*.py)
 

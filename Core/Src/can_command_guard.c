@@ -24,16 +24,18 @@ uint8_t CAN_CommandGuard_IsPrivileged(
 
         case CAN_PROTOCOL_CMD_START_SLOT_1_COUNTER:
         case CAN_PROTOCOL_CMD_START_SLOT_2_COUNTER:
-            return (CAN_Protocol_ReadU32LE(&payload[2]) == 0U) ? 0U : 1U;
+            return (uint8_t)(
+                (CAN_Protocol_ReadU32LE(&payload[2]) == 0U) ? 0U : 1U);
 
         case CAN_PROTOCOL_CMD_LED_CONTROL:
-            return (payload[2] == 0U) ? 0U : 1U;
+            return (uint8_t)((payload[2] == 0U) ? 0U : 1U);
 
         case CAN_PROTOCOL_CMD_PWM_SET:
-            return (CAN_Protocol_ReadU32LE(&payload[1]) == 0U) ? 0U : 1U;
+            return (uint8_t)(
+                (CAN_Protocol_ReadU32LE(&payload[1]) == 0U) ? 0U : 1U);
 
         case CAN_PROTOCOL_CMD_PWM_SELF_TEST:
-            return (payload[1] == 0U) ? 0U : 1U;
+            return (uint8_t)((payload[1] == 0U) ? 0U : 1U);
 
         case CAN_PROTOCOL_CMD_TIC12400_SET_POLARITY:
             return 1U;

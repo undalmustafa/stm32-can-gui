@@ -57,24 +57,29 @@ static uint32_t TIC12400_UnpackFrame(const uint8_t bytes[4])
            (uint32_t)bytes[3];
 }
 
+static uint8_t TIC12400_StatusBitIsSet(uint32_t frame, uint32_t mask)
+{
+    return (uint8_t)(((frame & mask) != 0U) ? 1U : 0U);
+}
+
 static void TIC12400_DecodeStatus(
     uint32_t frame,
     TIC12400_StatusFlags_t *status)
 {
     status->spi_fail =
-        ((frame & TIC12400_STATUS_SPI_FAIL_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_SPI_FAIL_MASK);
     status->parity_fail =
-        ((frame & TIC12400_STATUS_PARITY_FAIL_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_PARITY_FAIL_MASK);
     status->switch_state_change =
-        ((frame & TIC12400_STATUS_SSC_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_SSC_MASK);
     status->supply_threshold =
-        ((frame & TIC12400_STATUS_SUPPLY_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_SUPPLY_MASK);
     status->temperature =
-        ((frame & TIC12400_STATUS_TEMPERATURE_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_TEMPERATURE_MASK);
     status->other_interrupt =
-        ((frame & TIC12400_STATUS_OTHER_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_OTHER_MASK);
     status->power_on_reset =
-        ((frame & TIC12400_STATUS_POR_MASK) != 0U) ? 1U : 0U;
+        TIC12400_StatusBitIsSet(frame, TIC12400_STATUS_POR_MASK);
 }
 
 static void TIC12400_WaitMicroseconds(uint32_t microseconds)

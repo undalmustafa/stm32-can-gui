@@ -162,10 +162,10 @@ TIC12400_Transaction_t TIC12400_ReadRegister(
     if (register_address == TIC12400_REGISTER_CONFIG)
     {
         if ((register_values[register_address] &
-             TIC12400_CONFIG_CRC_TRIGGER_MASK) != 0U)
+            TIC12400_CONFIG_CRC_TRIGGER_MASK) != 0U)
         {
             register_values[register_address] &=
-                ~TIC12400_CONFIG_CRC_TRIGGER_MASK;
+                ~(uint32_t)TIC12400_CONFIG_CRC_TRIGGER_MASK;
             register_values[TIC12400_REGISTER_INT_STAT] |=
                 TIC12400_INT_STATUS_CRC_CALC_MASK;
         }
