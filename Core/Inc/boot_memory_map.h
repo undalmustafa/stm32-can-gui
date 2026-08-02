@@ -1,0 +1,34 @@
+#ifndef BOOT_MEMORY_MAP_H
+#define BOOT_MEMORY_MAP_H
+
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
+#include <stdint.h>
+
+/* STM32H7A3ZITxQ: 2 MiB dual-bank user flash with 8 KiB sectors. */
+#define BOOT_FLASH_BASE_ADDRESS       0x08000000UL
+#define BOOT_FLASH_END_ADDRESS        0x08200000UL
+#define BOOT_FLASH_BANK_SIZE          0x00100000UL
+#define BOOT_FLASH_SECTOR_SIZE        0x00002000UL
+
+/* Bank 1: immutable bootloader followed by application slot A. */
+#define BOOT_LOADER_BASE_ADDRESS      0x08000000UL
+#define BOOT_LOADER_REGION_SIZE       0x00020000UL
+#define BOOT_SLOT_A_BASE_ADDRESS      0x08020000UL
+#define BOOT_SLOT_A_REGION_SIZE       0x000E0000UL
+
+/* Bank 2: application slot B followed by redundant boot-control storage. */
+#define BOOT_SLOT_B_BASE_ADDRESS      0x08100000UL
+#define BOOT_SLOT_B_REGION_SIZE       0x000E0000UL
+#define BOOT_CONTROL_BASE_ADDRESS     0x081E0000UL
+#define BOOT_CONTROL_REGION_SIZE      0x00020000UL
+
+#define BOOT_IMAGE_MANIFEST_SIZE      128U
+#define BOOT_IMAGE_HEADER_SIZE        512U
+#define BOOT_IMAGE_VECTOR_ALIGNMENT   512U
+
+#endif /* BOOT_MEMORY_MAP_H */

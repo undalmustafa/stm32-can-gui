@@ -414,6 +414,7 @@ unknown or multiplexed data.
 
 - [Interrupt priority and ISR contract](docs/INTERRUPT_POLICY.md)
 - [Firmware reliability roadmap](docs/ENGINEERING_ROADMAP.md)
+- [Signed A/B bootloader architecture](docs/BOOTLOADER_ARCHITECTURE.md)
 
 ## Practical limitations
 
