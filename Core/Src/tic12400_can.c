@@ -17,7 +17,7 @@ _Static_assert(
     TIC12400_PROFILE_BATTERY_CAPABLE_MASK,
     "TIC12400 battery-capable masks must match");
 
-volatile TIC12400_CanSnapshot_t g_tic12400_can;
+static volatile TIC12400_CanSnapshot_t g_tic12400_can;
 
 static uint32_t tic12400_can_last_status_tick;
 static uint32_t tic12400_can_last_switch_tick;

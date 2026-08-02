@@ -30,7 +30,7 @@ static volatile App_Watchdog_RetainedRecord_t
 static uint32_t app_watchdog_evidence_sequence;
 static uint8_t app_watchdog_evidence_storage_ready;
 
-volatile App_Watchdog_ResetEvidence_t g_appWatchdogResetEvidence;
+static volatile App_Watchdog_ResetEvidence_t g_appWatchdogResetEvidence;
 
 _Static_assert(sizeof(App_Watchdog_RetainedRecord_t) == 44U,
                "Watchdog retained record layout changed");

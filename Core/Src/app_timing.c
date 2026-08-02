@@ -53,7 +53,7 @@ static const uint32_t ack_bin_upper_us[APP_TIMING_ACK_FINITE_BIN_COUNT] =
     25000U
 };
 
-volatile App_Timing_Snapshot_t g_appTiming;
+static volatile App_Timing_Snapshot_t g_appTiming;
 
 static uint32_t App_Timing_MicrosecondsToCycles(uint32_t microseconds)
 {

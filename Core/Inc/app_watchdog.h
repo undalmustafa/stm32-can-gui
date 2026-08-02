@@ -78,8 +78,9 @@ typedef struct
 #endif
 } App_Watchdog_Diagnostics_t;
 
-/* Exposed for debugger inspection. Application code must use the API. */
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
 extern volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
+#endif
 
 HAL_StatusTypeDef App_Watchdog_Init(IWDG_HandleTypeDef *watchdog);
 void App_Watchdog_CheckIn(App_Watchdog_Heartbeat_t heartbeat);

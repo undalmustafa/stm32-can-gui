@@ -3,7 +3,11 @@
 
 static IWDG_HandleTypeDef *app_iwdg;
 
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
 volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
+#else
+static volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
+#endif
 
 static void App_Watchdog_RecordHeartbeat(
     uint32_t now,

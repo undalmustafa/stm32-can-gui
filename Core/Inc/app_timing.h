@@ -62,9 +62,6 @@ typedef struct
     uint32_t maximum_us;
 } App_Timing_AckSummary_t;
 
-/* Exposed for debugger inspection. Application code must use the API. */
-extern volatile App_Timing_Snapshot_t g_appTiming;
-
 void App_Timing_Init(uint32_t core_clock_hz);
 uint32_t App_Timing_Now(void);
 uint32_t App_Timing_Begin(void);

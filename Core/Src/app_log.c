@@ -11,9 +11,14 @@
 #define APP_LOG_RETAINED_SECTION
 #endif
 
+#if defined(APP_LOG_HOST_TEST)
 App_Log_StorageSlot_t
     g_appLogRecords[APP_LOG_RAM_CAPACITY] APP_LOG_RETAINED_SECTION;
-volatile App_Log_Debug_t g_appLogDebug;
+#else
+static App_Log_StorageSlot_t
+    g_appLogRecords[APP_LOG_RAM_CAPACITY] APP_LOG_RETAINED_SECTION;
+#endif
+static volatile App_Log_Debug_t g_appLogDebug;
 
 static uint16_t app_log_head_index;
 static uint16_t app_log_tail_index;
@@ -544,6 +549,7 @@ void App_Log_GetInfo(App_Log_Info_t *info)
     App_Log_ExitCritical(primask);
 }
 
+#if defined(APP_LOG_HOST_TEST)
 void App_Log_GetDebug(App_Log_Debug_t *debug)
 {
     uint32_t primask;
@@ -571,6 +577,7 @@ void App_Log_GetDebug(App_Log_Debug_t *debug)
 
     App_Log_ExitCritical(primask);
 }
+#endif
 
 void App_Log_Clear(void)
 {

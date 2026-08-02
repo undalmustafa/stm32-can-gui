@@ -350,7 +350,7 @@ not this summary, as the protocol source of truth.
   500 ms and backing off to 8 s.
 - **Watchdog:** IWDG uses a `/128` prescaler and reload value `999`, giving a
   nominal timeout of about 4 seconds. It is refreshed only when the main loop,
-  CAN task, and RTC task remain healthy. Debug builds freeze it while halted.
+  CAN task, and RTC task remain healthy.
 - **Event log:** stores 64 CRC-protected records in 2 KiB of retained RAM and
   synchronizes them to the GUI for CSV export.
 - **Timing:** uses the Cortex-M7 DWT cycle counter to retain current, minimum,

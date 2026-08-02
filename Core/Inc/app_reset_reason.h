@@ -28,9 +28,6 @@ typedef struct
     uint32_t capture_count;
 } App_ResetReason_Snapshot_t;
 
-/* Exposed for debugger inspection. Application code must use the API. */
-extern volatile App_ResetReason_Snapshot_t g_appResetReasonSnapshot;
-
 /* Call once after HAL_Init(), before reset flags are cleared elsewhere. */
 void App_ResetReason_Capture(void);
 void App_ResetReason_GetSnapshot(App_ResetReason_Snapshot_t *snapshot);

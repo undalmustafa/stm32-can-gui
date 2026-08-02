@@ -21,8 +21,6 @@ typedef struct
     uint8_t last_switch_generation;
 } TIC12400_CanSnapshot_t;
 
-extern volatile TIC12400_CanSnapshot_t g_tic12400_can;
-
 void TIC12400_CAN_Init(void);
 void TIC12400_CAN_Process(void);
 

@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-volatile App_ResetReason_Snapshot_t g_appResetReasonSnapshot;
+static volatile App_ResetReason_Snapshot_t g_appResetReasonSnapshot;
 
 static uint32_t App_ResetReason_Decode(uint32_t raw_rsr)
 {

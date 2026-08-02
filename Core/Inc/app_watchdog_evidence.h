@@ -39,9 +39,6 @@ typedef struct
     uint8_t storage_ready;
 } App_Watchdog_ResetEvidence_t;
 
-/* Exposed for debugger inspection. Application code must use the API. */
-extern volatile App_Watchdog_ResetEvidence_t g_appWatchdogResetEvidence;
-
 void App_Watchdog_Evidence_CaptureBoot(uint8_t was_iwdg_reset);
 void App_Watchdog_Evidence_Record(
     App_Watchdog_EvidenceCause_t cause,

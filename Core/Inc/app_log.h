@@ -124,9 +124,9 @@ typedef struct
     uint16_t record_size;
 } App_Log_Info_t;
 
-/* Exposed for debugger inspection. Application code must use the API. */
+#if defined(APP_LOG_HOST_TEST)
 extern App_Log_StorageSlot_t g_appLogRecords[APP_LOG_RAM_CAPACITY];
-extern volatile App_Log_Debug_t g_appLogDebug;
+#endif
 
 void App_Log_Init(void);
 
@@ -151,7 +151,9 @@ uint8_t App_Log_ReadBySequence(uint32_t sequence,
 uint8_t App_Log_GetLatest(App_Log_Record_t *record);
 uint8_t App_Log_IsRecordValid(const App_Log_Record_t *record);
 void App_Log_GetInfo(App_Log_Info_t *info);
+#if defined(APP_LOG_HOST_TEST)
 void App_Log_GetDebug(App_Log_Debug_t *debug);
+#endif
 void App_Log_Clear(void);
 
 #endif /* APP_LOG_H */

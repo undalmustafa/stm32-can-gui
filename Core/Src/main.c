@@ -623,11 +623,6 @@ static void MX_IWDG1_Init(void)
 
   /* USER CODE BEGIN IWDG1_Init 0 */
 
-#if defined(DEBUG) && defined(__HAL_DBGMCU_FREEZE_IWDG1)
-  /* Keep source-level debugging practical. Production builds do not freeze. */
-  __HAL_DBGMCU_FREEZE_IWDG1();
-#endif
-
   /* USER CODE END IWDG1_Init 0 */
 
   /* USER CODE BEGIN IWDG1_Init 1 */

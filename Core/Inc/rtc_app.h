@@ -78,9 +78,6 @@ typedef struct
     PCA2131_WatchdogStatus_t status;
 } RTC_WatchdogSnapshot_t;
 
-/* Exposed for debugger inspection. Application code must use the API. */
-extern volatile RTC_WatchdogSnapshot_t g_rtcWatchdogSnapshot;
-
 uint8_t PCA2131_Is_Valid_DateTime(uint8_t hundredth,
                                   uint8_t second,
                                   uint8_t minute,

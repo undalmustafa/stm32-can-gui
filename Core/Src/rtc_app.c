@@ -110,7 +110,7 @@ static RTC_AlarmLogStage_t rtc_alarm_runtime_failure_stage =
     RTC_ALARM_LOG_STAGE_STATUS_READ;
 static uint8_t rtc_watchdog_read_pending = 0U;
 
-volatile RTC_WatchdogSnapshot_t g_rtcWatchdogSnapshot;
+static volatile RTC_WatchdogSnapshot_t g_rtcWatchdogSnapshot;
 
 static uint32_t RTC_PackLogResult(PCA2131_Result_t driver_result,
                                   HAL_StatusTypeDef hal_status)
