@@ -62,7 +62,9 @@ static uint8_t Boot_Flash_Stm32EraseSector(void *context,
     erase.Sector = (sector_address - bank_base) /
         BOOT_FLASH_SECTOR_SIZE;
     erase.NbSectors = 1U;
+#if defined(FLASH_CR_PSIZE)
     erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+#endif
     return ((HAL_FLASHEx_Erase(&erase, &sector_error) == HAL_OK) &&
             (sector_error == UINT32_MAX)) ? 1U : 0U;
 }
