@@ -5,7 +5,6 @@
 #include "tic12400_recovery.h"
 #include "tic12400_switch.h"
 
-#define TIC12400_PROBE_VALIDATION_READS 1000U
 #define TIC12400_PROBE_FALLBACK_POLL_MS  500U
 #define TIC12400_PROBE_CRC_POLL_READS    100U
 
@@ -168,38 +167,6 @@ static uint8_t TIC12400_ProbeCanClearLatchedFault(
     return ((transaction->result == TIC12400_RESULT_DEVICE_SPI_ERROR) ||
             (transaction->result ==
              TIC12400_RESULT_DEVICE_PARITY_ERROR)) ? 1U : 0U;
-}
-
-static void TIC12400_ProbeValidateCommunication(void)
-{
-    uint32_t index;
-    TIC12400_Transaction_t transaction;
-
-    g_tic12400_probe.validation_target =
-        TIC12400_PROBE_VALIDATION_READS;
-
-    for (index = 0U;
-         index < TIC12400_PROBE_VALIDATION_READS;
-         index++)
-    {
-        transaction = TIC12400_ReadDeviceId(&tic12400_device);
-        TIC12400_ProbeStoreTransaction(&transaction);
-
-        if (transaction.result != TIC12400_RESULT_OK)
-        {
-            g_tic12400_probe.validation_first_failure_index =
-                index + 1U;
-            g_tic12400_probe.validation_first_failure_rx_frame =
-                transaction.rx_frame;
-            g_tic12400_probe.validation_first_failure_result =
-                transaction.result;
-            return;
-        }
-
-        g_tic12400_probe.validation_completed = index + 1U;
-    }
-
-    g_tic12400_probe.validation_passed = 1U;
 }
 
 static uint8_t TIC12400_ProbeWriteAndVerify(
@@ -776,18 +743,14 @@ static uint8_t TIC12400_ProbeAttemptInitialize(void)
         g_tic12400_probe.interrupt_pending = 0U;
     }
 
-    TIC12400_ProbeValidateCommunication();
-    if (g_tic12400_probe.validation_passed != 0U)
+    TIC12400_ProbeConfigureInputs();
+    if (g_tic12400_probe.configuration_passed != 0U)
     {
-        TIC12400_ProbeConfigureInputs();
-        if (g_tic12400_probe.configuration_passed != 0U)
-        {
-            g_tic12400_probe.online = 1U;
-            return 1U;
-        }
-        g_tic12400_probe.result =
-            g_tic12400_probe.configuration_result;
+        g_tic12400_probe.online = 1U;
+        return 1U;
     }
+    g_tic12400_probe.result =
+        g_tic12400_probe.configuration_result;
 
     return 0U;
 }

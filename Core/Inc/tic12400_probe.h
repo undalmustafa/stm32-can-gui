@@ -23,10 +23,6 @@ typedef struct
     uint32_t register_data;
     uint32_t int_status;
     uint32_t hal_error;
-    uint32_t validation_target;
-    uint32_t validation_completed;
-    uint32_t validation_first_failure_index;
-    uint32_t validation_first_failure_rx_frame;
     uint32_t configuration_write_count;
     uint32_t configuration_failure_address;
     uint32_t configuration_expected;
@@ -76,7 +72,6 @@ typedef struct
     uint32_t switch_change_events;
     TIC12400_Result_t first_result;
     TIC12400_Result_t clear_result;
-    TIC12400_Result_t validation_first_failure_result;
     TIC12400_Result_t configuration_result;
     TIC12400_Result_t crc_result;
     TIC12400_Result_t service_result;
@@ -93,7 +88,6 @@ typedef struct
     uint8_t recovery_attempted;
     uint8_t recovery_succeeded;
     uint8_t reinitialization_pending;
-    uint8_t validation_passed;
     uint8_t configuration_completed;
     uint8_t configuration_passed;
     uint8_t crc_trigger_self_cleared;

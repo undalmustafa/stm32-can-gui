@@ -324,10 +324,7 @@ void test_successful_init_validates_configures_crc_and_baseline(void)
 
     TEST_ASSERT_EQUAL_UINT32(1U, driver_init_calls);
     TEST_ASSERT_EQUAL_UINT32(1U, hardware_reset_calls);
-    TEST_ASSERT_EQUAL_UINT32(1001U, device_id_calls);
-    TEST_ASSERT_EQUAL_UINT32(1000U,
-                             g_tic12400_probe.validation_completed);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.validation_passed);
+    TEST_ASSERT_EQUAL_UINT32(1U, device_id_calls);
     TEST_ASSERT_EQUAL_UINT32(TEST_EXPECTED_CONFIG_WRITES,
                              g_tic12400_probe.configuration_write_count);
     TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.crc_trigger_self_cleared);
@@ -343,16 +340,14 @@ void test_successful_init_validates_configures_crc_and_baseline(void)
                             state.closed_bitmap);
 }
 
-void test_validation_failure_schedules_retry_then_recovers(void)
+void test_device_identity_failure_schedules_retry_then_recovers(void)
 {
-    fail_device_id_call = 5U;
+    fail_device_id_call = 1U;
     TIC12400_Probe_Init(&test_spi, 1U);
 
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.online);
-    TEST_ASSERT_EQUAL_UINT32(4U,
-        g_tic12400_probe.validation_first_failure_index);
     TEST_ASSERT_EQUAL(TIC12400_RESULT_HAL_ERROR,
-                      g_tic12400_probe.validation_first_failure_result);
+                      g_tic12400_probe.result);
     TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.reinitialization_pending);
     TEST_ASSERT_EQUAL_UINT32(TIC12400_RECOVERY_INITIAL_DELAY_MS,
                              g_tic12400_probe.reinitialization_delay_ms);
@@ -505,7 +500,7 @@ int main(void)
     RUN_TEST(
         test_null_spi_never_reaches_driver_or_runtime_reinitialization);
     RUN_TEST(test_successful_init_validates_configures_crc_and_baseline);
-    RUN_TEST(test_validation_failure_schedules_retry_then_recovers);
+    RUN_TEST(test_device_identity_failure_schedules_retry_then_recovers);
     RUN_TEST(test_configuration_readback_mismatch_fails_closed);
     RUN_TEST(test_fallback_poll_and_interrupt_service_update_switch_state);
     RUN_TEST(test_failed_status_data_is_ignored_and_threshold_recovers);
