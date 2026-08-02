@@ -41,6 +41,16 @@ def main() -> None:
     )
     require(generated == committed, "committed DBC is stale")
     require("\r" not in generated, "DBC output must use deterministic LF")
+    require("PayloadByte" not in generated,
+            "DBC must not contain generic payload-byte signals")
+
+    for message_key, signals in definition["dbc_signals"].items():
+        for signal in signals:
+            if "reserved" in signal["name"].lower():
+                require(
+                    signal.get("maximum") == 0,
+                    f"{message_key}.{signal['name']} must be constrained to zero",
+                )
 
     identifiers = definition["identifiers"]
     message_lines = re.findall(r"(?m)^BO_ (\d+) ([A-Z0-9_]+):", generated)
@@ -79,27 +89,53 @@ def main() -> None:
             all(line.endswith(f" {receiver}") for line in signal_lines),
             f"{message_name} signal receiver does not match direction",
         )
-        occupied_bits = set()
+        common_bits = set()
+        multiplex_bits = {}
+        multiplexor_seen = False
         for signal_line in signal_lines:
             match = re.match(
-                r" SG_ ([A-Za-z_][A-Za-z0-9_]*)(?: M)? : "
+                r" SG_ ([A-Za-z_][A-Za-z0-9_]*)(?: (M|m\d+))? : "
                 r"(\d+)\|(\d+)@1[+-] ",
                 signal_line,
             )
             require(match is not None,
                     f"invalid signal syntax in {message_name}")
-            start_bit = int(match.group(2))
-            length = int(match.group(3))
+            multiplex = match.group(2)
+            start_bit = int(match.group(3))
+            length = int(match.group(4))
             bits = set(range(start_bit, start_bit + length))
-            require(not bits & occupied_bits,
-                    f"overlapping signals in {message_name}")
-            occupied_bits.update(bits)
-        require(
-            occupied_bits == set(range(
-                definition["protocol"]["payload_size"] * 8
-            )),
-            f"{message_name} signals must cover every payload bit",
-        )
+            if multiplex is not None and multiplex.startswith("m"):
+                multiplex_value = int(multiplex[1:])
+                group_bits = multiplex_bits.setdefault(
+                    multiplex_value, set()
+                )
+                require(not bits & common_bits and not bits & group_bits,
+                        f"overlapping signals in {message_name}")
+                group_bits.update(bits)
+            else:
+                require(
+                    not bits & common_bits and
+                    all(not bits & group for group in multiplex_bits.values()),
+                    f"overlapping signals in {message_name}",
+                )
+                common_bits.update(bits)
+                multiplexor_seen |= multiplex == "M"
+        payload_bits = set(range(
+            definition["protocol"]["payload_size"] * 8
+        ))
+        if multiplex_bits:
+            require(multiplexor_seen,
+                    f"{message_name} multiplexor is missing")
+            require(
+                all(common_bits | group == payload_bits
+                    for group in multiplex_bits.values()),
+                f"{message_name} multiplex groups must cover the payload",
+            )
+        else:
+            require(
+                common_bits == payload_bits,
+                f"{message_name} signals must cover every payload bit",
+            )
         description = message.get("description", "")
         require(description in generated,
                 f"missing DBC comment for {message_name}")
@@ -207,6 +243,43 @@ def main() -> None:
         require("PayloadByte" not in block,
                 f"{key} must not expose generic payload bytes")
 
+    gui_header = f"BO_ {gui_frame_id} {dbc_name('gui_command')}:"
+    gui_block = generated.split(gui_header, maxsplit=1)[1].split(
+        "\n\n", maxsplit=1
+    )[0]
+    require(" SG_ CommandCode M : 0|8@1+" in gui_block,
+            "GUI command code must be the DBC multiplexor")
+    require("PayloadByte" not in gui_block,
+            "GUI command must not expose generic payload bytes")
+    gui_mux_values = {
+        int(value) for value in re.findall(r"(?m)^ SG_ \w+ m(\d+) :", gui_block)
+    }
+    require(
+        gui_mux_values == {
+            command["code"] for command in definition["commands"].values()
+        },
+        "GUI multiplex groups must cover every command code",
+    )
+    command_signal_examples = {
+        "set_slot_1": "Slot1CanId",
+        "set_slot_2": "Slot2CanId",
+        "led_control": "LedChannel",
+        "start_slot_1_counter": "Slot1CounterLimit",
+        "start_slot_2_counter": "Slot2CounterLimit",
+        "rtc_set_time": "RtcTimeHour",
+        "rtc_set_datetime": "RtcDateTimeMonth",
+        "rtc_set_alarm": "AlarmSecondEnabled",
+        "log_get_info": "LogGetInfoReserved",
+        "log_read_sequence": "LogReadSequence",
+        "pwm_set": "PwmFrequency",
+        "pwm_self_test": "PwmSelfTestStart",
+        "tic12400_set_polarity": "Tic12400BatterySwitchBitmap",
+    }
+    for key, signal_name in command_signal_examples.items():
+        code = definition["commands"][key]["code"]
+        require(f" SG_ {signal_name} m{code} :" in gui_block,
+                f"missing multiplexed DBC payload for {key}")
+
     value_table = next(
         line for line in generated.splitlines()
         if line.startswith(f"VAL_ {gui_frame_id} CommandCode ")
@@ -272,6 +345,25 @@ def main() -> None:
     require_generation_error(incomplete,
                              "incomplete DBC signal coverage must be rejected")
 
+    missing_mux_group = copy.deepcopy(definition)
+    missing_code = missing_mux_group["commands"]["led_control"]["code"]
+    missing_mux_group["dbc_signals"]["gui_command"] = [
+        signal for signal in missing_mux_group["dbc_signals"]["gui_command"]
+        if signal.get("multiplex_value") != missing_code
+    ]
+    require_generation_error(missing_mux_group,
+                             "missing GUI multiplex groups must be rejected")
+
+    invalid_mux_overlap = copy.deepcopy(definition)
+    invalid_mux_overlap["dbc_signals"]["gui_command"][4]["start_bit"] = 8
+    require_generation_error(invalid_mux_overlap,
+                             "same-group multiplex overlaps must be rejected")
+
+    missing_multiplexor = copy.deepcopy(definition)
+    missing_multiplexor["dbc_signals"]["gui_command"][0]["multiplexor"] = False
+    require_generation_error(missing_multiplexor,
+                             "missing DBC multiplexors must be rejected")
+
     unknown_source = copy.deepcopy(definition)
     unknown_source["dbc_signals"]["command_ack"][0]["value_source"] = (
         "missing_values"
@@ -300,6 +392,11 @@ def main() -> None:
     )
     require_generation_error(unknown_message,
                              "unknown DBC signal messages must be rejected")
+
+    missing_message = copy.deepcopy(definition)
+    missing_message["dbc_signals"].pop("rtc_status")
+    require_generation_error(missing_message,
+                             "identifiers without DBC signals must be rejected")
 
     print(
         "PASS: DBC covers all frames and validates product signal contracts"

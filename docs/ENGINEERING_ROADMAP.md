@@ -290,13 +290,14 @@ Uygulama sırası:
    - [x] Log transport/heartbeat, RX-health ve timing frame'lerini gerçek
      sinyallere taşı; log wire sabitleri ile timing service ID'lerini firmware,
      GUI ve DBC için tek kaynaktan üret.
-   - [ ] GUI komutlarını multiplexed payload alanlarına taşı.
+   - [x] GUI komutlarını command-code ile seçilen, tam kapsamalı multiplexed
+     payload alanlarına taşı; generic payload-byte fallback'ini kaldır.
 3. ISO-TP ve UDS diagnostic servisleri.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.
 6. Freshness counter ve CMAC tabanlı komut doğrulama.
 7. Self-hosted runner ile nightly HIL regresyonu.
 
-Yakın hedef, DBC sinyal semantiğini tamamladıktan sonra ISO-TP taşımasını küçük,
-host-testli bir çekirdek olarak eklemektir. UDS servisleri bu taşıma katmanının
-üzerine kurulacaktır.
+DBC sinyal semantiği tamamlandı. Yakın hedef ISO-TP taşımasını küçük, host-testli
+bir çekirdek olarak eklemektir. UDS servisleri bu taşıma katmanının üzerine
+kurulacaktır.

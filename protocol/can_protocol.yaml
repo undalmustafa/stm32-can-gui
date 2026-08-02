@@ -188,55 +188,55 @@ command_transport:
 # ---------------------------------------------------------------------------
 commands:
   set_slot_1:
-    code: 0x01
+    code: &cmd_set_slot_1 0x01
     description: "Configure transmit slot 1"
 
   set_slot_2:
-    code: 0x02
+    code: &cmd_set_slot_2 0x02
     description: "Configure transmit slot 2"
 
   led_control:
-    code: 0x10
+    code: &cmd_led_control 0x10
     description: "Set LED 1 or LED 2"
 
   start_slot_1_counter:
-    code: 0x11
+    code: &cmd_start_slot_1_counter 0x11
     description: "Start slot 1 counter"
 
   start_slot_2_counter:
-    code: 0x12
+    code: &cmd_start_slot_2_counter 0x12
     description: "Start slot 2 counter"
 
   rtc_set_time:
-    code: 0x20
+    code: &cmd_rtc_set_time 0x20
     description: "Set time while retaining calendar data"
 
   rtc_set_datetime:
-    code: 0x21
+    code: &cmd_rtc_set_datetime 0x21
     description: "Set the complete RTC calendar"
 
   rtc_set_alarm:
-    code: 0x22
+    code: &cmd_rtc_set_alarm 0x22
     description: "Set RTC alarm configuration"
 
   pwm_set:
-    code: 0x40
+    code: &cmd_pwm_set 0x40
     description: "Set PWM output frequency and duty cycle"
 
   pwm_self_test:
-    code: 0x41
+    code: &cmd_pwm_self_test 0x41
     description: "Start or cancel the PWM built-in self-test"
 
   log_get_info:
-    code: 0x30
+    code: &cmd_log_get_info 0x30
     description: "Request STM32 event-log metadata"
 
   log_read_sequence:
-    code: 0x31
+    code: &cmd_log_read_sequence 0x31
     description: "Request one STM32 event-log record by sequence"
 
   tic12400_set_polarity:
-    code: 0x50
+    code: &cmd_tic12400_set_polarity 0x50
     description: "Set IN0-IN9 battery/ground switch polarity mask"
 
 command_ack_status_codes:
@@ -546,7 +546,7 @@ alarm_event_flags:
 # ---------------------------------------------------------------------------
 tic12400_transport:
   channel_count: 24
-  battery_capable_mask: 1023
+  battery_capable_mask: &tic_battery_capable_mask 1023
 
 tic12400_switch_flags:
   data_valid:
@@ -625,6 +625,309 @@ dbc_boolean_values:
   1: "True"
 
 dbc_signals:
+  gui_command:
+    - name: CommandCode
+      start_bit: 0
+      length: 8
+      multiplexor: true
+      description: "Selects the command-specific payload layout"
+
+    - name: Slot1Enable
+      start_bit: 8
+      length: 1
+      multiplex_value: *cmd_set_slot_1
+      value_source: dbc_boolean_values
+    - name: Slot1ExtendedId
+      start_bit: 9
+      length: 1
+      multiplex_value: *cmd_set_slot_1
+      value_source: dbc_boolean_values
+    - name: Slot1FlagsReserved
+      start_bit: 10
+      length: 6
+      maximum: 0
+      multiplex_value: *cmd_set_slot_1
+    - name: Slot1CanId
+      start_bit: 16
+      length: 32
+      maximum: 536870911
+      multiplex_value: *cmd_set_slot_1
+    - name: Slot1CycleTime
+      start_bit: 48
+      length: 16
+      minimum: 1
+      unit: "ms"
+      multiplex_value: *cmd_set_slot_1
+
+    - name: Slot2Enable
+      start_bit: 8
+      length: 1
+      multiplex_value: *cmd_set_slot_2
+      value_source: dbc_boolean_values
+    - name: Slot2ExtendedId
+      start_bit: 9
+      length: 1
+      multiplex_value: *cmd_set_slot_2
+      value_source: dbc_boolean_values
+    - name: Slot2FlagsReserved
+      start_bit: 10
+      length: 6
+      maximum: 0
+      multiplex_value: *cmd_set_slot_2
+    - name: Slot2CanId
+      start_bit: 16
+      length: 32
+      maximum: 536870911
+      multiplex_value: *cmd_set_slot_2
+    - name: Slot2CycleTime
+      start_bit: 48
+      length: 16
+      minimum: 1
+      unit: "ms"
+      multiplex_value: *cmd_set_slot_2
+
+    - name: LedChannel
+      start_bit: 8
+      length: 8
+      minimum: 1
+      maximum: 2
+      multiplex_value: *cmd_led_control
+    - name: LedState
+      start_bit: 16
+      length: 8
+      maximum: 1
+      multiplex_value: *cmd_led_control
+      value_source: dbc_boolean_values
+    - name: LedReserved
+      start_bit: 24
+      length: 40
+      maximum: 0
+      multiplex_value: *cmd_led_control
+
+    - name: Slot1CounterReserved1
+      start_bit: 8
+      length: 8
+      maximum: 0
+      multiplex_value: *cmd_start_slot_1_counter
+    - name: Slot1CounterLimit
+      start_bit: 16
+      length: 32
+      multiplex_value: *cmd_start_slot_1_counter
+    - name: Slot1CounterReserved2
+      start_bit: 48
+      length: 16
+      maximum: 0
+      multiplex_value: *cmd_start_slot_1_counter
+
+    - name: Slot2CounterReserved1
+      start_bit: 8
+      length: 8
+      maximum: 0
+      multiplex_value: *cmd_start_slot_2_counter
+    - name: Slot2CounterLimit
+      start_bit: 16
+      length: 32
+      multiplex_value: *cmd_start_slot_2_counter
+    - name: Slot2CounterReserved2
+      start_bit: 48
+      length: 16
+      maximum: 0
+      multiplex_value: *cmd_start_slot_2_counter
+
+    - name: RtcTimeHour
+      start_bit: 8
+      length: 8
+      maximum: 23
+      unit: "h"
+      multiplex_value: *cmd_rtc_set_time
+    - name: RtcTimeMinute
+      start_bit: 16
+      length: 8
+      maximum: 59
+      unit: "min"
+      multiplex_value: *cmd_rtc_set_time
+    - name: RtcTimeSecond
+      start_bit: 24
+      length: 8
+      maximum: 59
+      unit: "s"
+      multiplex_value: *cmd_rtc_set_time
+    - name: RtcTimeReserved
+      start_bit: 32
+      length: 32
+      maximum: 0
+      multiplex_value: *cmd_rtc_set_time
+
+    - name: RtcDateTimeHundredth
+      start_bit: 8
+      length: 8
+      maximum: 99
+      unit: "10 ms"
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeSecond
+      start_bit: 16
+      length: 8
+      maximum: 59
+      unit: "s"
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeMinute
+      start_bit: 24
+      length: 8
+      maximum: 59
+      unit: "min"
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeHour
+      start_bit: 32
+      length: 8
+      maximum: 23
+      unit: "h"
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeDay
+      start_bit: 40
+      length: 8
+      minimum: 1
+      maximum: 31
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeMonth
+      start_bit: 48
+      length: 5
+      minimum: 1
+      maximum: 12
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeWeekday
+      start_bit: 53
+      length: 3
+      maximum: 6
+      multiplex_value: *cmd_rtc_set_datetime
+    - name: RtcDateTimeYear
+      start_bit: 56
+      length: 8
+      maximum: 99
+      multiplex_value: *cmd_rtc_set_datetime
+      description: "Year offset from 2000"
+
+    - name: AlarmSecondEnabled
+      start_bit: 8
+      length: 1
+      multiplex_value: *cmd_rtc_set_alarm
+      value_source: dbc_boolean_values
+    - name: AlarmMinuteEnabled
+      start_bit: 9
+      length: 1
+      multiplex_value: *cmd_rtc_set_alarm
+      value_source: dbc_boolean_values
+    - name: AlarmHourEnabled
+      start_bit: 10
+      length: 1
+      multiplex_value: *cmd_rtc_set_alarm
+      value_source: dbc_boolean_values
+    - name: AlarmDayEnabled
+      start_bit: 11
+      length: 1
+      multiplex_value: *cmd_rtc_set_alarm
+      value_source: dbc_boolean_values
+    - name: AlarmWeekdayEnabled
+      start_bit: 12
+      length: 1
+      multiplex_value: *cmd_rtc_set_alarm
+      value_source: dbc_boolean_values
+    - name: AlarmFlagsReserved
+      start_bit: 13
+      length: 3
+      maximum: 0
+      multiplex_value: *cmd_rtc_set_alarm
+    - name: AlarmSecond
+      start_bit: 16
+      length: 8
+      maximum: 59
+      unit: "s"
+      multiplex_value: *cmd_rtc_set_alarm
+    - name: AlarmMinute
+      start_bit: 24
+      length: 8
+      maximum: 59
+      unit: "min"
+      multiplex_value: *cmd_rtc_set_alarm
+    - name: AlarmHour
+      start_bit: 32
+      length: 8
+      maximum: 23
+      unit: "h"
+      multiplex_value: *cmd_rtc_set_alarm
+    - name: AlarmDay
+      start_bit: 40
+      length: 8
+      maximum: 31
+      multiplex_value: *cmd_rtc_set_alarm
+    - name: AlarmWeekday
+      start_bit: 48
+      length: 8
+      maximum: 6
+      multiplex_value: *cmd_rtc_set_alarm
+    - name: AlarmReserved
+      start_bit: 56
+      length: 8
+      maximum: 0
+      multiplex_value: *cmd_rtc_set_alarm
+
+    - name: LogGetInfoReserved
+      start_bit: 8
+      length: 56
+      maximum: 0
+      multiplex_value: *cmd_log_get_info
+
+    - name: LogReadSequence
+      start_bit: 8
+      length: 32
+      minimum: 1
+      multiplex_value: *cmd_log_read_sequence
+    - name: LogReadReserved
+      start_bit: 40
+      length: 24
+      maximum: 0
+      multiplex_value: *cmd_log_read_sequence
+
+    - name: PwmFrequency
+      start_bit: 8
+      length: 32
+      maximum: 1000000
+      unit: "Hz"
+      multiplex_value: *cmd_pwm_set
+    - name: PwmDutyCycle
+      start_bit: 40
+      length: 8
+      maximum: 100
+      unit: "%"
+      multiplex_value: *cmd_pwm_set
+    - name: PwmReserved
+      start_bit: 48
+      length: 16
+      maximum: 0
+      multiplex_value: *cmd_pwm_set
+
+    - name: PwmSelfTestStart
+      start_bit: 8
+      length: 8
+      maximum: 1
+      multiplex_value: *cmd_pwm_self_test
+      value_source: dbc_boolean_values
+    - name: PwmSelfTestReserved
+      start_bit: 16
+      length: 48
+      maximum: 0
+      multiplex_value: *cmd_pwm_self_test
+
+    - name: Tic12400BatterySwitchBitmap
+      start_bit: 8
+      length: 24
+      maximum: *tic_battery_capable_mask
+      multiplex_value: *cmd_tic12400_set_polarity
+    - name: Tic12400PolarityReserved
+      start_bit: 32
+      length: 32
+      maximum: 0
+      multiplex_value: *cmd_tic12400_set_polarity
+
   rtc_status:
     - name: StatusCode
       start_bit: 0
@@ -642,6 +945,7 @@ dbc_signals:
     - name: Reserved
       start_bit: 48
       length: 16
+      maximum: 0
       description: "Reserved; transmit zero"
 
   rtc_time:
@@ -689,6 +993,7 @@ dbc_signals:
     - name: TimeReserved
       start_bit: 59
       length: 2
+      maximum: 0
       description: "Reserved time flag bits; transmit zero"
     - name: CalendarValid
       start_bit: 61
@@ -726,6 +1031,7 @@ dbc_signals:
     - name: SummaryReserved
       start_bit: 4
       length: 4
+      maximum: 0
       description: "Reserved summary bits; transmit zero"
     - name: Slot1State
       start_bit: 8
@@ -774,6 +1080,7 @@ dbc_signals:
     - name: RequestReserved
       start_bit: 45
       length: 3
+      maximum: 0
       description: "Reserved request bits; transmit zero"
     - name: SwitchDataValid
       start_bit: 48
@@ -798,6 +1105,7 @@ dbc_signals:
     - name: PhysicalReserved
       start_bit: 53
       length: 3
+      maximum: 0
       description: "Reserved physical-input bits; transmit zero"
     - name: Slot1Blocked
       start_bit: 56
@@ -814,6 +1122,7 @@ dbc_signals:
     - name: OverrideReserved3
       start_bit: 59
       length: 1
+      maximum: 0
       description: "Reserved override bit; transmit zero"
     - name: PwmBlocked
       start_bit: 60
@@ -822,6 +1131,7 @@ dbc_signals:
     - name: OverrideReserved5
       start_bit: 61
       length: 3
+      maximum: 0
       description: "Reserved override bits; transmit zero"
 
   rtc_alarm_event:
@@ -846,6 +1156,7 @@ dbc_signals:
     - name: AlarmFlagsReserved
       start_bit: 11
       length: 5
+      maximum: 0
       description: "Reserved alarm flag bits; transmit zero"
     - name: Hour
       start_bit: 16
@@ -914,10 +1225,12 @@ dbc_signals:
     - name: ControlReserved
       start_bit: 52
       length: 4
+      maximum: 0
       description: "Reserved control-policy bits; transmit zero"
     - name: Reserved
       start_bit: 56
       length: 8
+      maximum: 0
       description: "Reserved; transmit zero"
 
   input_capture_status:
@@ -1009,6 +1322,7 @@ dbc_signals:
     - name: HeartbeatFlagsReserved
       start_bit: 10
       length: 6
+      maximum: 0
       description: "Reserved heartbeat flag bits; transmit zero"
     - name: LatestSequence
       start_bit: 16
@@ -1046,6 +1360,7 @@ dbc_signals:
     - name: HealthFlagsReserved
       start_bit: 5
       length: 3
+      maximum: 0
       description: "Reserved health flag bits; transmit zero"
     - name: MaximumFifoFill
       start_bit: 8
@@ -1085,6 +1400,7 @@ dbc_signals:
     - name: TimingFlagsReserved
       start_bit: 11
       length: 5
+      maximum: 0
       description: "Reserved timing flag bits; transmit zero"
     - name: CurrentExecutionTime
       start_bit: 16
@@ -1149,6 +1465,7 @@ dbc_signals:
     - name: AckFlagsReserved
       start_bit: 34
       length: 6
+      maximum: 0
       description: "Reserved acknowledgement flag bits; transmit zero"
     - name: AccessWindowRemaining
       start_bit: 40
@@ -1158,6 +1475,7 @@ dbc_signals:
     - name: Reserved
       start_bit: 48
       length: 16
+      maximum: 0
       description: "Reserved; transmit zero"
 
   tic12400_status:
@@ -1184,6 +1502,7 @@ dbc_signals:
     - name: StatusReserved4
       start_bit: 4
       length: 1
+      maximum: 0
       description: "Reserved status bit; transmit zero"
     - name: PorObserved
       start_bit: 5
@@ -1198,6 +1517,7 @@ dbc_signals:
     - name: StatusReserved7
       start_bit: 7
       length: 1
+      maximum: 0
       description: "Reserved status bit; transmit zero"
     - name: DeviceId
       start_bit: 8
@@ -1246,6 +1566,7 @@ dbc_signals:
     - name: TransactionReserved
       start_bit: 31
       length: 1
+      maximum: 0
       description: "Reserved transaction bit; transmit zero"
     - name: ServiceFailureCount
       start_bit: 32
@@ -1277,6 +1598,7 @@ dbc_signals:
     - name: Reserved
       start_bit: 57
       length: 7
+      maximum: 0
       description: "Reserved; transmit zero"
 
   tic12400_profile:
@@ -1300,4 +1622,5 @@ dbc_signals:
     - name: Reserved
       start_bit: 57
       length: 7
+      maximum: 0
       description: "Reserved; transmit zero"

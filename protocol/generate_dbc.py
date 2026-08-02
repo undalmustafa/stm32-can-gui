@@ -57,7 +57,9 @@ def validate_signals(definition: dict, message_key: str, payload_size: int) -> N
     if not isinstance(signals, list) or not signals:
         raise ValueError(f"DBC signals for {message_key} must be a non-empty list")
 
-    occupied_bits = set()
+    common_bits = set()
+    multiplex_bits = {}
+    multiplexor_signal = None
     signal_names = set()
     payload_bits = payload_size * 8
     for signal in signals:
@@ -87,10 +89,29 @@ def validate_signals(definition: dict, message_key: str, payload_size: int) -> N
                 f"DBC signal {message_key}.{name} signed must be boolean"
             )
         multiplexor = signal.get("multiplexor", False)
+        multiplex_value = signal.get("multiplex_value")
         if not isinstance(multiplexor, bool):
             raise ValueError(
                 f"DBC signal {message_key}.{name} multiplexor must be boolean"
             )
+        if (multiplex_value is not None and
+                (not isinstance(multiplex_value, int) or
+                 isinstance(multiplex_value, bool) or multiplex_value < 0)):
+            raise ValueError(
+                f"DBC signal {message_key}.{name} multiplex value is invalid"
+            )
+        if multiplexor:
+            if multiplex_value is not None:
+                raise ValueError(
+                    f"DBC signal {message_key}.{name} cannot be both mux roles"
+                )
+            if multiplexor_signal is not None:
+                raise ValueError(f"DBC message {message_key} has multiple muxes")
+            if signed:
+                raise ValueError(
+                    f"DBC multiplexor {message_key}.{name} must be unsigned"
+                )
+            multiplexor_signal = signal
         dbc_number(factor)
         dbc_number(offset)
         if factor <= 0:
@@ -116,9 +137,20 @@ def validate_signals(definition: dict, message_key: str, payload_size: int) -> N
             )
 
         bits = set(range(start_bit, start_bit + length))
-        if bits & occupied_bits:
-            raise ValueError(f"DBC signal {message_key}.{name} overlaps another signal")
-        occupied_bits.update(bits)
+        if multiplex_value is None:
+            if (bits & common_bits or
+                    any(bits & group for group in multiplex_bits.values())):
+                raise ValueError(
+                    f"DBC signal {message_key}.{name} overlaps another signal"
+                )
+            common_bits.update(bits)
+        else:
+            group_bits = multiplex_bits.setdefault(multiplex_value, set())
+            if bits & common_bits or bits & group_bits:
+                raise ValueError(
+                    f"DBC signal {message_key}.{name} overlaps another signal"
+                )
+            group_bits.update(bits)
 
         source = signal.get("value_source")
         if source is not None:
@@ -132,8 +164,32 @@ def validate_signals(definition: dict, message_key: str, payload_size: int) -> N
                         f"DBC value {raw_value} does not fit {message_key}.{name}"
                     )
 
-    if len(occupied_bits) != payload_bits:
-        raise ValueError(f"DBC signals for {message_key} do not cover the frame")
+    if multiplex_bits:
+        if multiplexor_signal is None:
+            raise ValueError(f"DBC message {message_key} has no multiplexor")
+        mux_length = multiplexor_signal["length"]
+        mux_maximum = (1 << mux_length) - 1
+        if max(multiplex_bits) > mux_maximum:
+            raise ValueError(f"DBC message {message_key} multiplex value is too large")
+        if message_key == "gui_command":
+            command_values = {
+                command["code"] for command in definition.get("commands", {}).values()
+            }
+            if set(multiplex_bits) != command_values:
+                raise ValueError(
+                    "GUI command multiplex groups must match command codes"
+                )
+        for multiplex_value, group_bits in multiplex_bits.items():
+            if len(common_bits | group_bits) != payload_bits:
+                raise ValueError(
+                    f"DBC multiplex group {message_key}.{multiplex_value} "
+                    "does not cover the frame"
+                )
+    else:
+        if multiplexor_signal is not None:
+            raise ValueError(f"DBC message {message_key} has no multiplex groups")
+        if len(common_bits) != payload_bits:
+            raise ValueError(f"DBC signals for {message_key} do not cover the frame")
 
 
 def dbc_name(value: str) -> str:
@@ -224,6 +280,10 @@ def validate_definition(definition: dict) -> None:
     if unknown_signal_messages:
         unknown = sorted(unknown_signal_messages)[0]
         raise ValueError(f"DBC signals reference unknown identifier {unknown}")
+    missing_signal_messages = set(identifiers) - set(signal_map)
+    if missing_signal_messages:
+        missing = sorted(missing_signal_messages)[0]
+        raise ValueError(f"identifier {missing} has no DBC signals")
 
     encoded_ids = set()
     message_names = set()
@@ -314,22 +374,7 @@ def generate_dbc_text(definition: dict) -> str:
             f"BO_ {frame_id} {message_name}: {payload_size} {transmitter}"
         )
 
-        signals = signal_map.get(key)
-        if signals is None:
-            signals = [
-                {
-                    "name": ("CommandCode" if key == "gui_command" and
-                             byte_index == 0 else f"PayloadByte{byte_index}"),
-                    "start_bit": byte_index * 8,
-                    "length": 8,
-                    "multiplexor": key == "gui_command" and byte_index == 0,
-                    "minimum": 0,
-                    "maximum": 255,
-                }
-                for byte_index in range(payload_size)
-            ]
-
-        for signal in signals:
+        for signal in signal_map[key]:
             length = signal["length"]
             signed = signal.get("signed", False)
             factor = signal.get("factor", 1)
@@ -342,7 +387,12 @@ def generate_dbc_text(definition: dict) -> str:
             if maximum is None:
                 raw_maximum = (1 << (length - (1 if signed else 0))) - 1
                 maximum = raw_maximum * factor + offset
-            multiplex = " M" if signal.get("multiplexor", False) else ""
+            if signal.get("multiplexor", False):
+                multiplex = " M"
+            elif signal.get("multiplex_value") is not None:
+                multiplex = f' m{signal["multiplex_value"]}'
+            else:
+                multiplex = ""
             sign = "-" if signed else "+"
             unit = dbc_string(str(signal.get("unit", "")))
             lines.append(
