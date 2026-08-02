@@ -48,6 +48,30 @@ jobs:
       - name: Build and run Unity tests
         run: make -C tests test
 
+  static-analysis:
+    name: Cppcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends cppcheck
+
+      - name: Run static analysis quality gate
+        run: make static-analysis
+
+      - name: Upload static analysis reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cppcheck-${{ github.sha }}
+          path: build/static-analysis/
+          if-no-files-found: error
+          retention-days: 14
+
   watchdog-tests:
     name: Watchdog host tests
     runs-on: ubuntu-24.04

@@ -7,6 +7,8 @@ CC := $(CROSS_COMPILE)gcc
 OBJCOPY := $(CROSS_COMPILE)objcopy
 OBJDUMP := $(CROSS_COMPILE)objdump
 SIZE := $(CROSS_COMPILE)size
+CPPCHECK ?= cppcheck
+STATIC_ANALYSIS_DIR ?= build/static-analysis
 
 LINKER_SCRIPT := STM32H7A3ZITXQ_FLASH.ld
 
@@ -95,7 +97,7 @@ endif
 
 .DEFAULT_GOAL := all
 
-.PHONY: all clean debug release size
+.PHONY: all clean debug release size static-analysis
 
 all: $(ELF) $(HEX) $(BIN) $(LIST) size
 
@@ -120,6 +122,11 @@ $(LIST): $(ELF)
 
 size: $(ELF)
 	$(SIZE) $<
+
+static-analysis:
+	@CPPCHECK="$(CPPCHECK)" \
+		STATIC_ANALYSIS_DIR="$(STATIC_ANALYSIS_DIR)" \
+		./scripts/run_cppcheck.sh
 
 $(BUILD_DIR)/%.o: %.c
 	$(create_output_directory)

@@ -202,8 +202,9 @@ Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
 
 ## Faz 3 — Test ve statik kalite kapıları
 
-Durum: CAN, RTC ve TIC12400 probe host state-machine test dilimleri ile strict
-compiler warning kapısı tamamlandı; diğer statik kalite kapıları bekliyor.
+Durum: CAN, RTC ve TIC12400 probe host state-machine test dilimleri, strict
+compiler warning ve Cppcheck kalite kapıları tamamlandı; diğer statik kalite
+adımları bekliyor.
 
 - [x] `can_recovery.c` için açık init/reset seam'i ve HAL-stub'lı bus-off
   recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
@@ -226,8 +227,9 @@ compiler warning kapısı tamamlandı; diğer statik kalite kapıları bekliyor.
 - [x] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; host ve
   firmware Makefile'larında `-Werror` kapısını aç. Host matrisini kapı açıkken
   çalıştır; target toolchain doğrulamasını firmware build adımında tamamla.
-- [ ] Cppcheck veya clang-tidy raporunu CI artifact'i, kritik bulguları gate
-  yap.
+- [x] Cppcheck raporunu metin/XML CI artifact'i yap; proje kaynaklarındaki
+  error/warning/performance/portability bulgularını gate et, stil bulgularını
+  rapor seviyesinde görünür tut ve üçüncü taraf HAL/CMSIS kodunu hariç bırak.
 - [ ] `.su` dosyalarından worst-case stack raporu üret; 1 KiB stack varsayımını
   ölçümle doğrula.
 - [ ] Modül header'larına çağrı bağlamını yaz: main-loop only, ISR-safe veya
