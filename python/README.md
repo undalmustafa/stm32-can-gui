@@ -19,6 +19,15 @@ py -m pip install -r requirements.txt
 py can_gui.py
 ```
 
+`requirements.txt`, Python 3.13 için doğrudan ve transitif paketlerin tam
+sürüm kilididir. Kontrollü bir yükseltmede önce doğrudan sürümleri
+`requirements.in` içinde değiştirin, çözülen transitif sürümleri
+`requirements.txt` içine aktarın ve kök dizinden şu kontrolü çalıştırın:
+
+```powershell
+make -C tests test-python-dependencies
+```
+
 Sonraki çalıştırmalarda `run_gui.bat` dosyası da kullanılabilir.
 
 Windows'ta PCAN adaptörünün sürücüsü/PCAN-Basic bileşeni kurulu olmalıdır.

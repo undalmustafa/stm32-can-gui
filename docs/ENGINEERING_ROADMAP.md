@@ -242,6 +242,10 @@ kapıları tamamlandı; diğer statik kalite adımları bekliyor.
   hedefi kullan; bu sözleşmeyi host testinde koru.
 - [ ] Python bağımlılıklarını kilitle ve kök lisans/third-party notices
   dosyalarını ekle.
+  - [x] Python 3.13 GUI zincirini doğrudan/transitif sürümlerle kilitle;
+    protocol generator pin'ini güncelle ve Make/CI sözleşmesi ekle.
+  - [ ] Proje lisansını kökte açıkla ve gömülü/runtime üçüncü taraf
+    bileşenlerini notice dosyasında envanterle.
 
 ## Faz 4 — Bakım borcu
 

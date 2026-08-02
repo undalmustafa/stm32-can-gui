@@ -1,0 +1,4 @@
+# Direct GUI runtime dependencies. Keep versions explicit before regenerating
+# requirements.txt so upgrades remain deliberate and reviewable.
+PySide6==6.11.1
+python-can==4.6.1

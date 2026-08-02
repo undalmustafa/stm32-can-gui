@@ -29,14 +29,7 @@ jobs:
         run: python -m pip install --requirement protocol/requirements.txt
 
       - name: Verify generated protocol files
-        shell: bash
-        run: |
-          set -euo pipefail
-          python protocol/generate_c.py
-          python protocol/generate_python.py
-          git diff --exit-code -- \
-            Core/Inc/can_protocol_generated.h \
-            python/can_protocol_generated.py
+        run: make -C tests test-protocol-generation
 
   c-tests:
     name: Host C tests
@@ -172,6 +165,9 @@ jobs:
 
       - name: Verify Python CI contract
         run: make -C tests test-python-ci
+
+      - name: Verify Python dependency locks
+        run: make -C tests test-python-dependencies
 
       - name: Install GUI dependencies
         run: python -m pip install --requirement python/requirements.txt

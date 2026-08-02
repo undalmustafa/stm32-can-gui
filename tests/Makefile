@@ -74,8 +74,8 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_can_command_validation \
 	$(BUILD_DIR)/test_can_app_rx
 
-.PHONY: all test test-python test-python-ci test-stack-usage \
-	test-call-context clean
+.PHONY: all test test-python test-python-ci test-python-dependencies \
+	test-protocol-generation test-stack-usage test-call-context clean
 
 all: $(TEST_BINS)
 
@@ -191,6 +191,18 @@ test-python:
 
 test-python-ci:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_python_ci_contract.py
+
+test-python-dependencies:
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) \
+		host/test_python_dependency_lock.py
+
+test-protocol-generation:
+	@cd .. && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) protocol/generate_c.py
+	@cd .. && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) \
+		protocol/generate_python.py
+	@git -C .. diff --exit-code -- \
+		Core/Inc/can_protocol_generated.h \
+		python/can_protocol_generated.py
 
 test-stack-usage:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_stack_usage_report.py
