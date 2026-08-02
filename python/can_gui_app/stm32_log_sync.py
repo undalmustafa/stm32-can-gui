@@ -14,6 +14,8 @@ from .protocol import (
     STM32_LOG_EVENT_SYSTEM_BOOT,
     STM32_LOG_EVENT_NAMES,
     STM32_LOG_INFO_FRAGMENT_BASE,
+    STM32_LOG_INFO_FRAGMENT_COUNT,
+    STM32_LOG_INFO_WIRE_SIZE,
     STM32_LOG_HEARTBEAT_FLAG_MASK,
     STM32_LOG_HEARTBEAT_FLAG_OVERWRITE,
     STM32_LOG_HEARTBEAT_FLAG_READY,
@@ -21,6 +23,7 @@ from .protocol import (
     STM32_LOG_PROTOCOL_VERSION,
     STM32_LOG_RAM_CAPACITY,
     STM32_LOG_RECORD_FRAGMENT_BASE,
+    STM32_LOG_RECORD_FRAGMENT_COUNT,
     STM32_LOG_RESPONSE_RX_ID,
     STM32_LOG_RECORD_MAGIC,
     STM32_LOG_RECORD_SIZE,
@@ -357,26 +360,28 @@ class Stm32LogSync:
         header = data[0]
 
         if (STM32_LOG_INFO_FRAGMENT_BASE <= header <=
-                STM32_LOG_INFO_FRAGMENT_BASE + 2):
+                STM32_LOG_INFO_FRAGMENT_BASE +
+                STM32_LOG_INFO_FRAGMENT_COUNT - 1):
             if self.pending_kind != "info":
                 return
 
             fragment_index = header - STM32_LOG_INFO_FRAGMENT_BASE
             self.info_fragments[fragment_index] = data[1:]
 
-            if len(self.info_fragments) == 3:
+            if len(self.info_fragments) == STM32_LOG_INFO_FRAGMENT_COUNT:
                 self._complete_info()
             return
 
         if (STM32_LOG_RECORD_FRAGMENT_BASE <= header <=
-                STM32_LOG_RECORD_FRAGMENT_BASE + 4):
+                STM32_LOG_RECORD_FRAGMENT_BASE +
+                STM32_LOG_RECORD_FRAGMENT_COUNT - 1):
             if self.pending_kind != "record":
                 return
 
             fragment_index = header - STM32_LOG_RECORD_FRAGMENT_BASE
             self.record_fragments[fragment_index] = data[1:]
 
-            if len(self.record_fragments) == 5:
+            if len(self.record_fragments) == STM32_LOG_RECORD_FRAGMENT_COUNT:
                 self._complete_record()
             return
 
@@ -401,8 +406,9 @@ class Stm32LogSync:
 
     def _complete_info(self):
         wire_info = b"".join(
-            self.info_fragments[index] for index in range(3)
-        )[:18]
+            self.info_fragments[index]
+            for index in range(STM32_LOG_INFO_FRAGMENT_COUNT)
+        )[:STM32_LOG_INFO_WIRE_SIZE]
 
         version = wire_info[0]
         record_size = wire_info[1]
@@ -539,7 +545,8 @@ class Stm32LogSync:
 
     def _complete_record(self):
         raw_record = b"".join(
-            self.record_fragments[index] for index in range(5)
+            self.record_fragments[index]
+            for index in range(STM32_LOG_RECORD_FRAGMENT_COUNT)
         )[:STM32_LOG_RECORD_SIZE]
         requested_sequence = self.pending_sequence
         self.pending_kind = None

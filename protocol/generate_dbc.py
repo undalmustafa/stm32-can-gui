@@ -147,6 +147,55 @@ def dbc_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def validate_log_transport(definition: dict, payload_size: int) -> None:
+    transport = definition.get("log_transport")
+    if not isinstance(transport, dict):
+        raise ValueError("log_transport section must be a mapping")
+
+    fields = (
+        "version", "record_size", "ram_capacity", "record_magic",
+        "commit_marker", "fragment_data_size", "info_wire_size",
+        "info_fragment_base", "info_fragment_count",
+        "record_fragment_base", "record_fragment_count", "error_frame",
+    )
+    for field in fields:
+        value = transport.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+            raise ValueError(f"log_transport {field} must be a positive integer")
+
+    fragment_size = transport["fragment_data_size"]
+    if fragment_size != payload_size - 1:
+        raise ValueError("log fragment data must fill the CAN payload")
+    for kind, wire_size_key, count_key in (
+        ("info", "info_wire_size", "info_fragment_count"),
+        ("record", "record_size", "record_fragment_count"),
+    ):
+        wire_size = transport[wire_size_key]
+        expected_count = (wire_size + fragment_size - 1) // fragment_size
+        if transport[count_key] != expected_count:
+            raise ValueError(f"log {kind} fragment count does not fit wire size")
+
+    info_headers = set(range(
+        transport["info_fragment_base"],
+        transport["info_fragment_base"] + transport["info_fragment_count"],
+    ))
+    record_headers = set(range(
+        transport["record_fragment_base"],
+        transport["record_fragment_base"] +
+        transport["record_fragment_count"],
+    ))
+    error_header = transport["error_frame"]
+    if (max(info_headers | record_headers | {error_header}) > 0xFF or
+            info_headers & record_headers or
+            error_header in info_headers or error_header in record_headers):
+        raise ValueError("log response headers overlap or exceed one byte")
+    if (transport["version"] > 0xFF or
+            transport["ram_capacity"] > 0xFF or
+            transport["record_magic"] > 0xFFFFFFFF or
+            transport["commit_marker"] > 0xFFFF):
+        raise ValueError("log transport field exceeds its wire representation")
+
+
 def load_definition(yaml_path: Path) -> dict:
     with yaml_path.open("r", encoding="utf-8") as stream:
         definition = yaml.safe_load(stream)
@@ -167,6 +216,7 @@ def validate_definition(definition: dict) -> None:
         raise ValueError("protocol payload_size must be in range 1..64")
     if not isinstance(identifiers, dict) or not identifiers:
         raise ValueError("identifiers section must be a non-empty mapping")
+    validate_log_transport(definition, payload_size)
     signal_map = definition.get("dbc_signals", {})
     if not isinstance(signal_map, dict):
         raise ValueError("dbc_signals section must be a mapping")
@@ -214,6 +264,14 @@ def validate_definition(definition: dict) -> None:
         if code in command_codes:
             raise ValueError(f"command {key} duplicates a command code")
         command_codes.add(code)
+
+    timing_codes = sorted(
+        value for value, _label in signal_value_table(
+            definition, "timing_service_codes"
+        )
+    )
+    if timing_codes != list(range(len(timing_codes))):
+        raise ValueError("timing service codes must be contiguous from zero")
 
 
 def encoded_frame_id(message: dict) -> int:

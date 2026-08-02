@@ -287,8 +287,10 @@ Uygulama sırası:
    - [x] RTC durum/zaman/alarm, sistem policy, PWM, input-capture ve PWM
      self-test frame'lerini gerçek sinyallere taşı; self-test state kodlarını
      firmware, GUI ve DBC için tek kaynaktan üret.
-   - [ ] Log, RX-health ve timing frame'lerini gerçek sinyallere; GUI
-     komutlarını multiplexed payload alanlarına taşı.
+   - [x] Log transport/heartbeat, RX-health ve timing frame'lerini gerçek
+     sinyallere taşı; log wire sabitleri ile timing service ID'lerini firmware,
+     GUI ve DBC için tek kaynaktan üret.
+   - [ ] GUI komutlarını multiplexed payload alanlarına taşı.
 3. ISO-TP ve UDS diagnostic servisleri.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.

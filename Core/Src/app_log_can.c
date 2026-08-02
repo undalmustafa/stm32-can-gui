@@ -7,9 +7,6 @@
 
 #include <stddef.h>
 
-#define APP_LOG_CAN_INFO_FRAGMENT_COUNT  3U
-#define APP_LOG_CAN_RECORD_FRAGMENT_COUNT 5U
-
 static App_Log_Can_Stats_t app_log_can_stats;
 static uint32_t app_log_can_next_heartbeat_tick;
 static uint8_t app_log_can_alive_counter;
@@ -189,7 +186,7 @@ void App_Log_Can_SendInfo(void)
             CAN_PROTOCOL_LOG_INFO_FRAGMENT_BASE,
             wire_info,
             sizeof(wire_info),
-            APP_LOG_CAN_INFO_FRAGMENT_COUNT) != 0U)
+            CAN_PROTOCOL_LOG_INFO_FRAGMENT_COUNT) != 0U)
     {
         app_log_can_stats.info_responses++;
     }
@@ -213,7 +210,7 @@ void App_Log_Can_SendRecord(uint32_t sequence)
             CAN_PROTOCOL_LOG_RECORD_FRAGMENT_BASE,
             (const uint8_t *)&record,
             sizeof(record),
-            APP_LOG_CAN_RECORD_FRAGMENT_COUNT) != 0U)
+            CAN_PROTOCOL_LOG_RECORD_FRAGMENT_COUNT) != 0U)
     {
         app_log_can_stats.records_sent++;
     }

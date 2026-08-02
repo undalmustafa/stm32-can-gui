@@ -26,6 +26,38 @@ def generate_python_module(yaml_path, out_path):
                 out.write(f"{name}_TX_ID = 0x{id_val:03X}\n")
         out.write("\n")
 
+        log_transport = data.get("log_transport", {})
+        out.write("# Event Log Transport\n")
+        for key in (
+            "version", "record_size", "ram_capacity", "fragment_data_size",
+            "info_wire_size", "info_fragment_count",
+            "record_fragment_count",
+        ):
+            out.write(f"LOG_{key.upper()} = {log_transport[key]}\n")
+        for key in (
+            "record_magic", "commit_marker", "info_fragment_base",
+            "record_fragment_base", "error_frame",
+        ):
+            out.write(
+                f"LOG_{key.upper()} = 0x{log_transport[key]:X}\n"
+            )
+        for key, val in data.get("log_heartbeat_flags", {}).items():
+            out.write(
+                f"LOG_HEARTBEAT_FLAG_{key.upper()} = "
+                f"0x{(1 << val['bit']):02X}\n"
+            )
+        for key, val in data.get("log_error_codes", {}).items():
+            out.write(
+                f"LOG_ERROR_{key.upper()} = 0x{val['code']:02X}\n"
+            )
+        out.write("\n")
+
+        out.write("# Timing Service Codes\n")
+        out.write("TIMING_SERVICE_NAMES = {\n")
+        for key, val in data.get("timing_service_codes", {}).items():
+            out.write(f"    {val['code']}: {key.upper()!r},\n")
+        out.write("}\n\n")
+
         out.write("# Command Codes\n")
         commands = data.get("commands", {})
         for key, val in commands.items():

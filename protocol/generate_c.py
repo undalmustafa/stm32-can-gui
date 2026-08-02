@@ -41,6 +41,56 @@ def generate_c_header(yaml_path, out_path):
                 )
         out.write("\n")
 
+        log_transport = data.get("log_transport", {})
+        out.write("/* Event Log Transport */\n")
+        for key in (
+            "version", "record_size", "ram_capacity", "fragment_data_size",
+            "info_wire_size", "info_fragment_count",
+            "record_fragment_count",
+        ):
+            out.write(
+                f"#define CAN_PROTOCOL_LOG_{key.upper()} "
+                f"{log_transport[key]}U\n"
+            )
+        out.write(
+            "#define CAN_PROTOCOL_LOG_RECORD_MAGIC "
+            f"0x{log_transport['record_magic']:08X}UL\n"
+        )
+        for key in (
+            "commit_marker", "info_fragment_base", "record_fragment_base",
+            "error_frame",
+        ):
+            out.write(
+                f"#define CAN_PROTOCOL_LOG_{key.upper()} "
+                f"0x{log_transport[key]:X}U\n"
+            )
+        for key, val in data.get("log_heartbeat_flags", {}).items():
+            out.write(
+                f"#define CAN_PROTOCOL_LOG_HEARTBEAT_FLAG_{key.upper()} "
+                f"0x{(1 << val['bit']):02X}U\n"
+            )
+        out.write("typedef enum\n{\n")
+        error_lines = []
+        for key, val in data.get("log_error_codes", {}).items():
+            error_lines.append(
+                f"    CAN_PROTOCOL_LOG_ERROR_{key.upper()} = "
+                f"0x{val['code']:02X}U"
+            )
+        out.write(",\n".join(error_lines))
+        out.write("\n} CAN_Protocol_LogError_t;\n\n")
+
+        out.write("/* Timing Service Codes */\n")
+        timing_services = data.get("timing_service_codes", {})
+        for key, val in timing_services.items():
+            out.write(
+                f"#define CAN_PROTOCOL_TIMING_SERVICE_{key.upper()} "
+                f"{val['code']}U\n"
+            )
+        out.write(
+            "#define CAN_PROTOCOL_TIMING_SERVICE_COUNT "
+            f"{len(timing_services)}U\n\n"
+        )
+
         out.write("/* Slot Flags */\n")
         for key, val in data.get("slot_flags", {}).items():
             name = key.upper()

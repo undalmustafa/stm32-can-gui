@@ -94,6 +94,11 @@ def main():
            "STM32 log magic remains unchanged")
     expect(protocol.STM32_LOG_COMMIT_MARKER == 0xA55A,
            "STM32 log commit marker remains unchanged")
+    expect(protocol.STM32_LOG_INFO_FRAGMENT_COUNT == 3
+           and protocol.STM32_LOG_RECORD_FRAGMENT_COUNT == 5,
+           "STM32 log fragment counts are generated")
+    expect(protocol.TIMING_SERVICE_NAMES == generated.TIMING_SERVICE_NAMES,
+           "timing service names come from the generated protocol")
     expect(protocol.u16_to_le(0x1234) == [0x34, 0x12],
            "u16 encoding remains little-endian")
     expect(protocol.u32_to_le(0x12345678) == [0x78, 0x56, 0x34, 0x12],

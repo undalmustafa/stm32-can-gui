@@ -9,9 +9,11 @@
 
 #include <stdint.h>
 
-#define APP_LOG_RAM_CAPACITY   64U
-#define APP_LOG_RECORD_MAGIC   0x4C4F4731UL
-#define APP_LOG_COMMIT_MARKER  0xA55AU
+#include "can_protocol_generated.h"
+
+#define APP_LOG_RAM_CAPACITY   CAN_PROTOCOL_LOG_RAM_CAPACITY
+#define APP_LOG_RECORD_MAGIC   CAN_PROTOCOL_LOG_RECORD_MAGIC
+#define APP_LOG_COMMIT_MARKER  CAN_PROTOCOL_LOG_COMMIT_MARKER
 
 typedef enum
 {
@@ -90,6 +92,10 @@ typedef struct
     uint16_t crc16;
     uint16_t commit_marker;
 } App_Log_Record_t;
+
+_Static_assert(
+    sizeof(App_Log_Record_t) == CAN_PROTOCOL_LOG_RECORD_SIZE,
+    "event-log record size must match the CAN wire contract");
 
 typedef union
 {

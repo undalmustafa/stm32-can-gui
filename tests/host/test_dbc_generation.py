@@ -144,6 +144,14 @@ def main() -> None:
             "Point", "Passed", "ExpectedDutyCycle", "MeasuredDutyCycle",
             "MeasuredFrequency",
         },
+        "log_response": {
+            "FragmentHeader", "FragmentData",
+        },
+        "log_heartbeat": {
+            "ProtocolVersion", "Ready", "OverwriteDetected",
+            "HeartbeatFlagsReserved", "LatestSequence", "RecordCount",
+            "AliveCounter",
+        },
         "command_ack": {
             "ProtocolVersion", "CommandCode", "RequestToken", "AckStatus",
             "Executed", "AccessOpen", "AckFlagsReserved",
@@ -166,7 +174,25 @@ def main() -> None:
             "BatterySwitchBitmap", "BatteryCapableBitmap", "Generation",
             "ConfigurationValid", "Reserved",
         },
+        "can_rx_health": {
+            "WatermarkSeen", "FifoFullSeen", "MessageLost",
+            "BudgetExhausted", "HalError", "HealthFlagsReserved",
+            "MaximumFifoFill", "MessageLostEvents", "FifoFullEvents",
+            "WatermarkEvents",
+        },
+        "timing_service": {
+            "ServiceId", "Enabled", "CurrentOverrun", "OverrunLatched",
+            "TimingFlagsReserved", "CurrentExecutionTime",
+            "MinimumExecutionTime", "MaximumExecutionTime",
+        },
+        "timing_ack_latency": {
+            "P50Latency", "P95Latency", "P99Latency", "MaximumLatency",
+        },
     }
+    require(
+        set(product_signals) == set(identifiers) - {"gui_command"},
+        "every MCU telemetry frame must have product-level DBC signals",
+    )
     for key, expected_signals in product_signals.items():
         frame_id = encoded_frame_id(identifiers[key])
         header = f"BO_ {frame_id} {dbc_name(key)}:"
@@ -219,6 +245,13 @@ def main() -> None:
     )
     require('5 "ERROR"' in pwm_state_table,
             "missing PWM self-test state values")
+    timing_frame_id = encoded_frame_id(identifiers["timing_service"])
+    timing_service_table = next(
+        line for line in generated.splitlines()
+        if line.startswith(f"VAL_ {timing_frame_id} ServiceId ")
+    )
+    require('7 "WATCHDOG"' in timing_service_table,
+            "missing timing service values")
 
     duplicate = copy.deepcopy(definition)
     duplicate["identifiers"]["duplicate"] = copy.deepcopy(gui_command)
@@ -250,6 +283,16 @@ def main() -> None:
     invalid_range["dbc_signals"]["rtc_time"][0]["maximum"] = 256
     require_generation_error(invalid_range,
                              "unrepresentable DBC ranges must be rejected")
+
+    invalid_fragments = copy.deepcopy(definition)
+    invalid_fragments["log_transport"]["record_fragment_count"] = 4
+    require_generation_error(invalid_fragments,
+                             "undersized log fragmentation must be rejected")
+
+    overlapping_headers = copy.deepcopy(definition)
+    overlapping_headers["log_transport"]["record_fragment_base"] = 0x71
+    require_generation_error(overlapping_headers,
+                             "overlapping log headers must be rejected")
 
     unknown_message = copy.deepcopy(definition)
     unknown_message["dbc_signals"]["missing_frame"] = copy.deepcopy(

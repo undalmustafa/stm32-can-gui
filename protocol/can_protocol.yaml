@@ -133,6 +133,48 @@ identifiers:
     direction: mcu_to_gui
     description: "Command RX-to-ACK enqueue latency percentiles"
 
+log_transport:
+  version: 1
+  record_size: 32
+  ram_capacity: &log_ram_capacity 64
+  record_magic: 0x4C4F4731
+  commit_marker: 0xA55A
+  fragment_data_size: 7
+  info_wire_size: 18
+  info_fragment_base: 0x70
+  info_fragment_count: 3
+  record_fragment_base: 0x80
+  record_fragment_count: 5
+  error_frame: 0xF0
+
+log_heartbeat_flags:
+  ready:
+    bit: 0
+  overwrite:
+    bit: 1
+
+log_error_codes:
+  sequence_not_found:
+    code: 0x01
+
+timing_service_codes:
+  main_loop:
+    code: 0
+  tic12400_probe:
+    code: 1
+  control:
+    code: 2
+  rtc:
+    code: 3
+  input_capture:
+    code: 4
+  can_app:
+    code: 5
+  tic12400_can:
+    code: 6
+  watchdog:
+    code: 7
+
 command_transport:
   identifier_mode: fixed
   serialized_requests: true
@@ -941,6 +983,139 @@ dbc_signals:
       start_bit: 32
       length: 32
       unit: "Hz"
+
+  log_response:
+    - name: FragmentHeader
+      start_bit: 0
+      length: 8
+      description: "0x70-0x72 info, 0x80-0x84 record, or 0xF0 error"
+    - name: FragmentData
+      start_bit: 8
+      length: 56
+      description: "Seven transport bytes; logical fields may cross frames"
+
+  log_heartbeat:
+    - name: ProtocolVersion
+      start_bit: 0
+      length: 8
+    - name: Ready
+      start_bit: 8
+      length: 1
+      value_source: dbc_boolean_values
+    - name: OverwriteDetected
+      start_bit: 9
+      length: 1
+      value_source: dbc_boolean_values
+    - name: HeartbeatFlagsReserved
+      start_bit: 10
+      length: 6
+      description: "Reserved heartbeat flag bits; transmit zero"
+    - name: LatestSequence
+      start_bit: 16
+      length: 32
+    - name: RecordCount
+      start_bit: 48
+      length: 8
+      maximum: *log_ram_capacity
+    - name: AliveCounter
+      start_bit: 56
+      length: 8
+      description: "Wrapping heartbeat continuity counter"
+
+  can_rx_health:
+    - name: WatermarkSeen
+      start_bit: 0
+      length: 1
+      value_source: dbc_boolean_values
+    - name: FifoFullSeen
+      start_bit: 1
+      length: 1
+      value_source: dbc_boolean_values
+    - name: MessageLost
+      start_bit: 2
+      length: 1
+      value_source: dbc_boolean_values
+    - name: BudgetExhausted
+      start_bit: 3
+      length: 1
+      value_source: dbc_boolean_values
+    - name: HalError
+      start_bit: 4
+      length: 1
+      value_source: dbc_boolean_values
+    - name: HealthFlagsReserved
+      start_bit: 5
+      length: 3
+      description: "Reserved health flag bits; transmit zero"
+    - name: MaximumFifoFill
+      start_bit: 8
+      length: 8
+      description: "Maximum observed RX FIFO fill level"
+    - name: MessageLostEvents
+      start_bit: 16
+      length: 16
+      description: "Saturating RX message-lost event count"
+    - name: FifoFullEvents
+      start_bit: 32
+      length: 16
+      description: "Saturating RX FIFO-full event count"
+    - name: WatermarkEvents
+      start_bit: 48
+      length: 16
+      description: "Saturating RX watermark event count"
+
+  timing_service:
+    - name: ServiceId
+      start_bit: 0
+      length: 8
+      maximum: 7
+      value_source: timing_service_codes
+    - name: Enabled
+      start_bit: 8
+      length: 1
+      value_source: dbc_boolean_values
+    - name: CurrentOverrun
+      start_bit: 9
+      length: 1
+      value_source: dbc_boolean_values
+    - name: OverrunLatched
+      start_bit: 10
+      length: 1
+      value_source: dbc_boolean_values
+    - name: TimingFlagsReserved
+      start_bit: 11
+      length: 5
+      description: "Reserved timing flag bits; transmit zero"
+    - name: CurrentExecutionTime
+      start_bit: 16
+      length: 16
+      unit: "us"
+    - name: MinimumExecutionTime
+      start_bit: 32
+      length: 16
+      unit: "us"
+    - name: MaximumExecutionTime
+      start_bit: 48
+      length: 16
+      unit: "us"
+
+  timing_ack_latency:
+    - name: P50Latency
+      start_bit: 0
+      length: 16
+      unit: "us"
+    - name: P95Latency
+      start_bit: 16
+      length: 16
+      unit: "us"
+    - name: P99Latency
+      start_bit: 32
+      length: 16
+      unit: "us"
+    - name: MaximumLatency
+      start_bit: 48
+      length: 16
+      unit: "us"
 
   command_ack:
     - name: ProtocolVersion

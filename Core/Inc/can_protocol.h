@@ -11,21 +11,6 @@
 
 #include "can_protocol_generated.h"
 
-#define CAN_PROTOCOL_LOG_VERSION               1U
-#define CAN_PROTOCOL_LOG_FRAGMENT_DATA_SIZE    7U
-#define CAN_PROTOCOL_LOG_INFO_WIRE_SIZE        18U
-#define CAN_PROTOCOL_LOG_INFO_FRAGMENT_BASE    0x70U
-#define CAN_PROTOCOL_LOG_RECORD_FRAGMENT_BASE  0x80U
-#define CAN_PROTOCOL_LOG_ERROR_FRAME           0xF0U
-
-#define CAN_PROTOCOL_LOG_HEARTBEAT_FLAG_READY      0x01U
-#define CAN_PROTOCOL_LOG_HEARTBEAT_FLAG_OVERWRITE  0x02U
-
-typedef enum
-{
-    CAN_PROTOCOL_LOG_ERROR_SEQUENCE_NOT_FOUND = 0x01U
-} CAN_Protocol_LogError_t;
-
 typedef struct
 {
     uint8_t enable_mask;
