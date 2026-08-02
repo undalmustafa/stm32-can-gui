@@ -15,13 +15,21 @@ static void Uds_WriteU16Be(uint8_t *data, uint16_t value)
 
 static void Uds_RefreshSessionTimer(Uds_Server_t *server, uint32_t now_ms)
 {
-    if (server->stats.current_session ==
-        CAN_PROTOCOL_UDS_SESSION_EXTENDED_DIAGNOSTIC)
+    if (server->stats.current_session != CAN_PROTOCOL_UDS_SESSION_DEFAULT)
     {
         server->session_deadline_ms =
             now_ms + CAN_PROTOCOL_UDS_S3_SERVER_TIMEOUT_MS;
         server->session_timer_active = 1U;
     }
+}
+
+static void Uds_AbortProgramming(Uds_Server_t *server)
+{
+    if (server->config.programming_abort != NULL)
+    {
+        server->config.programming_abort(server->config.programming_context);
+    }
+    server->stats.programming_aborts++;
 }
 
 static Uds_ServerResult_t Uds_NegativeResponse(
@@ -77,6 +85,7 @@ static Uds_ServerResult_t Uds_ProcessSessionControl(
         request[1] & UDS_SUPPRESS_POSITIVE_RESPONSE_MASK);
     requested_session = (uint8_t)(request[1] & UDS_SUBFUNCTION_MASK);
     if ((requested_session != CAN_PROTOCOL_UDS_SESSION_DEFAULT) &&
+        (requested_session != CAN_PROTOCOL_UDS_SESSION_PROGRAMMING) &&
         (requested_session !=
          CAN_PROTOCOL_UDS_SESSION_EXTENDED_DIAGNOSTIC))
     {
@@ -92,6 +101,12 @@ static Uds_ServerResult_t Uds_ProcessSessionControl(
 
     if (server->stats.current_session != requested_session)
     {
+        if ((server->stats.current_session ==
+             CAN_PROTOCOL_UDS_SESSION_PROGRAMMING) &&
+            (requested_session != CAN_PROTOCOL_UDS_SESSION_PROGRAMMING))
+        {
+            Uds_AbortProgramming(server);
+        }
         server->stats.session_changes++;
     }
     server->stats.current_session = requested_session;
@@ -300,6 +315,80 @@ static Uds_ServerResult_t Uds_ProcessReadDid(
     return UDS_SERVER_RESULT_RESPONSE_READY;
 }
 
+static Uds_ServerResult_t Uds_ProcessProgramming(
+    Uds_Server_t *server,
+    const uint8_t *request,
+    uint16_t request_length,
+    uint8_t *response,
+    uint16_t response_capacity,
+    uint16_t *response_length)
+{
+    Uds_NegativeResponseCode_t nrc;
+    uint16_t response_data_length = 0U;
+
+    if (server->stats.current_session !=
+        CAN_PROTOCOL_UDS_SESSION_PROGRAMMING)
+    {
+        return Uds_NegativeResponse(
+            server,
+            request[0],
+            UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION,
+            response,
+            response_capacity,
+            response_length);
+    }
+    if (server->config.programming == NULL)
+    {
+        return Uds_NegativeResponse(
+            server,
+            request[0],
+            UDS_NRC_CONDITIONS_NOT_CORRECT,
+            response,
+            response_capacity,
+            response_length);
+    }
+    if (response_capacity < 1U)
+    {
+        return UDS_SERVER_RESULT_RESPONSE_BUFFER_TOO_SMALL;
+    }
+
+    server->stats.programming_requests++;
+    nrc = server->config.programming(
+        server->config.programming_context,
+        request[0],
+        request,
+        request_length,
+        &response[1],
+        (uint16_t)(response_capacity - 1U),
+        &response_data_length);
+    if (nrc != UDS_NRC_NONE)
+    {
+        return Uds_NegativeResponse(
+            server,
+            request[0],
+            nrc,
+            response,
+            response_capacity,
+            response_length);
+    }
+    if (response_data_length > (uint16_t)(response_capacity - 1U))
+    {
+        return Uds_NegativeResponse(
+            server,
+            request[0],
+            UDS_NRC_RESPONSE_TOO_LONG,
+            response,
+            response_capacity,
+            response_length);
+    }
+
+    response[0] = (uint8_t)(request[0] + UDS_POSITIVE_RESPONSE_OFFSET);
+    *response_length = (uint16_t)(response_data_length + 1U);
+    server->stats.positive_responses++;
+    server->stats.last_nrc = UDS_NRC_NONE;
+    return UDS_SERVER_RESULT_RESPONSE_READY;
+}
+
 Uds_ServerResult_t Uds_Server_Init(
     Uds_Server_t *server,
     const Uds_ServerConfig_t *config
@@ -370,6 +459,18 @@ Uds_ServerResult_t Uds_Server_ProcessRequest(
                 response_capacity,
                 response_length);
 
+        case CAN_PROTOCOL_UDS_SERVICE_ROUTINE_CONTROL:
+        case CAN_PROTOCOL_UDS_SERVICE_REQUEST_DOWNLOAD:
+        case CAN_PROTOCOL_UDS_SERVICE_TRANSFER_DATA:
+        case CAN_PROTOCOL_UDS_SERVICE_REQUEST_TRANSFER_EXIT:
+            return Uds_ProcessProgramming(
+                server,
+                request,
+                request_length,
+                response,
+                response_capacity,
+                response_length);
+
         default:
             server->stats.unsupported_services++;
             return Uds_NegativeResponse(
@@ -392,6 +493,11 @@ void Uds_Server_Tick(Uds_Server_t *server, uint32_t now_ms)
 
     if (Uds_DeadlineReached(now_ms, server->session_deadline_ms) != 0U)
     {
+        if (server->stats.current_session ==
+            CAN_PROTOCOL_UDS_SESSION_PROGRAMMING)
+        {
+            Uds_AbortProgramming(server);
+        }
         server->stats.current_session = CAN_PROTOCOL_UDS_SESSION_DEFAULT;
         server->stats.session_timeouts++;
         server->session_timer_active = 0U;

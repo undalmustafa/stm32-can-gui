@@ -45,6 +45,10 @@ def generate_python_module(yaml_path, out_path):
             out.write(f"UDS_SERVICE_{key.upper()} = 0x{value:02X}\n")
         for key, value in uds.get("dids", {}).items():
             out.write(f"UDS_DID_{key.upper()} = 0x{value:04X}\n")
+        for key, value in uds.get("routines", {}).items():
+            out.write(f"UDS_ROUTINE_{key.upper()} = 0x{value:04X}\n")
+        for key, value in uds.get("download", {}).items():
+            out.write(f"UDS_DOWNLOAD_{key.upper()} = {value}\n")
         out.write("\n")
 
         log_transport = data.get("log_transport", {})

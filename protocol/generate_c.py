@@ -72,6 +72,19 @@ def generate_c_header(yaml_path, out_path):
                 f"#define CAN_PROTOCOL_UDS_DID_{key.upper()} "
                 f"0x{value:04X}U\n"
             )
+        for key, value in uds.get("routines", {}).items():
+            out.write(
+                f"#define CAN_PROTOCOL_UDS_ROUTINE_{key.upper()} "
+                f"0x{value:04X}U\n"
+            )
+        for key, value in uds.get("download", {}).items():
+            value_text = (
+                f"0x{value:02X}U" if value <= 0xFF else f"{value}U"
+            )
+            out.write(
+                f"#define CAN_PROTOCOL_UDS_DOWNLOAD_{key.upper()} "
+                f"{value_text}\n"
+            )
         out.write("\n")
 
         log_transport = data.get("log_transport", {})

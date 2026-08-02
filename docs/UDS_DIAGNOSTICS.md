@@ -10,13 +10,40 @@ UDS fiziksel adresleme, Classic CAN üzerinde ISO-TP ile çalışır:
 
 | SID | Servis | Destek |
 |---:|---|---|
-| `0x10` | Diagnostic Session Control | Default `0x01`, extended `0x03` |
+| `0x10` | Diagnostic Session Control | Default `0x01`, programming `0x02`, extended `0x03` |
 | `0x22` | Read Data by Identifier | Tek veya çoklu DID |
+| `0x31` | Routine Control | Inactive-slot erase `0xFF00` |
+| `0x34` | Request Download | 32-bit adres + 32-bit artifact boyutu |
+| `0x36` | Transfer Data | 256 byte'a kadar veri + block counter |
+| `0x37` | Request Transfer Exit | İmza/doğrulama ve pending-slot commit kapısı |
 | `0x3E` | Tester Present | Subfunction `0x00` |
 
 `0x10` ve `0x3E` için suppress-positive-response biti desteklenir. Extended
-session, 5 saniyelik S3 timeout sonunda default session'a döner. P2Server 50
+Default dışındaki session'lar 5 saniyelik S3 timeout sonunda default session'a döner. P2Server 50
 ms, P2*Server 5000 ms olarak raporlanır.
+
+## Firmware indirme sözleşmesi
+
+Programlama servisleri yalnızca programming session `0x02` içinde çalışır.
+Akış `31 01 FF00` erase başlangıcı, `31 03 FF00` sonuç sorgusu, `0x34`, sıralı
+`0x36` blokları ve `0x37` transfer çıkışı şeklindedir. Erase routine yanıtı
+durum (`0=ready`, `1=in progress`, `2=failed`), hedef slot, slot başlangıç
+adresi ve kapasitesini döndürür. Cihaz çalışan slotun tersini kendi seçer;
+tester aktif slotu seçemez.
+
+Download artifact boyutu 16 byte flashword hizalı, en az 1 KiB header içeren
+ve inactive slot kapasitesini aşmayan bir değerdir. `0x34` yanıtındaki maksimum
+block length `258` byte'tır: SID + block sequence counter + en çok 256 byte
+veri. Tekrarlanan son counter idempotent ACK alır; atlanan veya sırası bozulan
+counter `0x73` ile reddedilir.
+
+İlk 1 KiB header transfer sırasında RAM'de tutulur. Payload önce inactive
+slota yazılır; `0x37` callback'i imza/digest doğrulamasını, header'ın son
+yazılmasını ve redundant boot-control pending kaydını tamamlamadıkça transfer
+başarılı sayılmaz. Programming session'dan çıkış ve S3 timeout açık indirmeyi
+abort eder. Bu callback'in STM32 flash ve gömülü public-key implementasyonu
+bootloader signing adımında bağlanacaktır; callback yokken servis `0x22`
+conditions-not-correct ile fail-closed kalır.
 
 ## Data Identifier alanları
 
@@ -33,7 +60,9 @@ Tüm çok-byte alanlar UDS gereği big-endian taşınır.
 
 Sunucu desteklenmeyen servis için `0x11`, subfunction için `0x12`, hatalı
 uzunluk için `0x13`, uzun response için `0x14`, sağlanamayan koşul için `0x22`
-ve bilinmeyen DID için `0x31` döndürür. Negative response formatı
+ve bilinmeyen DID için `0x31` döndürür. Firmware indirme ayrıca sıra hatası
+`0x24`, yetki reddi `0x33`, transfer suspend `0x71`, programlama hatası `0x72`,
+block counter hatası `0x73` ve yanlış session `0x7F` kullanır. Negative response formatı
 `7F <request SID> <NRC>` şeklindedir.
 
 ## Python istemci ve GUI davranışı

@@ -29,6 +29,8 @@ TEST_ISOTP_TRANSPORT_SRC = test_isotp_transport.c \
 TEST_CAN_ISOTP_SRC = test_can_isotp.c ../Core/Src/can_isotp.c \
 	../Core/Src/isotp_transport.c unity/unity.c
 TEST_UDS_SERVER_SRC = test_uds_server.c ../Core/Src/uds_server.c unity/unity.c
+TEST_UDS_DOWNLOAD_SRC = test_uds_download.c ../Core/Src/uds_download.c \
+	unity/unity.c
 TEST_CAN_UDS_SRC = test_can_uds.c ../Core/Src/can_uds.c \
 	../Core/Src/uds_server.c unity/unity.c
 TEST_BOOT_IMAGE_SRC = test_boot_image.c ../Core/Src/boot_image.c unity/unity.c
@@ -78,6 +80,7 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_isotp_transport \
 	$(BUILD_DIR)/test_can_isotp \
 	$(BUILD_DIR)/test_uds_server \
+	$(BUILD_DIR)/test_uds_download \
 	$(BUILD_DIR)/test_can_uds \
 	$(BUILD_DIR)/test_boot_image \
 	$(BUILD_DIR)/test_boot_control \
@@ -148,6 +151,9 @@ $(BUILD_DIR)/test_can_isotp: $(TEST_CAN_ISOTP_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(BUILD_DIR)/test_uds_server: $(TEST_UDS_SERVER_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(BUILD_DIR)/test_uds_download: $(TEST_UDS_DOWNLOAD_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
 $(BUILD_DIR)/test_can_uds: $(TEST_CAN_UDS_SRC) | $(BUILD_DIR)
@@ -223,6 +229,7 @@ test: all test-boot-linker-contract
 	$(BUILD_DIR)/test_isotp_transport
 	$(BUILD_DIR)/test_can_isotp
 	$(BUILD_DIR)/test_uds_server
+	$(BUILD_DIR)/test_uds_download
 	$(BUILD_DIR)/test_can_uds
 	$(BUILD_DIR)/test_boot_image
 	$(BUILD_DIR)/test_boot_control

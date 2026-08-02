@@ -27,18 +27,26 @@ def main():
     expect(protocol.DIAGNOSTIC_REQUEST_TX_ID == 0x7E0
            and protocol.DIAGNOSTIC_RESPONSE_RX_ID == 0x7E8,
            "physical UDS request and response identifiers are generated")
-    expect(protocol.UDS_VERSION == 1
+    expect(protocol.UDS_VERSION == 2
            and protocol.UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL == 0x10
            and protocol.UDS_SERVICE_READ_DATA_BY_IDENTIFIER == 0x22
+           and protocol.UDS_SERVICE_ROUTINE_CONTROL == 0x31
+           and protocol.UDS_SERVICE_REQUEST_DOWNLOAD == 0x34
+           and protocol.UDS_SERVICE_TRANSFER_DATA == 0x36
+           and protocol.UDS_SERVICE_REQUEST_TRANSFER_EXIT == 0x37
            and protocol.UDS_SERVICE_TESTER_PRESENT == 0x3E,
-           "initial UDS service contract is generated")
+           "UDS diagnostic and download service contract is generated")
     expect(protocol.UDS_SESSION_DEFAULT == 0x01
+           and protocol.UDS_SESSION_PROGRAMMING == 0x02
            and protocol.UDS_SESSION_EXTENDED_DIAGNOSTIC == 0x03
            and protocol.UDS_DID_PROTOCOL_INFO == 0xF100
            and protocol.UDS_DID_STARTUP_HEALTH == 0xF101
            and protocol.UDS_DID_RUNTIME_HEALTH == 0xF102
            and protocol.UDS_DID_RESET_REASON == 0xF103,
            "UDS sessions and read-only DIDs are generated")
+    expect(protocol.UDS_ROUTINE_ERASE_INACTIVE_SLOT == 0xFF00
+           and protocol.UDS_DOWNLOAD_MAX_BLOCK_LENGTH == 258,
+           "inactive-slot download parameters are generated")
     expect(protocol.RTC_STATUS_RX_ID == 0x551,
            "RTC status ID remains unchanged")
     expect(protocol.RTC_TIME_RX_ID == 0x556,

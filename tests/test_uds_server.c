@@ -9,6 +9,34 @@ static Uds_ServerConfig_t config;
 static uint8_t response[64U];
 static uint16_t response_length;
 static uint32_t did_read_calls;
+static uint32_t programming_calls;
+static Uds_NegativeResponseCode_t programming_result;
+static uint32_t programming_abort_calls;
+
+static void AbortProgramming(void *context)
+{
+    TEST_ASSERT_EQUAL_PTR(&programming_calls, context);
+    programming_abort_calls++;
+}
+
+static Uds_NegativeResponseCode_t Programming(
+    void *context,
+    uint8_t service,
+    const uint8_t *request,
+    uint16_t request_length,
+    uint8_t *response_data,
+    uint16_t response_capacity,
+    uint16_t *response_data_length)
+{
+    TEST_ASSERT_EQUAL_PTR(&programming_calls, context);
+    TEST_ASSERT_EQUAL_UINT8(request[0], service);
+    TEST_ASSERT_TRUE(request_length >= 1U);
+    TEST_ASSERT_TRUE(response_capacity >= 1U);
+    programming_calls++;
+    response_data[0] = 0xA5U;
+    *response_data_length = 1U;
+    return programming_result;
+}
 
 static Uds_DidReadResult_t ReadDid(
     void *context,
@@ -68,13 +96,20 @@ void setUp(void)
     uint16_t index;
 
     did_read_calls = 0U;
+    programming_calls = 0U;
+    programming_abort_calls = 0U;
+    programming_result = UDS_NRC_NONE;
     response_length = 0U;
     for (index = 0U; index < sizeof(response); index++)
     {
         response[index] = 0U;
     }
+    config = (Uds_ServerConfig_t){0};
     config.read_did = ReadDid;
     config.read_did_context = &did_read_calls;
+    config.programming = Programming;
+    config.programming_context = &programming_calls;
+    config.programming_abort = AbortProgramming;
     TEST_ASSERT_EQUAL(UDS_SERVER_RESULT_OK, Uds_Server_Init(&server, &config));
 }
 
@@ -276,6 +311,79 @@ void test_Unsupported_service_returns_service_not_supported(void)
         3U);
 }
 
+void test_Programming_services_require_programming_session_and_dispatch(void)
+{
+    const uint8_t transfer[3U] = {
+        CAN_PROTOCOL_UDS_SERVICE_TRANSFER_DATA, 1U, 0x55U
+    };
+    const uint8_t enter_programming[2U] = {
+        CAN_PROTOCOL_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
+        CAN_PROTOCOL_UDS_SESSION_PROGRAMMING
+    };
+    Uds_ServerStats_t stats;
+
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(transfer, sizeof(transfer), 0U));
+    TEST_ASSERT_EQUAL_UINT8(
+        UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION,
+        response[2]);
+    TEST_ASSERT_EQUAL_UINT32(0U, programming_calls);
+
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(enter_programming, sizeof(enter_programming), 1U));
+    TEST_ASSERT_EQUAL_UINT8(CAN_PROTOCOL_UDS_SESSION_PROGRAMMING,
+                            response[1]);
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(transfer, sizeof(transfer), 2U));
+    TEST_ASSERT_EQUAL_UINT16(2U, response_length);
+    TEST_ASSERT_EQUAL_HEX8(0x76U, response[0]);
+    TEST_ASSERT_EQUAL_HEX8(0xA5U, response[1]);
+    TEST_ASSERT_EQUAL_UINT32(1U, programming_calls);
+
+    programming_result = UDS_NRC_WRONG_BLOCK_SEQUENCE_COUNTER;
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(transfer, sizeof(transfer), 3U));
+    TEST_ASSERT_EQUAL_HEX8(0x7FU, response[0]);
+    TEST_ASSERT_EQUAL_HEX8(
+        UDS_NRC_WRONG_BLOCK_SEQUENCE_COUNTER, response[2]);
+    Uds_Server_GetStats(&server, &stats);
+    TEST_ASSERT_EQUAL_UINT32(2U, stats.programming_requests);
+}
+
+void test_Programming_session_exit_and_timeout_abort_active_download(void)
+{
+    const uint8_t enter_programming[2U] = {
+        CAN_PROTOCOL_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
+        CAN_PROTOCOL_UDS_SESSION_PROGRAMMING
+    };
+    const uint8_t enter_default[2U] = {
+        CAN_PROTOCOL_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
+        CAN_PROTOCOL_UDS_SESSION_DEFAULT
+    };
+    Uds_ServerStats_t stats;
+
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(enter_programming, sizeof(enter_programming), 0U));
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(enter_default, sizeof(enter_default), 1U));
+    TEST_ASSERT_EQUAL_UINT32(1U, programming_abort_calls);
+
+    TEST_ASSERT_EQUAL(
+        UDS_SERVER_RESULT_RESPONSE_READY,
+        Process(enter_programming, sizeof(enter_programming), 10U));
+    Uds_Server_Tick(
+        &server, 10U + CAN_PROTOCOL_UDS_S3_SERVER_TIMEOUT_MS);
+    TEST_ASSERT_EQUAL_UINT32(2U, programming_abort_calls);
+    Uds_Server_GetStats(&server, &stats);
+    TEST_ASSERT_EQUAL_UINT32(2U, stats.programming_aborts);
+}
+
 void test_Response_capacity_errors_do_not_overwrite_length(void)
 {
     const uint8_t request[2U] =
@@ -309,6 +417,10 @@ int main(void)
     RUN_TEST(test_ReadDid_supports_multiple_identifiers_in_order);
     RUN_TEST(test_ReadDid_rejects_bad_length_and_unknown_identifier);
     RUN_TEST(test_Unsupported_service_returns_service_not_supported);
+    RUN_TEST(
+        test_Programming_services_require_programming_session_and_dispatch);
+    RUN_TEST(
+        test_Programming_session_exit_and_timeout_abort_active_download);
     RUN_TEST(test_Response_capacity_errors_do_not_overwrite_length);
     return UNITY_END();
 }

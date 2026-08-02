@@ -157,11 +157,22 @@ static Uds_DidReadResult_t CAN_Uds_ReadDid(
 
 void CAN_Uds_Init(void)
 {
-    Uds_ServerConfig_t config;
+    CAN_Uds_InitWithProgramming(NULL, NULL, NULL);
+}
+
+void CAN_Uds_InitWithProgramming(
+    Uds_ProgrammingCallback_t programming,
+    Uds_ProgrammingAbortCallback_t programming_abort,
+    void *programming_context)
+{
+    Uds_ServerConfig_t config = {0};
 
     uds_stats = (CAN_Uds_Stats_t){0};
     config.read_did = CAN_Uds_ReadDid;
     config.read_did_context = NULL;
+    config.programming = programming;
+    config.programming_abort = programming_abort;
+    config.programming_context = programming_context;
     uds_stats.last_server_result = Uds_Server_Init(&uds_server, &config);
     uds_stats.last_isotp_result = CAN_ISOTP_RESULT_NO_WORK;
 }

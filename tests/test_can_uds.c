@@ -20,6 +20,33 @@ static App_Startup_Snapshot_t startup_snapshot;
 static App_Diagnostics_Snapshot_t diagnostics_snapshot;
 static App_ResetReason_Snapshot_t reset_snapshot;
 static CAN_IsoTp_Stats_t isotp_stats;
+static uint32_t programming_calls;
+static uint32_t programming_abort_calls;
+
+static Uds_NegativeResponseCode_t Programming(
+    void *context,
+    uint8_t service,
+    const uint8_t *request,
+    uint16_t programming_request_length,
+    uint8_t *response_data,
+    uint16_t response_capacity,
+    uint16_t *response_data_length)
+{
+    TEST_ASSERT_EQUAL_PTR(&programming_calls, context);
+    TEST_ASSERT_EQUAL_UINT8(request[0], service);
+    TEST_ASSERT_TRUE(programming_request_length >= 1U);
+    TEST_ASSERT_TRUE(response_capacity >= 1U);
+    programming_calls++;
+    response_data[0] = request[1];
+    *response_data_length = 1U;
+    return UDS_NRC_NONE;
+}
+
+static void ProgrammingAbort(void *context)
+{
+    TEST_ASSERT_EQUAL_PTR(&programming_calls, context);
+    programming_abort_calls++;
+}
 
 uint8_t CAN_IsoTp_HasRequest(void)
 {
@@ -104,6 +131,8 @@ void setUp(void)
     diagnostics_snapshot = (App_Diagnostics_Snapshot_t){0};
     reset_snapshot = (App_ResetReason_Snapshot_t){0};
     isotp_stats = (CAN_IsoTp_Stats_t){0};
+    programming_calls = 0U;
+    programming_abort_calls = 0U;
     CAN_Uds_Init();
 }
 
@@ -279,6 +308,34 @@ void test_Extended_session_returns_to_default_without_new_request(void)
     TEST_ASSERT_EQUAL_UINT32(1U, stats.server.session_timeouts);
 }
 
+void test_Programming_handler_is_bound_without_a_second_transport(void)
+{
+    const uint8_t enter_programming[2U] = {
+        CAN_PROTOCOL_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
+        CAN_PROTOCOL_UDS_SESSION_PROGRAMMING
+    };
+    const uint8_t transfer[3U] = {
+        CAN_PROTOCOL_UDS_SERVICE_TRANSFER_DATA, 1U, 0xAAU
+    };
+    const uint8_t enter_default[2U] = {
+        CAN_PROTOCOL_UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
+        CAN_PROTOCOL_UDS_SESSION_DEFAULT
+    };
+
+    CAN_Uds_InitWithProgramming(
+        Programming, ProgrammingAbort, &programming_calls);
+    SetRequest(enter_programming, sizeof(enter_programming));
+    TEST_ASSERT_EQUAL(CAN_UDS_RESULT_OK, CAN_Uds_Process(0U));
+    SetRequest(transfer, sizeof(transfer));
+    TEST_ASSERT_EQUAL(CAN_UDS_RESULT_OK, CAN_Uds_Process(1U));
+    TEST_ASSERT_EQUAL_UINT8(0x76U, response_buffer[0]);
+    TEST_ASSERT_EQUAL_UINT8(1U, response_buffer[1]);
+    TEST_ASSERT_EQUAL_UINT32(1U, programming_calls);
+    SetRequest(enter_default, sizeof(enter_default));
+    TEST_ASSERT_EQUAL(CAN_UDS_RESULT_OK, CAN_Uds_Process(2U));
+    TEST_ASSERT_EQUAL_UINT32(1U, programming_abort_calls);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -290,5 +347,6 @@ int main(void)
     RUN_TEST(test_UnknownDid_produces_negative_response);
     RUN_TEST(test_IsoTp_response_failure_is_counted);
     RUN_TEST(test_Extended_session_returns_to_default_without_new_request);
+    RUN_TEST(test_Programming_handler_is_bound_without_a_second_transport);
     return UNITY_END();
 }

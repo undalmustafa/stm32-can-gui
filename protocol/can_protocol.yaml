@@ -196,17 +196,28 @@ command_transport:
     description: "CRC-8 token over all eight request payload bytes"
 
 uds:
-  version: 1
+  version: 2
   p2_server_max_ms: 50
   p2_star_server_max_ms: 5000
   s3_server_timeout_ms: 5000
   sessions:
     default: 0x01
+    programming: 0x02
     extended_diagnostic: 0x03
   services:
     diagnostic_session_control: 0x10
     read_data_by_identifier: 0x22
+    routine_control: 0x31
+    request_download: 0x34
+    transfer_data: 0x36
+    request_transfer_exit: 0x37
     tester_present: 0x3E
+  routines:
+    erase_inactive_slot: 0xFF00
+  download:
+    data_format_identifier: 0x00
+    address_length_format_identifier: 0x44
+    max_block_length: 258
   dids:
     protocol_info: 0xF100
     startup_health: 0xF101

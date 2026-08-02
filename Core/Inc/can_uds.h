@@ -34,6 +34,10 @@ typedef struct
 } CAN_Uds_Stats_t;
 
 void CAN_Uds_Init(void);
+void CAN_Uds_InitWithProgramming(
+    Uds_ProgrammingCallback_t programming,
+    Uds_ProgrammingAbortCallback_t programming_abort,
+    void *programming_context);
 CAN_Uds_Result_t CAN_Uds_Process(uint32_t now_ms);
 void CAN_Uds_GetStats(CAN_Uds_Stats_t *stats);
 

@@ -24,7 +24,14 @@ typedef enum
     UDS_NRC_INCORRECT_MESSAGE_LENGTH = 0x13U,
     UDS_NRC_RESPONSE_TOO_LONG = 0x14U,
     UDS_NRC_CONDITIONS_NOT_CORRECT = 0x22U,
-    UDS_NRC_REQUEST_OUT_OF_RANGE = 0x31U
+    UDS_NRC_REQUEST_SEQUENCE_ERROR = 0x24U,
+    UDS_NRC_SECURITY_ACCESS_DENIED = 0x33U,
+    UDS_NRC_REQUEST_OUT_OF_RANGE = 0x31U,
+    UDS_NRC_UPLOAD_DOWNLOAD_NOT_ACCEPTED = 0x70U,
+    UDS_NRC_TRANSFER_DATA_SUSPENDED = 0x71U,
+    UDS_NRC_GENERAL_PROGRAMMING_FAILURE = 0x72U,
+    UDS_NRC_WRONG_BLOCK_SEQUENCE_COUNTER = 0x73U,
+    UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION = 0x7FU
 } Uds_NegativeResponseCode_t;
 
 typedef enum
@@ -43,10 +50,24 @@ typedef Uds_DidReadResult_t (*Uds_ReadDidCallback_t)(
     uint16_t *data_length
 );
 
+typedef Uds_NegativeResponseCode_t (*Uds_ProgrammingCallback_t)(
+    void *context,
+    uint8_t service,
+    const uint8_t *request,
+    uint16_t request_length,
+    uint8_t *response_data,
+    uint16_t response_capacity,
+    uint16_t *response_data_length
+);
+typedef void (*Uds_ProgrammingAbortCallback_t)(void *context);
+
 typedef struct
 {
     Uds_ReadDidCallback_t read_did;
     void *read_did_context;
+    Uds_ProgrammingCallback_t programming;
+    void *programming_context;
+    Uds_ProgrammingAbortCallback_t programming_abort;
 } Uds_ServerConfig_t;
 
 typedef struct
@@ -62,6 +83,8 @@ typedef struct
     uint32_t session_changes;
     uint32_t session_timeouts;
     uint32_t tester_present_requests;
+    uint32_t programming_requests;
+    uint32_t programming_aborts;
     uint8_t current_session;
     uint8_t last_service;
     Uds_NegativeResponseCode_t last_nrc;
