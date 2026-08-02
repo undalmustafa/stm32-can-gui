@@ -70,16 +70,48 @@ bağlanacaktır; doğrulayıcı callback yoksa image fail-closed reddedilir.
 Başarısız doğrulama application koduna hiçbir şekilde dallanmaz. Her hata
 ayrı sonuç koduyla boot policy/recovery katmanına bildirilir.
 
+## Redundant boot-control ve rollback
+
+Boot-control bölgesinin ilk iki 8 KiB sektörü birbirinden bağımsız record
+taşır:
+
+- Record 0: `0x081E0000`
+- Record 1: `0x081E2000`
+
+Her record 64 byte'tır ve magic/format/size, wrap-safe generation,
+confirmed/pending slot, kalan deneme sayısı, security counter, build version,
+CRC-32 ve commit marker içerir. Reserved alanların tamamı sıfır olmak
+zorundadır.
+
+Yeni state yazılırken eski record korunur. Diğer sektör silinir, record'un
+`0..59` byte'ı programlanır ve `0xC04E7A5A` commit word'ü en son yazılır.
+Power loss commit'ten önce oluşursa yeni record geçersiz kalır ve önceki
+generation seçilir. CRC bozuk, yarım yazılmış veya aynı generation ile farklı
+state taşıyan record'lar fail-closed reddedilir.
+
+Update ve rollback akışı:
+
+1. Yalnızca confirmed slottan farklı ve security counter'ı kalıcı minimumdan
+   büyük image pending yapılabilir.
+2. Pending image için üç boot hakkı verilir.
+3. Her application jump öncesinde hak azaltılır ve yeni state kalıcılaştırılır.
+4. Application kendi slot/security/build kimliğini doğrulayarak confirmation
+   verir; pending slot confirmed olur ve anti-rollback minimumu yükselir.
+5. Üç denemede confirmation gelmezse veya pending image doğrulaması başarısızsa
+   pending temizlenir ve son confirmed image seçilir.
+6. Confirmed image de geçersizse başka bir unconfirmed image otomatik
+   çalıştırılmaz; bootloader recovery modunda kalır.
+
+Bu katman flash HAL çağrısı yapmaz. Record erase/program ve application
+confirmation taşıması sonraki backend dilimlerinde bağlanacaktır.
+
 ## Sıradaki dilimler
 
-1. CRC'li ve generation sayaçlı iki boot-control record'u ekle.
-2. Pending image için sınırlı boot-attempt, application confirmation ve
-   otomatik rollback policy'sini host testinde koru.
-3. Slot A/B linker script'leri, vector relocation ve güvenli application jump
+1. Slot A/B linker script'leri, vector relocation ve güvenli application jump
    yolunu ekle.
-4. Flash erase/program backend'i ile power-loss kabul noktalarını ekle.
-5. UDS download/routine servisleri ve GUI Flash sekmesini bağla.
-6. Release image packager, offline signing ve gömülü public-key doğrulamasını
+2. Flash erase/program backend'i ile power-loss kabul noktalarını ekle.
+3. UDS download/routine servisleri ve GUI Flash sekmesini bağla.
+4. Release image packager, offline signing ve gömülü public-key doğrulamasını
    CI/release zincirine ekle.
 
 Mevcut `STM32H7A3ZITXQ_FLASH.ld` standalone application geliştirme düzenini

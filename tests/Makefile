@@ -32,6 +32,8 @@ TEST_UDS_SERVER_SRC = test_uds_server.c ../Core/Src/uds_server.c unity/unity.c
 TEST_CAN_UDS_SRC = test_can_uds.c ../Core/Src/can_uds.c \
 	../Core/Src/uds_server.c unity/unity.c
 TEST_BOOT_IMAGE_SRC = test_boot_image.c ../Core/Src/boot_image.c unity/unity.c
+TEST_BOOT_CONTROL_SRC = test_boot_control.c ../Core/Src/boot_control.c \
+	unity/unity.c
 TEST_PWM_SELF_TEST_SRC = test_pwm_self_test.c ../Core/Src/pwm_self_test.c unity/unity.c
 TEST_COMMAND_GUARD_SRC = test_can_command_guard.c \
 	../Core/Src/can_command_guard.c ../Core/Src/can_protocol.c unity/unity.c
@@ -73,6 +75,7 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_uds_server \
 	$(BUILD_DIR)/test_can_uds \
 	$(BUILD_DIR)/test_boot_image \
+	$(BUILD_DIR)/test_boot_control \
 	$(BUILD_DIR)/test_pwm_self_test \
 	$(BUILD_DIR)/test_command_guard \
 	$(BUILD_DIR)/test_app_log \
@@ -144,6 +147,9 @@ $(BUILD_DIR)/test_can_uds: $(TEST_CAN_UDS_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_boot_image: $(TEST_BOOT_IMAGE_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_boot_control: $(TEST_BOOT_CONTROL_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 $(BUILD_DIR)/test_pwm_self_test: $(TEST_PWM_SELF_TEST_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
@@ -201,6 +207,7 @@ test: all
 	$(BUILD_DIR)/test_uds_server
 	$(BUILD_DIR)/test_can_uds
 	$(BUILD_DIR)/test_boot_image
+	$(BUILD_DIR)/test_boot_control
 	$(BUILD_DIR)/test_pwm_self_test
 	$(BUILD_DIR)/test_command_guard
 	$(BUILD_DIR)/test_app_log

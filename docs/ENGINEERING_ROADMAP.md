@@ -321,7 +321,7 @@ Uygulama sırası:
      512-byte vector header sözleşmesini dondur. Slot sınırı, MSP/reset vector,
      monotonic security counter, SHA-256 digest ve imza callback'lerini
      fail-closed doğrulayan HAL bağımsız çekirdeği host testinde koru.
-   - [ ] CRC/generation korumalı redundant boot-control record, pending boot
+   - [x] CRC/generation korumalı redundant boot-control record, pending boot
      attempt, application confirmation ve otomatik rollback policy'sini ekle.
    - [ ] Boot target, A/B linker script'leri, vector relocation ve güvenli
      application jump yolunu bağla.
