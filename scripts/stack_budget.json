@@ -1,0 +1,32 @@
+{
+  "external_call_chain_reserve_bytes": 256,
+  "indirect_call_reserve_bytes": 256,
+  "exception_frame_bytes": 108,
+  "minimum_margin_bytes": 256,
+  "main_context": {
+    "name": "main",
+    "root": "main"
+  },
+  "interrupt_contexts": [
+    {
+      "name": "SysTick",
+      "root": "SysTick_Handler",
+      "priority_macro": "APP_IRQ_PRIORITY_SYSTICK"
+    },
+    {
+      "name": "FDCAN1_IT0",
+      "root": "FDCAN1_IT0_IRQHandler",
+      "priority_macro": "APP_IRQ_PRIORITY_FDCAN1"
+    },
+    {
+      "name": "TIC12400_EXTI",
+      "root": "EXTI9_5_IRQHandler",
+      "priority_macro": "APP_IRQ_PRIORITY_TIC12400_EXTI"
+    },
+    {
+      "name": "USER_BUTTON_EXTI",
+      "root": "EXTI15_10_IRQHandler",
+      "priority_macro": "APP_IRQ_PRIORITY_USER_BUTTON"
+    }
+  ]
+}

@@ -94,6 +94,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Test stack usage analyzer
+        run: make -C tests test-stack-usage
+
       - name: Install GNU Arm toolchain
         run: |
           sudo apt-get update
@@ -125,6 +128,20 @@ jobs:
             echo 'Release ELF contains watchdog fault-injection hooks' >&2
             exit 1
           fi
+
+      - name: Verify release stack budget
+        run: make CONFIG=release stack-report
+
+      - name: Upload stack usage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stack-usage-${{ github.sha }}
+          path: |
+            build/release/stack-usage.txt
+            build/release/stack-usage.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v7

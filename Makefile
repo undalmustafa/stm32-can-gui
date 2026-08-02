@@ -7,6 +7,7 @@ CC := $(CROSS_COMPILE)gcc
 OBJCOPY := $(CROSS_COMPILE)objcopy
 OBJDUMP := $(CROSS_COMPILE)objdump
 SIZE := $(CROSS_COMPILE)size
+PYTHON ?= python3
 CPPCHECK ?= cppcheck
 STATIC_ANALYSIS_DIR ?= build/static-analysis
 
@@ -54,6 +55,9 @@ HEX := $(BUILD_DIR)/$(TARGET).hex
 BIN := $(BUILD_DIR)/$(TARGET).bin
 MAP := $(BUILD_DIR)/$(TARGET).map
 LIST := $(BUILD_DIR)/$(TARGET).list
+STACK_REPORT_TEXT := $(BUILD_DIR)/stack-usage.txt
+STACK_REPORT_JSON := $(BUILD_DIR)/stack-usage.json
+STACK_REPORT_CONFIG := scripts/stack_budget.json
 
 ARCH_FLAGS := -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb
 WARNING_FLAGS := -Wall -Wextra -Wconversion -Wshadow -Wundef -Werror
@@ -97,7 +101,7 @@ endif
 
 .DEFAULT_GOAL := all
 
-.PHONY: all clean debug release size static-analysis
+.PHONY: all clean debug release size static-analysis stack-report
 
 all: $(ELF) $(HEX) $(BIN) $(LIST) size
 
@@ -127,6 +131,16 @@ static-analysis:
 	@CPPCHECK="$(CPPCHECK)" \
 		STATIC_ANALYSIS_DIR="$(STATIC_ANALYSIS_DIR)" \
 		./scripts/run_cppcheck.sh
+
+stack-report: $(LIST)
+	@$(PYTHON) scripts/stack_usage_report.py \
+		--su-dir $(BUILD_DIR) \
+		--disassembly $(LIST) \
+		--config $(STACK_REPORT_CONFIG) \
+		--linker-script $(LINKER_SCRIPT) \
+		--irq-policy-header Core/Inc/app_irq_policy.h \
+		--text-output $(STACK_REPORT_TEXT) \
+		--json-output $(STACK_REPORT_JSON)
 
 $(BUILD_DIR)/%.o: %.c
 	$(create_output_directory)

@@ -203,8 +203,8 @@ Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
 ## Faz 3 — Test ve statik kalite kapıları
 
 Durum: CAN, RTC ve TIC12400 probe host state-machine test dilimleri, strict
-compiler warning ve Cppcheck kalite kapıları tamamlandı; diğer statik kalite
-adımları bekliyor.
+compiler warning, Cppcheck ve release stack-budget kalite kapıları tamamlandı;
+diğer statik kalite adımları bekliyor.
 
 - [x] `can_recovery.c` için açık init/reset seam'i ve HAL-stub'lı bus-off
   recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
@@ -230,8 +230,10 @@ adımları bekliyor.
 - [x] Cppcheck raporunu metin/XML CI artifact'i yap; proje kaynaklarındaki
   error/warning/performance/portability bulgularını gate et, stil bulgularını
   rapor seviyesinde görünür tut ve üçüncü taraf HAL/CMSIS kodunu hariç bırak.
-- [ ] `.su` dosyalarından worst-case stack raporu üret; 1 KiB stack varsayımını
-  ölçümle doğrula.
+- [x] `.su` ve disassembly call graph'tan nested-IRQ worst-case stack raporu
+  üret. 1 KiB varsayımını extended FP exception frame ve 256 bayt zorunlu
+  marjla reddet; linker/CubeMX rezervini 2 KiB yap ve TXT/JSON CI artifact gate'i
+  ekle.
 - [ ] Modül header'larına çağrı bağlamını yaz: main-loop only, ISR-safe veya
   internal.
 - [ ] İki Python workflow'unu tek sürüm ve tek bağımlılık kurulumuyla
