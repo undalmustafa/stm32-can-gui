@@ -293,11 +293,22 @@ Uygulama sırası:
    - [x] GUI komutlarını command-code ile seçilen, tam kapsamalı multiplexed
      payload alanlarına taşı; generic payload-byte fallback'ini kaldır.
 3. ISO-TP ve UDS diagnostic servisleri.
+   - [x] HAL'den bağımsız, caller-owned statik tampon kullanan Classic CAN
+     ISO-TP çekirdeğini ekle. Single/first/consecutive/flow-control frame,
+     12-bit uzunluk, sequence wrap, block size, WAIT limiti, microsecond
+     `STmin`, `N_Bs`/`N_Cr` timeout ve tick wrap davranışlarını host testinde
+     koru.
+   - [ ] ISO-TP kanalını ayrılmış request/response CAN ID'leri ve
+     high-priority transport kuyruğu üzerinden firmware main-loop'una bağla;
+     RX bütçesi, backpressure ve transport hata sayaçlarını görünür yap.
+   - [ ] UDS dispatcher ile önce salt-okuma `0x10`, `0x22` ve `0x3E`
+     servislerini ekle; session timeout ve negative-response davranışını ayrı
+     host testleriyle koru.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.
 6. Freshness counter ve CMAC tabanlı komut doğrulama.
 7. Self-hosted runner ile nightly HIL regresyonu.
 
-DBC sinyal semantiği tamamlandı. Yakın hedef ISO-TP taşımasını küçük, host-testli
-bir çekirdek olarak eklemektir. UDS servisleri bu taşıma katmanının üzerine
-kurulacaktır.
+DBC sinyal semantiği ve donanımdan bağımsız ISO-TP çekirdeği tamamlandı. Yakın
+hedef ISO-TP kanalını gerçek CAN RX/TX yoluna bağlamak, ardından salt-okuma UDS
+diagnostic servislerini bu taşıma katmanının üzerine kurmaktır.
