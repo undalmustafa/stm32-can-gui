@@ -2,6 +2,7 @@
 
 import math
 
+from can_protocol_generated import PWM_SELF_TEST_STATE_NAMES
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QGridLayout, QGroupBox, QHBoxLayout, QLabel, QProgressBar,
@@ -10,14 +11,7 @@ from PySide6.QtWidgets import (
 
 
 class PwmPanel:
-    SELF_TEST_STATE_NAMES = {
-        0: "Idle",
-        1: "Running",
-        2: "Passed",
-        3: "Failed",
-        4: "Cancelled",
-        5: "Firmware error",
-    }
+    SELF_TEST_STATE_NAMES = PWM_SELF_TEST_STATE_NAMES
 
     def __init__(self, command_requested, self_test_requested=None):
         self._command_requested = command_requested

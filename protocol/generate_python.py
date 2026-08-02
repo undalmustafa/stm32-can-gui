@@ -72,6 +72,16 @@ def generate_python_module(yaml_path, out_path):
                 )
         out.write("\n")
 
+        out.write("# PWM Self-Test State Codes\n")
+        out.write("PWM_SELF_TEST_STATE_NAMES = {\n")
+        for key, val in data.get("pwm_self_test_state_codes", {}).items():
+            code = val["code"]
+            display_name = val.get(
+                "display_name", key.replace("_", " ").title()
+            )
+            out.write(f"    {code}: {display_name!r},\n")
+        out.write("}\n\n")
+
         out.write("# Alarm Enable Flags\n")
         for key, val in data.get("alarm_enable_flags", {}).items():
             name = key.upper()

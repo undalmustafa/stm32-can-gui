@@ -284,8 +284,11 @@ Uygulama sırası:
    - [x] Command ACK ile TIC12400 durum/switch/profil frame'lerini gerçek bit
      alanları, enum/boolean value table'ları ve mühendislik birimleriyle
      tanımla; eksik/çakışan/frame dışı şemaları jeneratörde reddet.
-   - [ ] Kalan RTC, PWM, sistem, log, RX-health ve timing frame'lerini gerçek
-     sinyallere; GUI komutlarını multiplexed payload alanlarına taşı.
+   - [x] RTC durum/zaman/alarm, sistem policy, PWM, input-capture ve PWM
+     self-test frame'lerini gerçek sinyallere taşı; self-test state kodlarını
+     firmware, GUI ve DBC için tek kaynaktan üret.
+   - [ ] Log, RX-health ve timing frame'lerini gerçek sinyallere; GUI
+     komutlarını multiplexed payload alanlarına taşı.
 3. ISO-TP ve UDS diagnostic servisleri.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.

@@ -80,6 +80,16 @@ TIMING_SERVICE_ENABLED = 0x01
 TIMING_SERVICE_CURRENT_OVERRUN = 0x02
 TIMING_SERVICE_OVERRUN_LATCHED = 0x04
 
+# PWM Self-Test State Codes
+PWM_SELF_TEST_STATE_NAMES = {
+    0: 'Idle',
+    1: 'Running',
+    2: 'Passed',
+    3: 'Failed',
+    4: 'Cancelled',
+    5: 'Firmware error',
+}
+
 # Alarm Enable Flags
 RTC_ALARM_ENABLE_SECOND = 0x01
 RTC_ALARM_ENABLE_MINUTE = 0x02

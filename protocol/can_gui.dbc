@@ -22,84 +22,97 @@ BO_ 2559879867 GUI_COMMAND: 8 GUI
  SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" MCU
 
 BO_ 1361 RTC_STATUS: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ StatusCode : 0|8@1+ (1,0) [0|255] "" GUI
+ SG_ HalStatus : 8|8@1+ (1,0) [0|255] "" GUI
+ SG_ HalError : 16|32@1+ (1,0) [0|4294967295] "" GUI
+ SG_ Reserved : 48|16@1+ (1,0) [0|65535] "" GUI
 
 BO_ 1366 RTC_TIME: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ Hour : 0|8@1+ (1,0) [0|23] "h" GUI
+ SG_ Minute : 8|8@1+ (1,0) [0|59] "min" GUI
+ SG_ Second : 16|8@1+ (1,0) [0|59] "s" GUI
+ SG_ Hundredth : 24|8@1+ (1,0) [0|99] "10 ms" GUI
+ SG_ Day : 32|8@1+ (1,0) [1|31] "" GUI
+ SG_ Month : 40|8@1+ (1,0) [1|12] "" GUI
+ SG_ Year : 48|8@1+ (1,0) [0|99] "" GUI
+ SG_ Weekday : 56|3@1+ (1,0) [0|6] "" GUI
+ SG_ TimeReserved : 59|2@1+ (1,0) [0|3] "" GUI
+ SG_ CalendarValid : 61|1@1+ (1,0) [0|1] "" GUI
+ SG_ Ready : 62|1@1+ (1,0) [0|1] "" GUI
+ SG_ OscillatorStopFlag : 63|1@1+ (1,0) [0|1] "" GUI
 
 BO_ 1367 SYSTEM_STATUS: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ Slot1Running : 0|1@1+ (1,0) [0|1] "" GUI
+ SG_ Slot2Running : 1|1@1+ (1,0) [0|1] "" GUI
+ SG_ Led1On : 2|1@1+ (1,0) [0|1] "" GUI
+ SG_ Led2On : 3|1@1+ (1,0) [0|1] "" GUI
+ SG_ SummaryReserved : 4|4@1+ (1,0) [0|15] "" GUI
+ SG_ Slot1State : 8|8@1+ (1,0) [0|1] "" GUI
+ SG_ Slot2State : 16|8@1+ (1,0) [0|1] "" GUI
+ SG_ Led1State : 24|8@1+ (1,0) [0|1] "" GUI
+ SG_ Led2State : 32|8@1+ (1,0) [0|1] "" GUI
+ SG_ Slot1Requested : 40|1@1+ (1,0) [0|1] "" GUI
+ SG_ Slot2Requested : 41|1@1+ (1,0) [0|1] "" GUI
+ SG_ Led1Requested : 42|1@1+ (1,0) [0|1] "" GUI
+ SG_ Led2Requested : 43|1@1+ (1,0) [0|1] "" GUI
+ SG_ PwmRequested : 44|1@1+ (1,0) [0|1] "" GUI
+ SG_ RequestReserved : 45|3@1+ (1,0) [0|7] "" GUI
+ SG_ SwitchDataValid : 48|1@1+ (1,0) [0|1] "" GUI
+ SG_ In0Closed : 49|1@1+ (1,0) [0|1] "" GUI
+ SG_ In1Closed : 50|1@1+ (1,0) [0|1] "" GUI
+ SG_ In2Closed : 51|1@1+ (1,0) [0|1] "" GUI
+ SG_ In3Closed : 52|1@1+ (1,0) [0|1] "" GUI
+ SG_ PhysicalReserved : 53|3@1+ (1,0) [0|7] "" GUI
+ SG_ Slot1Blocked : 56|1@1+ (1,0) [0|1] "" GUI
+ SG_ Slot2Blocked : 57|1@1+ (1,0) [0|1] "" GUI
+ SG_ Led1Overridden : 58|1@1+ (1,0) [0|1] "" GUI
+ SG_ OverrideReserved3 : 59|1@1+ (1,0) [0|1] "" GUI
+ SG_ PwmBlocked : 60|1@1+ (1,0) [0|1] "" GUI
+ SG_ OverrideReserved5 : 61|3@1+ (1,0) [0|7] "" GUI
 
 BO_ 1368 RTC_ALARM_EVENT: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ EventCode : 0|8@1+ (1,0) [0|255] "" GUI
+ SG_ AlarmFlag : 8|1@1+ (1,0) [0|1] "" GUI
+ SG_ InterruptEnabled : 9|1@1+ (1,0) [0|1] "" GUI
+ SG_ ConfigurationValid : 10|1@1+ (1,0) [0|1] "" GUI
+ SG_ AlarmFlagsReserved : 11|5@1+ (1,0) [0|31] "" GUI
+ SG_ Hour : 16|8@1+ (1,0) [0|23] "h" GUI
+ SG_ Minute : 24|8@1+ (1,0) [0|59] "min" GUI
+ SG_ Second : 32|8@1+ (1,0) [0|59] "s" GUI
+ SG_ Day : 40|8@1+ (1,0) [1|31] "" GUI
+ SG_ Month : 48|8@1+ (1,0) [1|12] "" GUI
+ SG_ Year : 56|8@1+ (1,0) [0|99] "" GUI
 
 BO_ 1372 PWM_STATUS: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ Running : 0|8@1+ (1,0) [0|1] "" GUI
+ SG_ DutyCycle : 8|8@1+ (1,0) [0|100] "%" GUI
+ SG_ ActualFrequency : 16|32@1+ (1,0) [0|4294967295] "Hz" GUI
+ SG_ Requested : 48|1@1+ (1,0) [0|1] "" GUI
+ SG_ PhysicalPermitted : 49|1@1+ (1,0) [0|1] "" GUI
+ SG_ Blocked : 50|1@1+ (1,0) [0|1] "" GUI
+ SG_ SwitchDataValid : 51|1@1+ (1,0) [0|1] "" GUI
+ SG_ ControlReserved : 52|4@1+ (1,0) [0|15] "" GUI
+ SG_ Reserved : 56|8@1+ (1,0) [0|255] "" GUI
 
 BO_ 1373 INPUT_CAPTURE_STATUS: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ SignalDetected : 0|8@1+ (1,0) [0|1] "" GUI
+ SG_ DutyCycle : 8|8@1+ (1,0) [0|100] "%" GUI
+ SG_ Frequency : 16|32@1+ (1,0) [0|4294967295] "Hz" GUI
+ SG_ EdgeCount : 48|16@1+ (1,0) [0|65535] "" GUI
 
 BO_ 1374 PWM_SELF_TEST_STATUS: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ State : 0|8@1+ (1,0) [0|5] "" GUI
+ SG_ CurrentPoint : 8|8@1+ (1,0) [0|255] "" GUI
+ SG_ TotalPoints : 16|8@1+ (1,0) [0|255] "" GUI
+ SG_ PassedPoints : 24|8@1+ (1,0) [0|255] "" GUI
+ SG_ ExpectedFrequency : 32|32@1+ (1,0) [0|4294967295] "Hz" GUI
 
 BO_ 1375 PWM_SELF_TEST_RESULT: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ Point : 0|8@1+ (1,0) [0|255] "" GUI
+ SG_ Passed : 8|8@1+ (1,0) [0|1] "" GUI
+ SG_ ExpectedDutyCycle : 16|8@1+ (1,0) [0|100] "%" GUI
+ SG_ MeasuredDutyCycle : 24|8@1+ (1,0) [0|100] "%" GUI
+ SG_ MeasuredFrequency : 32|32@1+ (1,0) [0|4294967295] "Hz" GUI
 
 BO_ 1370 LOG_RESPONSE: 8 MCU
  SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
@@ -200,11 +213,40 @@ BO_ 1378 TIMING_ACK_LATENCY: 8 MCU
 
 CM_ BO_ 2559879867 "Fixed identifier for all multiplexed GUI commands";
 CM_ BO_ 1361 "RTC operation status";
+CM_ SG_ 1361 StatusCode "RTC operation result";
+CM_ SG_ 1361 HalStatus "STM32 HAL operation status";
+CM_ SG_ 1361 HalError "STM32 HAL I2C error bitmap";
+CM_ SG_ 1361 Reserved "Reserved; transmit zero";
 CM_ BO_ 1366 "RTC time and calendar";
+CM_ SG_ 1366 Hundredth "Hundredths of a second";
+CM_ SG_ 1366 Year "Year offset from 2000";
+CM_ SG_ 1366 Weekday "PCA2131 weekday index; zero denotes Sunday";
+CM_ SG_ 1366 TimeReserved "Reserved time flag bits; transmit zero";
+CM_ SG_ 1366 CalendarValid "Calendar fields passed validation";
+CM_ SG_ 1366 Ready "RTC service is ready";
+CM_ SG_ 1366 OscillatorStopFlag "PCA2131 oscillator-stop flag is set";
 CM_ BO_ 1367 "Slot and LED state";
+CM_ SG_ 1367 SummaryReserved "Reserved summary bits; transmit zero";
+CM_ SG_ 1367 Slot1State "Raw slot 1 running state";
+CM_ SG_ 1367 Slot2State "Raw slot 2 running state";
+CM_ SG_ 1367 Led1State "Raw LED 1 output state";
+CM_ SG_ 1367 Led2State "Raw LED 2 output state";
+CM_ SG_ 1367 RequestReserved "Reserved request bits; transmit zero";
+CM_ SG_ 1367 PhysicalReserved "Reserved physical-input bits; transmit zero";
+CM_ SG_ 1367 OverrideReserved3 "Reserved override bit; transmit zero";
+CM_ SG_ 1367 OverrideReserved5 "Reserved override bits; transmit zero";
 CM_ BO_ 1368 "RTC alarm event notification";
+CM_ SG_ 1368 EventCode "RTC alarm event type";
+CM_ SG_ 1368 AlarmFlag "PCA2131 alarm flag";
+CM_ SG_ 1368 AlarmFlagsReserved "Reserved alarm flag bits; transmit zero";
+CM_ SG_ 1368 Year "Year offset from 2000";
 CM_ BO_ 1372 "PWM output status";
+CM_ SG_ 1372 Requested "Remote PWM output is requested";
+CM_ SG_ 1372 PhysicalPermitted "Physical input policy permits PWM output";
+CM_ SG_ 1372 ControlReserved "Reserved control-policy bits; transmit zero";
+CM_ SG_ 1372 Reserved "Reserved; transmit zero";
 CM_ BO_ 1373 "Input capture measurement with estimated edge count";
+CM_ SG_ 1373 EdgeCount "Saturating captured-edge count";
 CM_ BO_ 1374 "PWM built-in self-test state and current target";
 CM_ BO_ 1375 "PWM built-in self-test point result";
 CM_ BO_ 1370 "STM32 event-log response fragments";
@@ -262,6 +304,44 @@ BA_ "VFrameFormat" BO_ 2559879867 1;
 
 VAL_ 2559879867 CommandCode 1 "SET_SLOT_1" 2 "SET_SLOT_2" 16 "LED_CONTROL" 17 "START_SLOT_1_COUNTER" 18 "START_SLOT_2_COUNTER" 32 "RTC_SET_TIME" 33 "RTC_SET_DATETIME" 34 "RTC_SET_ALARM" 64 "PWM_SET" 65 "PWM_SELF_TEST" 48 "LOG_GET_INFO" 49 "LOG_READ_SEQUENCE" 80 "TIC12400_SET_POLARITY" ;
 
+VAL_ 1361 StatusCode 161 "INIT_OK" 162 "WRITE_VERIFY_OK" 163 "LINK_RECOVERED" 164 "ALARM_WRITE_VERIFY_OK" 225 "INIT_FAILED" 226 "READ_FAILED" 228 "INVALID_DATETIME" 229 "CONTROL_READ_FAILED" 230 "STOP_ASSERT_FAILED" 231 "PRESCALER_RESET_FAILED" 232 "CALENDAR_WRITE_FAILED" 233 "STOP_RELEASE_FAILED" 234 "RECOVERY_FAILED" 235 "BUSY" 236 "ALARM_NOT_READY" 237 "INVALID_ALARM_CONFIG" 238 "ALARM_WRITE_FAILED" 239 "ALARM_READBACK_FAILED" 240 "ALARM_VERIFY_MISMATCH" 241 "ALARM_FLAG_CLEAR_FAILED" 242 "WRITE_VERIFY_MISMATCH" ;
+VAL_ 1366 CalendarValid 0 "False" 1 "True" ;
+VAL_ 1366 Ready 0 "False" 1 "True" ;
+VAL_ 1366 OscillatorStopFlag 0 "False" 1 "True" ;
+VAL_ 1367 Slot1Running 0 "False" 1 "True" ;
+VAL_ 1367 Slot2Running 0 "False" 1 "True" ;
+VAL_ 1367 Led1On 0 "False" 1 "True" ;
+VAL_ 1367 Led2On 0 "False" 1 "True" ;
+VAL_ 1367 Slot1State 0 "False" 1 "True" ;
+VAL_ 1367 Slot2State 0 "False" 1 "True" ;
+VAL_ 1367 Led1State 0 "False" 1 "True" ;
+VAL_ 1367 Led2State 0 "False" 1 "True" ;
+VAL_ 1367 Slot1Requested 0 "False" 1 "True" ;
+VAL_ 1367 Slot2Requested 0 "False" 1 "True" ;
+VAL_ 1367 Led1Requested 0 "False" 1 "True" ;
+VAL_ 1367 Led2Requested 0 "False" 1 "True" ;
+VAL_ 1367 PwmRequested 0 "False" 1 "True" ;
+VAL_ 1367 SwitchDataValid 0 "False" 1 "True" ;
+VAL_ 1367 In0Closed 0 "False" 1 "True" ;
+VAL_ 1367 In1Closed 0 "False" 1 "True" ;
+VAL_ 1367 In2Closed 0 "False" 1 "True" ;
+VAL_ 1367 In3Closed 0 "False" 1 "True" ;
+VAL_ 1367 Slot1Blocked 0 "False" 1 "True" ;
+VAL_ 1367 Slot2Blocked 0 "False" 1 "True" ;
+VAL_ 1367 Led1Overridden 0 "False" 1 "True" ;
+VAL_ 1367 PwmBlocked 0 "False" 1 "True" ;
+VAL_ 1368 EventCode 1 "TRIGGERED" ;
+VAL_ 1368 AlarmFlag 0 "False" 1 "True" ;
+VAL_ 1368 InterruptEnabled 0 "False" 1 "True" ;
+VAL_ 1368 ConfigurationValid 0 "False" 1 "True" ;
+VAL_ 1372 Running 0 "False" 1 "True" ;
+VAL_ 1372 Requested 0 "False" 1 "True" ;
+VAL_ 1372 PhysicalPermitted 0 "False" 1 "True" ;
+VAL_ 1372 Blocked 0 "False" 1 "True" ;
+VAL_ 1372 SwitchDataValid 0 "False" 1 "True" ;
+VAL_ 1373 SignalDetected 0 "False" 1 "True" ;
+VAL_ 1374 State 0 "IDLE" 1 "RUNNING" 2 "PASSED" 3 "FAILED" 4 "CANCELLED" 5 "ERROR" ;
+VAL_ 1375 Passed 0 "False" 1 "True" ;
 VAL_ 1360 CommandCode 1 "SET_SLOT_1" 2 "SET_SLOT_2" 16 "LED_CONTROL" 17 "START_SLOT_1_COUNTER" 18 "START_SLOT_2_COUNTER" 32 "RTC_SET_TIME" 33 "RTC_SET_DATETIME" 34 "RTC_SET_ALARM" 64 "PWM_SET" 65 "PWM_SELF_TEST" 48 "LOG_GET_INFO" 49 "LOG_READ_SEQUENCE" 80 "TIC12400_SET_POLARITY" ;
 VAL_ 1360 AckStatus 0 "ACCEPTED" 2 "INVALID_PAYLOAD" 3 "UNKNOWN_COMMAND" 4 "ACCESS_DENIED" ;
 VAL_ 1360 Executed 0 "False" 1 "True" ;

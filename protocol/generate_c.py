@@ -69,6 +69,16 @@ def generate_c_header(yaml_path, out_path):
                 )
         out.write("\n")
 
+        out.write("/* PWM Self-Test State Codes */\n")
+        for key, val in data.get("pwm_self_test_state_codes", {}).items():
+            name = key.upper()
+            code = val["code"]
+            out.write(
+                f"#define CAN_PROTOCOL_PWM_SELF_TEST_STATE_{name} "
+                f"{code}U\n"
+            )
+        out.write("\n")
+
         out.write("/* Alarm Enable Flags */\n")
         mask = 0
         for key, val in data.get("alarm_enable_flags", {}).items():

@@ -105,6 +105,45 @@ def main() -> None:
                 f"missing DBC comment for {message_name}")
 
     product_signals = {
+        "rtc_status": {
+            "StatusCode", "HalStatus", "HalError", "Reserved",
+        },
+        "rtc_time": {
+            "Hour", "Minute", "Second", "Hundredth", "Day", "Month",
+            "Year", "Weekday", "TimeReserved", "CalendarValid", "Ready",
+            "OscillatorStopFlag",
+        },
+        "system_status": {
+            "Slot1Running", "Slot2Running", "Led1On", "Led2On",
+            "SummaryReserved", "Slot1State", "Slot2State", "Led1State",
+            "Led2State", "Slot1Requested", "Slot2Requested",
+            "Led1Requested", "Led2Requested", "PwmRequested",
+            "RequestReserved", "SwitchDataValid", "In0Closed", "In1Closed",
+            "In2Closed", "In3Closed", "PhysicalReserved", "Slot1Blocked",
+            "Slot2Blocked", "Led1Overridden", "OverrideReserved3",
+            "PwmBlocked", "OverrideReserved5",
+        },
+        "rtc_alarm_event": {
+            "EventCode", "AlarmFlag", "InterruptEnabled",
+            "ConfigurationValid", "AlarmFlagsReserved", "Hour", "Minute",
+            "Second", "Day", "Month", "Year",
+        },
+        "pwm_status": {
+            "Running", "DutyCycle", "ActualFrequency", "Requested",
+            "PhysicalPermitted", "Blocked", "SwitchDataValid",
+            "ControlReserved", "Reserved",
+        },
+        "input_capture_status": {
+            "SignalDetected", "DutyCycle", "Frequency", "EdgeCount",
+        },
+        "pwm_self_test_status": {
+            "State", "CurrentPoint", "TotalPoints", "PassedPoints",
+            "ExpectedFrequency",
+        },
+        "pwm_self_test_result": {
+            "Point", "Passed", "ExpectedDutyCycle", "MeasuredDutyCycle",
+            "MeasuredFrequency",
+        },
         "command_ack": {
             "ProtocolVersion", "CommandCode", "RequestToken", "AckStatus",
             "Executed", "AccessOpen", "AckFlagsReserved",
@@ -164,6 +203,22 @@ def main() -> None:
     )
     require('5 "DEVICE_SPI_ERROR"' in tic_result_table,
             "missing TIC12400 service result values")
+    rtc_status_frame_id = encoded_frame_id(identifiers["rtc_status"])
+    rtc_status_table = next(
+        line for line in generated.splitlines()
+        if line.startswith(f"VAL_ {rtc_status_frame_id} StatusCode ")
+    )
+    require('242 "WRITE_VERIFY_MISMATCH"' in rtc_status_table,
+            "missing RTC status values")
+    pwm_test_frame_id = encoded_frame_id(
+        identifiers["pwm_self_test_status"]
+    )
+    pwm_state_table = next(
+        line for line in generated.splitlines()
+        if line.startswith(f"VAL_ {pwm_test_frame_id} State ")
+    )
+    require('5 "ERROR"' in pwm_state_table,
+            "missing PWM self-test state values")
 
     duplicate = copy.deepcopy(definition)
     duplicate["identifiers"]["duplicate"] = copy.deepcopy(gui_command)
@@ -190,6 +245,11 @@ def main() -> None:
     )
     require_generation_error(unknown_source,
                              "unknown DBC value sources must be rejected")
+
+    invalid_range = copy.deepcopy(definition)
+    invalid_range["dbc_signals"]["rtc_time"][0]["maximum"] = 256
+    require_generation_error(invalid_range,
+                             "unrepresentable DBC ranges must be rejected")
 
     unknown_message = copy.deepcopy(definition)
     unknown_message["dbc_signals"]["missing_frame"] = copy.deepcopy(

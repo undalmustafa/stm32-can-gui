@@ -57,6 +57,9 @@ def main():
     expect(protocol.PWM_CONTROL_REQUESTED == 0x01
            and protocol.PWM_CONTROL_SWITCH_DATA_VALID == 0x08,
            "PWM control-policy flags are generated")
+    expect(generated.PWM_SELF_TEST_STATE_NAMES[0] == "Idle"
+           and generated.PWM_SELF_TEST_STATE_NAMES[5] == "Firmware error",
+           "PWM self-test state names are generated")
     expect(protocol.TIC12400_CHANNEL_COUNT == 24,
            "TIC12400 channel count is generated")
     expect(protocol.TIC12400_BATTERY_CAPABLE_MASK == 0x3FF,

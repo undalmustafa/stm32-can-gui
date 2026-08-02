@@ -108,6 +108,12 @@ def validate_signals(definition: dict, message_key: str, payload_size: int) -> N
         dbc_number(maximum)
         if minimum > maximum:
             raise ValueError(f"DBC signal {message_key}.{name} range is inverted")
+        physical_minimum = raw_minimum * factor + offset
+        physical_maximum = raw_maximum * factor + offset
+        if minimum < physical_minimum or maximum > physical_maximum:
+            raise ValueError(
+                f"DBC signal {message_key}.{name} range is not representable"
+            )
 
         bits = set(range(start_bit, start_bit + length))
         if bits & occupied_bits:

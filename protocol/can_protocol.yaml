@@ -444,6 +444,21 @@ pwm_status_control_flags:
   switch_data_valid:
     bit: 3
 
+pwm_self_test_state_codes:
+  idle:
+    code: 0
+  running:
+    code: 1
+  passed:
+    code: 2
+  failed:
+    code: 3
+  cancelled:
+    code: 4
+  error:
+    code: 5
+    display_name: "Firmware error"
+
 # ---------------------------------------------------------------------------
 # Alarm Enable Flags (byte 1 of RTC_SET_ALARM command)
 # ---------------------------------------------------------------------------
@@ -568,6 +583,365 @@ dbc_boolean_values:
   1: "True"
 
 dbc_signals:
+  rtc_status:
+    - name: StatusCode
+      start_bit: 0
+      length: 8
+      value_source: rtc_status_codes
+      description: "RTC operation result"
+    - name: HalStatus
+      start_bit: 8
+      length: 8
+      description: "STM32 HAL operation status"
+    - name: HalError
+      start_bit: 16
+      length: 32
+      description: "STM32 HAL I2C error bitmap"
+    - name: Reserved
+      start_bit: 48
+      length: 16
+      description: "Reserved; transmit zero"
+
+  rtc_time:
+    - name: Hour
+      start_bit: 0
+      length: 8
+      maximum: 23
+      unit: "h"
+    - name: Minute
+      start_bit: 8
+      length: 8
+      maximum: 59
+      unit: "min"
+    - name: Second
+      start_bit: 16
+      length: 8
+      maximum: 59
+      unit: "s"
+    - name: Hundredth
+      start_bit: 24
+      length: 8
+      maximum: 99
+      unit: "10 ms"
+      description: "Hundredths of a second"
+    - name: Day
+      start_bit: 32
+      length: 8
+      minimum: 1
+      maximum: 31
+    - name: Month
+      start_bit: 40
+      length: 8
+      minimum: 1
+      maximum: 12
+    - name: Year
+      start_bit: 48
+      length: 8
+      maximum: 99
+      description: "Year offset from 2000"
+    - name: Weekday
+      start_bit: 56
+      length: 3
+      maximum: 6
+      description: "PCA2131 weekday index; zero denotes Sunday"
+    - name: TimeReserved
+      start_bit: 59
+      length: 2
+      description: "Reserved time flag bits; transmit zero"
+    - name: CalendarValid
+      start_bit: 61
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Calendar fields passed validation"
+    - name: Ready
+      start_bit: 62
+      length: 1
+      value_source: dbc_boolean_values
+      description: "RTC service is ready"
+    - name: OscillatorStopFlag
+      start_bit: 63
+      length: 1
+      value_source: dbc_boolean_values
+      description: "PCA2131 oscillator-stop flag is set"
+
+  system_status:
+    - name: Slot1Running
+      start_bit: 0
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Slot2Running
+      start_bit: 1
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Led1On
+      start_bit: 2
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Led2On
+      start_bit: 3
+      length: 1
+      value_source: dbc_boolean_values
+    - name: SummaryReserved
+      start_bit: 4
+      length: 4
+      description: "Reserved summary bits; transmit zero"
+    - name: Slot1State
+      start_bit: 8
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+      description: "Raw slot 1 running state"
+    - name: Slot2State
+      start_bit: 16
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+      description: "Raw slot 2 running state"
+    - name: Led1State
+      start_bit: 24
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+      description: "Raw LED 1 output state"
+    - name: Led2State
+      start_bit: 32
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+      description: "Raw LED 2 output state"
+    - name: Slot1Requested
+      start_bit: 40
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Slot2Requested
+      start_bit: 41
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Led1Requested
+      start_bit: 42
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Led2Requested
+      start_bit: 43
+      length: 1
+      value_source: dbc_boolean_values
+    - name: PwmRequested
+      start_bit: 44
+      length: 1
+      value_source: dbc_boolean_values
+    - name: RequestReserved
+      start_bit: 45
+      length: 3
+      description: "Reserved request bits; transmit zero"
+    - name: SwitchDataValid
+      start_bit: 48
+      length: 1
+      value_source: dbc_boolean_values
+    - name: In0Closed
+      start_bit: 49
+      length: 1
+      value_source: dbc_boolean_values
+    - name: In1Closed
+      start_bit: 50
+      length: 1
+      value_source: dbc_boolean_values
+    - name: In2Closed
+      start_bit: 51
+      length: 1
+      value_source: dbc_boolean_values
+    - name: In3Closed
+      start_bit: 52
+      length: 1
+      value_source: dbc_boolean_values
+    - name: PhysicalReserved
+      start_bit: 53
+      length: 3
+      description: "Reserved physical-input bits; transmit zero"
+    - name: Slot1Blocked
+      start_bit: 56
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Slot2Blocked
+      start_bit: 57
+      length: 1
+      value_source: dbc_boolean_values
+    - name: Led1Overridden
+      start_bit: 58
+      length: 1
+      value_source: dbc_boolean_values
+    - name: OverrideReserved3
+      start_bit: 59
+      length: 1
+      description: "Reserved override bit; transmit zero"
+    - name: PwmBlocked
+      start_bit: 60
+      length: 1
+      value_source: dbc_boolean_values
+    - name: OverrideReserved5
+      start_bit: 61
+      length: 3
+      description: "Reserved override bits; transmit zero"
+
+  rtc_alarm_event:
+    - name: EventCode
+      start_bit: 0
+      length: 8
+      value_source: rtc_alarm_event_codes
+      description: "RTC alarm event type"
+    - name: AlarmFlag
+      start_bit: 8
+      length: 1
+      value_source: dbc_boolean_values
+      description: "PCA2131 alarm flag"
+    - name: InterruptEnabled
+      start_bit: 9
+      length: 1
+      value_source: dbc_boolean_values
+    - name: ConfigurationValid
+      start_bit: 10
+      length: 1
+      value_source: dbc_boolean_values
+    - name: AlarmFlagsReserved
+      start_bit: 11
+      length: 5
+      description: "Reserved alarm flag bits; transmit zero"
+    - name: Hour
+      start_bit: 16
+      length: 8
+      maximum: 23
+      unit: "h"
+    - name: Minute
+      start_bit: 24
+      length: 8
+      maximum: 59
+      unit: "min"
+    - name: Second
+      start_bit: 32
+      length: 8
+      maximum: 59
+      unit: "s"
+    - name: Day
+      start_bit: 40
+      length: 8
+      minimum: 1
+      maximum: 31
+    - name: Month
+      start_bit: 48
+      length: 8
+      minimum: 1
+      maximum: 12
+    - name: Year
+      start_bit: 56
+      length: 8
+      maximum: 99
+      description: "Year offset from 2000"
+
+  pwm_status:
+    - name: Running
+      start_bit: 0
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+    - name: DutyCycle
+      start_bit: 8
+      length: 8
+      maximum: 100
+      unit: "%"
+    - name: ActualFrequency
+      start_bit: 16
+      length: 32
+      unit: "Hz"
+    - name: Requested
+      start_bit: 48
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Remote PWM output is requested"
+    - name: PhysicalPermitted
+      start_bit: 49
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Physical input policy permits PWM output"
+    - name: Blocked
+      start_bit: 50
+      length: 1
+      value_source: dbc_boolean_values
+    - name: SwitchDataValid
+      start_bit: 51
+      length: 1
+      value_source: dbc_boolean_values
+    - name: ControlReserved
+      start_bit: 52
+      length: 4
+      description: "Reserved control-policy bits; transmit zero"
+    - name: Reserved
+      start_bit: 56
+      length: 8
+      description: "Reserved; transmit zero"
+
+  input_capture_status:
+    - name: SignalDetected
+      start_bit: 0
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+    - name: DutyCycle
+      start_bit: 8
+      length: 8
+      maximum: 100
+      unit: "%"
+    - name: Frequency
+      start_bit: 16
+      length: 32
+      unit: "Hz"
+    - name: EdgeCount
+      start_bit: 48
+      length: 16
+      description: "Saturating captured-edge count"
+
+  pwm_self_test_status:
+    - name: State
+      start_bit: 0
+      length: 8
+      maximum: 5
+      value_source: pwm_self_test_state_codes
+    - name: CurrentPoint
+      start_bit: 8
+      length: 8
+    - name: TotalPoints
+      start_bit: 16
+      length: 8
+    - name: PassedPoints
+      start_bit: 24
+      length: 8
+    - name: ExpectedFrequency
+      start_bit: 32
+      length: 32
+      unit: "Hz"
+
+  pwm_self_test_result:
+    - name: Point
+      start_bit: 0
+      length: 8
+    - name: Passed
+      start_bit: 8
+      length: 8
+      maximum: 1
+      value_source: dbc_boolean_values
+    - name: ExpectedDutyCycle
+      start_bit: 16
+      length: 8
+      maximum: 100
+      unit: "%"
+    - name: MeasuredDutyCycle
+      start_bit: 24
+      length: 8
+      maximum: 100
+      unit: "%"
+    - name: MeasuredFrequency
+      start_bit: 32
+      length: 32
+      unit: "Hz"
+
   command_ack:
     - name: ProtocolVersion
       start_bit: 0
