@@ -1,6 +1,12 @@
 #ifndef CAN_CONTROL_ACCESS_H
 #define CAN_CONTROL_ACCESS_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: INTERNAL
+ * CALL_CONTEXT_ISR_SAFE: CAN_ControlAccess_RequestFromIsr
+ * CALL_CONTEXT_INTERNAL: all
+ */
+
 #include <stdint.h>
 
 #define CAN_CONTROL_ACCESS_WINDOW_MS 240000UL

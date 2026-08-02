@@ -1,6 +1,12 @@
 #ifndef APP_STARTUP_H
 #define APP_STARTUP_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 typedef enum

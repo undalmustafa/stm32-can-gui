@@ -63,6 +63,9 @@ jobs:
       - name: Run static analysis quality gate
         run: make static-analysis
 
+      - name: Verify firmware call-context contracts
+        run: make -C tests test-call-context
+
       - name: Upload static analysis reports
         if: always()
         uses: actions/upload-artifact@v7

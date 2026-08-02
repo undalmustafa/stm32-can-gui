@@ -1,6 +1,12 @@
 #ifndef WATCHDOG_H
 #define WATCHDOG_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 /**

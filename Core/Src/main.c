@@ -858,9 +858,9 @@ void Error_Handler(void)
 
   __disable_irq();
   App_SafeState_Engage();
-  App_Fault_RecordException(APP_FAULT_ERROR_HANDLER,
-                            NULL,
-                            return_address);
+  App_Fault_RecordExceptionFromIsr(APP_FAULT_ERROR_HANDLER,
+                                   NULL,
+                                   return_address);
   __DSB();
   NVIC_SystemReset();
 

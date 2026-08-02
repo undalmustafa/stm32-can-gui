@@ -1,6 +1,12 @@
 #ifndef INPUT_CAPTURE_H
 #define INPUT_CAPTURE_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "stm32h7xx_hal.h"
 
 #include <stdint.h>

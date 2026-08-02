@@ -1,6 +1,12 @@
 #ifndef PCA2131_H
 #define PCA2131_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "stm32h7xx_hal.h"
 
 #define PCA2131_I2C_TIMEOUT_MS 10U

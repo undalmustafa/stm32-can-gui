@@ -26,9 +26,10 @@ static void test_exception_context_survives_boot_capture(void)
     App_Fault_Snapshot_t snapshot;
 
     App_Fault_CaptureBoot();
-    App_Fault_RecordException(APP_FAULT_HARD,
-                              stack_frame,
-                              0xFFFFFFF9UL);
+    App_Fault_RecordExceptionFromIsr(
+        APP_FAULT_HARD,
+        stack_frame,
+        0xFFFFFFF9UL);
 
     /* Simulate startup after NVIC_SystemReset(). */
     App_Fault_CaptureBoot();
@@ -49,9 +50,10 @@ static void test_captured_record_is_consumed_once(void)
     App_Fault_Snapshot_t snapshot;
 
     App_Fault_CaptureBoot();
-    App_Fault_RecordException(APP_FAULT_ERROR_HANDLER,
-                              NULL,
-                              0x08000101UL);
+    App_Fault_RecordExceptionFromIsr(
+        APP_FAULT_ERROR_HANDLER,
+        NULL,
+        0x08000101UL);
     App_Fault_CaptureBoot();
     App_Fault_CaptureBoot();
     App_Fault_GetSnapshot(&snapshot);
@@ -65,9 +67,10 @@ static void test_corrupt_committed_record_is_rejected(void)
     App_Fault_Snapshot_t snapshot;
 
     App_Fault_CaptureBoot();
-    App_Fault_RecordException(APP_FAULT_USAGE,
-                              NULL,
-                              0x08000201UL);
+    App_Fault_RecordExceptionFromIsr(
+        APP_FAULT_USAGE,
+        NULL,
+        0x08000201UL);
     App_Fault_TestCorruptChecksum();
     App_Fault_CaptureBoot();
     App_Fault_GetSnapshot(&snapshot);
@@ -81,7 +84,7 @@ static void test_invalid_fault_type_is_not_committed(void)
     App_Fault_Snapshot_t snapshot;
 
     App_Fault_CaptureBoot();
-    App_Fault_RecordException(APP_FAULT_NONE, NULL, 0U);
+    App_Fault_RecordExceptionFromIsr(APP_FAULT_NONE, NULL, 0U);
     App_Fault_CaptureBoot();
     App_Fault_GetSnapshot(&snapshot);
 

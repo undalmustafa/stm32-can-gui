@@ -1,6 +1,12 @@
 #ifndef CAN_COMMAND_GUARD_H
 #define CAN_COMMAND_GUARD_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: INTERNAL
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: all
+ */
+
 #include <stdint.h>
 
 #include "can_protocol.h"

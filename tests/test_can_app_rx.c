@@ -453,7 +453,7 @@ void test_button_request_opens_window_before_privileged_command(void)
         {CAN_PROTOCOL_CMD_LED_CONTROL, 2U, 1U, 0U, 0U, 0U, 0U, 0U};
     CAN_App_RxStats_t stats;
 
-    CAN_App_RequestControlAccess();
+    CAN_App_RequestControlAccessFromIsr();
     enqueue_frame(led_on);
     CAN_Process_Rx_Command();
     stats = get_stats();

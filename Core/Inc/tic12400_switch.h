@@ -1,6 +1,12 @@
 #ifndef TIC12400_SWITCH_H
 #define TIC12400_SWITCH_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: INTERNAL
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: all
+ */
+
 #include <stdint.h>
 
 #define TIC12400_SWITCH_CHANNEL_COUNT        24U

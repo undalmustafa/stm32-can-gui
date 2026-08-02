@@ -1,6 +1,12 @@
 #ifndef APP_TIMING_H
 #define APP_TIMING_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 #define APP_TIMING_ACK_BIN_COUNT 9U

@@ -147,7 +147,7 @@ static void CAN_Record_Rx_Reject(CAN_App_RxRejectReason_t reason,
                        detail);
 }
 
-void CAN_App_RequestControlAccess(void)
+void CAN_App_RequestControlAccessFromIsr(void)
 {
     CAN_ControlAccess_RequestFromIsr(&control_access);
 }
@@ -1078,6 +1078,6 @@ void BSP_PB_Callback(Button_TypeDef Button)
 {
     if (Button == BUTTON_USER)
     {
-        CAN_App_RequestControlAccess();
+        CAN_App_RequestControlAccessFromIsr();
     }
 }

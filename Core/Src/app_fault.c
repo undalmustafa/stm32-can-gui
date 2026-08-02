@@ -183,9 +183,9 @@ void App_Fault_GetSnapshot(App_Fault_Snapshot_t *snapshot)
     }
 }
 
-void App_Fault_RecordException(App_Fault_Type_t type,
-                               const uint32_t *stack_frame,
-                               uint32_t exception_return)
+void App_Fault_RecordExceptionFromIsr(App_Fault_Type_t type,
+                                      const uint32_t *stack_frame,
+                                      uint32_t exception_return)
 {
     App_Fault_RetainedRecord_t record = {0};
 

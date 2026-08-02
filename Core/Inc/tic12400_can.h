@@ -1,6 +1,12 @@
 #ifndef TIC12400_CAN_H
 #define TIC12400_CAN_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "can_transport.h"
 
 #include <stdint.h>

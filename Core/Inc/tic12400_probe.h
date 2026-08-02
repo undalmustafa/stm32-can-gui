@@ -1,6 +1,12 @@
 #ifndef TIC12400_PROBE_H
 #define TIC12400_PROBE_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: TIC12400_Probe_NotifyInterruptFromIsr
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "tic12400.h"
 #include "tic12400_profile.h"
 

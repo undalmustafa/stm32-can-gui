@@ -1,6 +1,12 @@
 #ifndef CAN_RECOVERY_H
 #define CAN_RECOVERY_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "stm32h7xx_hal.h"
 
 /*

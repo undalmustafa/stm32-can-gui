@@ -1,6 +1,12 @@
 #ifndef CAN_APP_H
 #define CAN_APP_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: CAN_App_RequestControlAccessFromIsr
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 #define CAN_APP_RX_FRAME_BUDGET_PER_PROCESS 8U
@@ -71,8 +77,8 @@ void CAN_App_Process(void);
 uint8_t CAN_App_IsAvailable(void);
 CAN_App_State_t CAN_App_GetState(void);
 void CAN_App_GetRxStats(CAN_App_RxStats_t *stats);
-/* ISR-safe: sets one volatile request flag; all policy/log work is deferred. */
-void CAN_App_RequestControlAccess(void);
+/* ISR-safe: increments one volatile request counter; policy/log work is deferred. */
+void CAN_App_RequestControlAccessFromIsr(void);
 void CAN_Process_Rx_Command(void);
 void CAN_Process_TxSlots(void);
 void CAN_Send_System_Status(void);

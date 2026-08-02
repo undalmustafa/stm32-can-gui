@@ -1,6 +1,12 @@
 #ifndef CAN_COMMAND_VALIDATION_H
 #define CAN_COMMAND_VALIDATION_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: INTERNAL
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: all
+ */
+
 #include "can_protocol.h"
 
 #include <stdint.h>

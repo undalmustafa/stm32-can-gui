@@ -81,9 +81,9 @@ void App_Fault_HandleException(const uint32_t *stack_frame,
     stack_frame = &stack_frame[18];
   }
 
-  App_Fault_RecordException((App_Fault_Type_t)fault_type,
-                            stack_frame,
-                            exception_return);
+  App_Fault_RecordExceptionFromIsr((App_Fault_Type_t)fault_type,
+                                   stack_frame,
+                                   exception_return);
   __DSB();
   NVIC_SystemReset();
 

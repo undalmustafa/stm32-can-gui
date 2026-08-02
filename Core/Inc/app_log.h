@@ -1,6 +1,12 @@
 #ifndef APP_LOG_H
 #define APP_LOG_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 #define APP_LOG_RAM_CAPACITY   64U

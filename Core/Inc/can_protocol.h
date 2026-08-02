@@ -1,6 +1,12 @@
 #ifndef CAN_PROTOCOL_H
 #define CAN_PROTOCOL_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: ISR_SAFE
+ * CALL_CONTEXT_ISR_SAFE: all
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 #include "can_protocol_generated.h"

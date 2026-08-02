@@ -1,6 +1,12 @@
 #ifndef CAN_APP_INIT_H
 #define CAN_APP_INIT_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: INTERNAL
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: all
+ */
+
 #include "can_app.h"
 #include "stm32h7xx_hal.h"
 

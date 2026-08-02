@@ -1,6 +1,12 @@
 #ifndef APP_IRQ_POLICY_H
 #define APP_IRQ_POLICY_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: ISR_SAFE
+ * CALL_CONTEXT_ISR_SAFE: all
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 /*

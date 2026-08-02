@@ -1,6 +1,12 @@
 #ifndef CAN_RX_HEALTH_H
 #define CAN_RX_HEALTH_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: INTERNAL
+ * CALL_CONTEXT_ISR_SAFE: CAN_RxHealth_RecordIsr
+ * CALL_CONTEXT_INTERNAL: all
+ */
+
 #include <stdint.h>
 
 typedef enum

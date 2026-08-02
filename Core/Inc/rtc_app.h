@@ -1,6 +1,12 @@
 #ifndef RTC_APP_H
 #define RTC_APP_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "main.h"
 #include "can_protocol.h"
 #include "pca2131.h"

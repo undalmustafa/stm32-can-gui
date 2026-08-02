@@ -1,6 +1,12 @@
 #ifndef APP_LOG_CAN_H
 #define APP_LOG_CAN_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 #define APP_LOG_CAN_HEARTBEAT_PERIOD_MS  100U

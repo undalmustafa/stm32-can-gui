@@ -74,7 +74,7 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_can_command_validation \
 	$(BUILD_DIR)/test_can_app_rx
 
-.PHONY: all test test-python test-stack-usage clean
+.PHONY: all test test-python test-stack-usage test-call-context clean
 
 all: $(TEST_BINS)
 
@@ -190,6 +190,9 @@ test-python:
 
 test-stack-usage:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_stack_usage_report.py
+
+test-call-context:
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_call_context_contract.py
 
 clean:
 	rm -f $(TEST_BINS)

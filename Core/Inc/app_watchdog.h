@@ -1,6 +1,12 @@
 #ifndef APP_WATCHDOG_H
 #define APP_WATCHDOG_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: none
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include "main.h"
 #include "stm32h7xx_hal_iwdg.h"
 

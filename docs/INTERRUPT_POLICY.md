@@ -51,6 +51,11 @@ Current paths follow that split:
 | TIC12400 EXTI | Increment edge counter and set pending flag | SPI status read, input sampling, recovery |
 | User button EXTI | Set control-access request flag | Open/expire access window and log the transition |
 
+Project API declarations carry the same boundary through the standardized
+header contracts documented in `docs/CALL_CONTEXT.md`. Any new ISR-facing API
+must be explicitly listed as `ISR_SAFE` and use a `FromIsr` or `RecordIsr`
+suffix unless its entire module is ISR-safe by default.
+
 ## Adding an interrupt
 
 Before enabling a new IRQ:

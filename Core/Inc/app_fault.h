@@ -1,6 +1,12 @@
 #ifndef APP_FAULT_H
 #define APP_FAULT_H
 
+/*
+ * CALL_CONTEXT_DEFAULT: MAIN_LOOP_ONLY
+ * CALL_CONTEXT_ISR_SAFE: App_Fault_RecordExceptionFromIsr
+ * CALL_CONTEXT_INTERNAL: none
+ */
+
 #include <stdint.h>
 
 #define APP_FAULT_RECORD_MAGIC          0x464C5431UL
@@ -56,9 +62,9 @@ void App_Fault_GetSnapshot(App_Fault_Snapshot_t *snapshot);
  * Fault-context API. The stack pointer may be NULL when no exception frame is
  * available. This function does not allocate, block, or call the HAL.
  */
-void App_Fault_RecordException(App_Fault_Type_t type,
-                               const uint32_t *stack_frame,
-                               uint32_t exception_return);
+void App_Fault_RecordExceptionFromIsr(App_Fault_Type_t type,
+                                      const uint32_t *stack_frame,
+                                      uint32_t exception_return);
 
 #if defined(APP_FAULT_HOST_TEST)
 void App_Fault_TestResetStorage(void);
