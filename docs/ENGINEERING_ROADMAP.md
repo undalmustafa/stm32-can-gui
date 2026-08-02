@@ -256,10 +256,14 @@ kapıları tamamlandı; diğer statik kalite adımları bekliyor.
 - Donanım CRC kullanımını, mevcut yazılım CRC'sine göre gerçek performans ve
   bağımlılık maliyetiyle değerlendir.
 
-## Eksikler bittikten sonraki ürün yönü
+## Ürün geliştirme yönü
 
-Bu bölüm şimdilik uygulama kapsamı dışındadır. Faz 0-3 kabul kriterleri
-tamamlandıktan sonra önerilen sıra:
+Ürün geliştirme, kalan lisans/HIL/bakım maddelerinden önce yürütülür. Mevcut
+host kalite kapıları korunur; donanım kabul eksikleri ayrı backlog olarak
+izlenir. Ürün için runtime, build, test, release veya doğrulanabilir mühendislik
+kanıtı sağlamayan dosyalar referans audit'inden sonra kaldırılır.
+
+Uygulama sırası:
 
 1. `can_protocol.yaml` kaynaklı DBC üretimi.
    - [x] Tüm frame ID/yön/DLC/açıklamalarını, extended-ID işaretini ve komut
@@ -273,5 +277,6 @@ tamamlandıktan sonra önerilen sıra:
 5. Freshness counter ve CMAC tabanlı komut doğrulama.
 6. Self-hosted runner ile nightly HIL regresyonu.
 
-Yeni özelliklere geçiş kapısı: kritik fault kaydı, degraded startup, ölçülmüş
-PWM safe-state, kayıp görünürlüğü olan CAN RX ve WCET raporunun tamamlanmasıdır.
+Yakın hedef, DBC sinyal semantiğini tamamladıktan sonra ISO-TP taşımasını küçük,
+host-testli bir çekirdek olarak eklemektir. UDS servisleri bu taşıma katmanının
+üzerine kurulacaktır.
