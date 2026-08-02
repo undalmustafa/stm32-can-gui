@@ -9,6 +9,8 @@ from can_gui_app.isotp_client import IsoTpClient  # noqa: E402
 from can_gui_app.uds_client import UdsClient  # noqa: E402
 from can_gui_app.protocol import (  # noqa: E402
     UDS_DID_PROTOCOL_INFO,
+    UDS_ROUTINE_ERASE_INACTIVE_SLOT,
+    UDS_SERVICE_REQUEST_DOWNLOAD,
     UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
 )
 
@@ -136,6 +138,36 @@ def main():
         pass
     else:
         raise AssertionError("oversized Classic CAN requests are rejected")
+
+    download_callbacks = []
+    expect(client.routine_control(
+        1, UDS_ROUTINE_ERASE_INACTIVE_SLOT, download_callbacks.append
+    ), "RoutineControl request is queued")
+    client.handle_frame(bytes([
+        4, 0x71, 1, 0xFF, 0x00, 0, 0, 0
+    ]))
+    expect(download_callbacks[-1].ok,
+           "RoutineControl positive response reaches the caller")
+
+    expect(client.request_download(
+        0x08100000, 1040, download_callbacks.append
+    ), "32-bit RequestDownload is queued")
+    expect(uds_frames[-1][:3] == bytes([0x10, 11, 0x34]),
+           "RequestDownload uses multi-frame ISO-TP")
+    client.handle_frame(bytes([0x30, 0, 0, 0, 0, 0, 0, 0]))
+    expect(uds_frames[-1][0] == 0x21,
+           "RequestDownload remainder uses a consecutive frame")
+    client.handle_frame(bytes([4, 0x74, 0x20, 0x01, 0x02, 0, 0, 0]))
+    expect(download_callbacks[-1].ok and
+           download_callbacks[-1].service == UDS_SERVICE_REQUEST_DOWNLOAD,
+           "RequestDownload response is parsed by the shared UDS queue")
+
+    try:
+        client.transfer_data(1, bytes(257))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("oversized firmware block is rejected locally")
 
     print("PASS: non-blocking Python ISO-TP and UDS client")
 

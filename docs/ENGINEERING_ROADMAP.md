@@ -327,6 +327,12 @@ Uygulama sırası:
      application jump yolunu bağla.
    - [x] Power-loss güvenli flash erase/program backend'ini ekle.
    - [ ] UDS firmware download/routine servisleri ile GUI Flash sekmesini ekle.
+     - [x] Programming session, inactive-slot erase, RequestDownload,
+       TransferData ve TransferExit state machine'ini host testinde koru.
+     - [x] Multi-frame request gönderen sıralı desktop workflow ve Flash
+       sekmesini ekle; artifact/slot uyuşmazlığını CAN'e veri çıkmadan reddet.
+     - [ ] STM32 slot writer ile embedded signature verifier'ı finalize
+       callback'ine bağla; ondan sonra üst maddeyi kapat.
    - [ ] Offline signing, gömülü public-key doğrulaması ve signed release
      artifact zincirini tamamla.
 5. Classic CAN'den CAN FD'ye geçiş.

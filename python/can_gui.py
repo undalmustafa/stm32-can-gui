@@ -14,6 +14,8 @@ from can_gui_app.can_session import CanSession
 from can_gui_app.diagnostics_controller import DiagnosticsController
 from can_gui_app.diagnostics_panel import DiagnosticsPanel
 from can_gui_app.event_log_panel import EventLogPanel
+from can_gui_app.flash_controller import FlashController
+from can_gui_app.flash_panel import FlashPanel
 from can_gui_app.main_window_view import MainWindowView
 from can_gui_app.protocol import (
     STM32_LOG_HEARTBEAT_RX_ID,
@@ -65,6 +67,10 @@ class CanGui(QWidget):
         self.diagnostics_panel = DiagnosticsPanel(
             refresh_requested=self.refresh_diagnostics
         )
+        self.flash_panel = FlashPanel(
+            flash_requested=self.start_firmware_update,
+            dialog_parent=self,
+        )
 
         self.can_connection_panel = CanConnectionPanel(
             connect_requested=self.connect_can,
@@ -107,6 +113,16 @@ class CanGui(QWidget):
             renderer=self.diagnostics_panel.render,
             event_writer=self.write_event_log,
         )
+        self.flash_controller = FlashController(
+            change_session=self.can_session.change_diagnostic_session,
+            routine_control=self.can_session.routine_control,
+            request_download=self.can_session.request_download,
+            transfer_data=self.can_session.transfer_data,
+            request_transfer_exit=self.can_session.request_transfer_exit,
+            connected_provider=lambda: self.can_session.bus is not None,
+            renderer=self.flash_panel.render,
+            event_writer=self.write_event_log,
+        )
 
         self.can_health = CanHealthMonitor(
             bus_provider=lambda: self.can_session.bus,
@@ -126,6 +142,7 @@ class CanGui(QWidget):
             tic12400_panel=self.tic12400_panel,
             timing_panel=self.timing_panel,
             diagnostics_panel=self.diagnostics_panel,
+            flash_panel=self.flash_panel,
         )
         self.setLayout(self.window_view.root_layout)
 
@@ -139,7 +156,7 @@ class CanGui(QWidget):
             can_rx_poll=self.can_session.poll,
             can_health_poll=self.can_health.monitor,
             stm32_log_sync=self.event_log_panel.process,
-            diagnostic_poll=self.diagnostics_controller.poll,
+            diagnostic_poll=self.poll_diagnostics,
         )
 
         self.write_event_log(
@@ -260,6 +277,14 @@ class CanGui(QWidget):
 
     def refresh_diagnostics(self):
         return self.diagnostics_controller.refresh()
+
+    def poll_diagnostics(self):
+        if self.flash_controller.busy:
+            return False
+        return self.diagnostics_controller.poll()
+
+    def start_firmware_update(self, path):
+        return self.flash_controller.start(path)
 
     def handle_application_message(self, msg):
         if self.timing_controller.handle_message(msg):

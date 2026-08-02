@@ -2,9 +2,16 @@
 
 from .isotp_client import IsoTpClient
 from .protocol import (
+    UDS_DOWNLOAD_ADDRESS_LENGTH_FORMAT_IDENTIFIER,
+    UDS_DOWNLOAD_DATA_FORMAT_IDENTIFIER,
+    UDS_DOWNLOAD_MAX_BLOCK_LENGTH,
     UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL,
     UDS_SERVICE_READ_DATA_BY_IDENTIFIER,
+    UDS_SERVICE_REQUEST_DOWNLOAD,
+    UDS_SERVICE_REQUEST_TRANSFER_EXIT,
+    UDS_SERVICE_ROUTINE_CONTROL,
     UDS_SERVICE_TESTER_PRESENT,
+    UDS_SERVICE_TRANSFER_DATA,
 )
 
 
@@ -67,6 +74,56 @@ class UdsClient:
 
     def tester_present(self, callback=None):
         return self._enqueue([UDS_SERVICE_TESTER_PRESENT, 0x00], callback)
+
+    def routine_control(self, subfunction, routine_id, callback=None):
+        subfunction = int(subfunction)
+        routine_id = int(routine_id)
+        if not 0 <= subfunction <= 0x7F:
+            raise ValueError("routine subfunction must fit in 7 bits")
+        if not 0 <= routine_id <= 0xFFFF:
+            raise ValueError("routine identifier must fit in 16 bits")
+        return self._enqueue([
+            UDS_SERVICE_ROUTINE_CONTROL,
+            subfunction,
+            (routine_id >> 8) & 0xFF,
+            routine_id & 0xFF,
+        ], callback)
+
+    def request_download(self, address, size, callback=None):
+        address = int(address)
+        size = int(size)
+        if not 0 <= address <= 0xFFFFFFFF:
+            raise ValueError("download address must fit in 32 bits")
+        if not 1 <= size <= 0xFFFFFFFF:
+            raise ValueError("download size must fit in 32 bits")
+        request = bytearray([
+            UDS_SERVICE_REQUEST_DOWNLOAD,
+            UDS_DOWNLOAD_DATA_FORMAT_IDENTIFIER,
+            UDS_DOWNLOAD_ADDRESS_LENGTH_FORMAT_IDENTIFIER,
+        ])
+        request.extend(address.to_bytes(4, "big"))
+        request.extend(size.to_bytes(4, "big"))
+        return self._enqueue(request, callback)
+
+    def transfer_data(self, block_sequence, data, callback=None):
+        block_sequence = int(block_sequence)
+        data = bytes(data)
+        max_data_length = UDS_DOWNLOAD_MAX_BLOCK_LENGTH - 2
+        if not 0 <= block_sequence <= 0xFF:
+            raise ValueError("transfer block sequence must fit in 8 bits")
+        if not 1 <= len(data) <= max_data_length:
+            raise ValueError(
+                f"transfer data must contain 1..{max_data_length} bytes"
+            )
+        return self._enqueue(
+            bytes([UDS_SERVICE_TRANSFER_DATA, block_sequence]) + data,
+            callback,
+        )
+
+    def request_transfer_exit(self, callback=None):
+        return self._enqueue(
+            [UDS_SERVICE_REQUEST_TRANSFER_EXIT], callback
+        )
 
     def _enqueue(self, request, callback):
         if len(self._queue) + (1 if self._active else 0) >= self.queue_capacity:

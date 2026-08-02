@@ -17,7 +17,7 @@ class MainWindowView:
     def __init__(self, can_connection_panel, event_log_panel,
                  can_app_panel, rtc_panel, pwm_panel=None,
                  tic12400_panel=None, timing_panel=None,
-                 diagnostics_panel=None):
+                 diagnostics_panel=None, flash_panel=None):
         self.can_connection_panel = can_connection_panel
         self.event_log_panel = event_log_panel
         self.can_app_panel = can_app_panel
@@ -26,6 +26,7 @@ class MainWindowView:
         self.tic12400_panel = tic12400_panel
         self.timing_panel = timing_panel
         self.diagnostics_panel = diagnostics_panel
+        self.flash_panel = flash_panel
 
         self.header = self._build_header()
         self.tabs = QTabWidget()
@@ -48,6 +49,9 @@ class MainWindowView:
         if self.diagnostics_panel is not None:
             self.diagnostics_page = self._build_diagnostics_page()
             self.tabs.addTab(self.diagnostics_page, "Diagnostics")
+        if self.flash_panel is not None:
+            self.flash_page = self._build_flash_page()
+            self.tabs.addTab(self.flash_page, "Flash")
         self.tabs.addTab(self.logs_page, "Logs & Errors")
 
         self.root_layout = QVBoxLayout()
@@ -193,4 +197,15 @@ class MainWindowView:
         layout.addWidget(self.diagnostics_panel.runtime_group, 2, 0)
         layout.addWidget(self.diagnostics_panel.reset_group, 2, 1)
         layout.setRowStretch(3, 1)
+        return self._scroll_page(content)
+
+    def _build_flash_page(self):
+        content = QWidget()
+        layout = QGridLayout(content)
+        layout.setContentsMargins(4, 8, 4, 8)
+        layout.setVerticalSpacing(10)
+        layout.setColumnStretch(0, 1)
+        layout.addWidget(self.flash_panel.artifact_group, 0, 0)
+        layout.addWidget(self.flash_panel.progress_group, 1, 0)
+        layout.setRowStretch(2, 1)
         return self._scroll_page(content)

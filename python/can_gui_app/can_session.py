@@ -159,6 +159,32 @@ class CanSession:
             return False
         return self.uds_client.tester_present(callback)
 
+    def routine_control(self, subfunction, routine_id, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.routine_control(
+            subfunction, routine_id, callback
+        )
+
+    def request_download(self, address, size, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.request_download(
+            address, size, callback
+        )
+
+    def transfer_data(self, block_sequence, data, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.transfer_data(
+            block_sequence, data, callback
+        )
+
+    def request_transfer_exit(self, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.request_transfer_exit(callback)
+
     def _send_diagnostic_frame(self, data):
         if self.bus is None or len(data) != 8:
             return False

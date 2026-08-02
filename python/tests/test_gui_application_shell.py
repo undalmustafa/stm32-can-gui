@@ -291,6 +291,30 @@ def main():
         "live UDS values have a dedicated optional page",
     )
 
+    flash = Panel()
+    flash.artifact_group = widget("flash_artifact")
+    flash.progress_group = widget("flash_progress")
+    view_with_flash = MainWindowView(
+        connection,
+        event_log,
+        can_app,
+        rtc,
+        flash_panel=flash,
+    )
+    expect(
+        [title for _page, title in view_with_flash.tabs.tabs] == [
+            "Control", "Live Data", "Flash", "Logs & Errors"
+        ],
+        "signed firmware updates have a dedicated optional page",
+    )
+    flash_scroll = view_with_flash.flash_page.layout.items[0]
+    flash_names = [
+        getattr(item, "name", item)
+        for item in flash_scroll.widget.layout.items
+    ]
+    expect(flash_names == ["flash_artifact", "flash_progress"],
+           "Flash page contains artifact selection and update progress")
+
     timer_calls = []
     timers = ApplicationTimers(
         can_rx_poll=lambda: timer_calls.append("rx"),
