@@ -37,6 +37,10 @@
 /* Entry Point */
 ENTRY(Reset_Handler)
 
+/* Target wrappers may override these before including this script. */
+PROVIDE(__firmware_flash_origin__ = 0x08000000);
+PROVIDE(__firmware_flash_length__ = 2048K);
+
 /* Highest address of the user mode stack */
 _estack = ORIGIN(RAM) + LENGTH(RAM); /* end of "RAM" Ram type memory */
 
@@ -50,7 +54,8 @@ MEMORY
   ITCMRAM    (xrw)    : ORIGIN = 0x00000000,   LENGTH = 64K
   RAM    (xrw)    : ORIGIN = 0x24000000,   LENGTH = 1024K
   BKPSRAM    (xrw)    : ORIGIN = 0x38800000,   LENGTH = 4K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 2048K
+  FLASH    (rx)    : ORIGIN = __firmware_flash_origin__,
+                     LENGTH = __firmware_flash_length__
 }
 
 /* Sections */
@@ -61,6 +66,7 @@ SECTIONS
   .isr_vector :
   {
     . = ALIGN(4);
+    __vector_table_start__ = .;
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
   } >FLASH
@@ -217,4 +223,11 @@ SECTIONS
           + SIZEOF(.app_log_retained))
          <= LENGTH(BKPSRAM),
          "retained records exceed backup SRAM")
+
+  ASSERT(ADDR(.isr_vector) == ORIGIN(FLASH),
+         "vector table must start at the firmware flash origin")
+  ASSERT((ADDR(.isr_vector) & 0x3FF) == 0,
+         "Cortex-M7 vector table must be 1 KiB aligned")
+  ASSERT(SIZEOF(.isr_vector) <= 0x400,
+         "Cortex-M7 vector table exceeds its 1 KiB reservation")
 }

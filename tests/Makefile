@@ -34,6 +34,9 @@ TEST_CAN_UDS_SRC = test_can_uds.c ../Core/Src/can_uds.c \
 TEST_BOOT_IMAGE_SRC = test_boot_image.c ../Core/Src/boot_image.c unity/unity.c
 TEST_BOOT_CONTROL_SRC = test_boot_control.c ../Core/Src/boot_control.c \
 	unity/unity.c
+TEST_BOOT_JUMP_SRC = test_boot_jump.c ../Core/Src/boot_jump.c unity/unity.c
+TEST_BOOT_TARGET_SRC = test_boot_target.c ../Core/Src/boot_target.c \
+	../Core/Src/boot_control.c ../Core/Src/boot_jump.c unity/unity.c
 TEST_PWM_SELF_TEST_SRC = test_pwm_self_test.c ../Core/Src/pwm_self_test.c unity/unity.c
 TEST_COMMAND_GUARD_SRC = test_can_command_guard.c \
 	../Core/Src/can_command_guard.c ../Core/Src/can_protocol.c unity/unity.c
@@ -76,6 +79,8 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_can_uds \
 	$(BUILD_DIR)/test_boot_image \
 	$(BUILD_DIR)/test_boot_control \
+	$(BUILD_DIR)/test_boot_jump \
+	$(BUILD_DIR)/test_boot_target \
 	$(BUILD_DIR)/test_pwm_self_test \
 	$(BUILD_DIR)/test_command_guard \
 	$(BUILD_DIR)/test_app_log \
@@ -91,7 +96,8 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_can_app_rx
 
 .PHONY: all test test-python test-python-ci test-python-dependencies \
-	test-protocol-generation test-stack-usage test-call-context clean
+	test-protocol-generation test-stack-usage test-call-context \
+	test-boot-linker-contract clean
 
 all: $(TEST_BINS)
 
@@ -150,6 +156,12 @@ $(BUILD_DIR)/test_boot_image: $(TEST_BOOT_IMAGE_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_boot_control: $(TEST_BOOT_CONTROL_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_boot_jump: $(TEST_BOOT_JUMP_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
+$(BUILD_DIR)/test_boot_target: $(TEST_BOOT_TARGET_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 $(BUILD_DIR)/test_pwm_self_test: $(TEST_PWM_SELF_TEST_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
@@ -190,7 +202,7 @@ $(BUILD_DIR)/test_can_app_rx: $(TEST_CAN_APP_RX_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -ffunction-sections -fdata-sections $^ \
 		-Wl,--gc-sections -o $@
 
-test: all
+test: all test-boot-linker-contract
 	$(BUILD_DIR)/test_protocol
 	$(BUILD_DIR)/test_pca2131
 	$(BUILD_DIR)/test_rtc_app
@@ -208,6 +220,8 @@ test: all
 	$(BUILD_DIR)/test_can_uds
 	$(BUILD_DIR)/test_boot_image
 	$(BUILD_DIR)/test_boot_control
+	$(BUILD_DIR)/test_boot_jump
+	$(BUILD_DIR)/test_boot_target
 	$(BUILD_DIR)/test_pwm_self_test
 	$(BUILD_DIR)/test_command_guard
 	$(BUILD_DIR)/test_app_log
@@ -252,6 +266,9 @@ test-stack-usage:
 
 test-call-context:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_call_context_contract.py
+
+test-boot-linker-contract:
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_boot_linker_contract.py
 
 clean:
 	rm -f $(TEST_BINS)

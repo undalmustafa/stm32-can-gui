@@ -1,6 +1,7 @@
-TARGET := can_gui
+TARGET ?= can_gui
 CONFIG ?= release
 BUILD_DIR := build/$(CONFIG)
+IMAGE_LAYOUT ?= standalone
 
 CROSS_COMPILE ?= arm-none-eabi-
 CC := $(CROSS_COMPILE)gcc
@@ -11,7 +12,15 @@ PYTHON ?= python3
 CPPCHECK ?= cppcheck
 STATIC_ANALYSIS_DIR ?= build/static-analysis
 
+ifeq ($(IMAGE_LAYOUT),standalone)
 LINKER_SCRIPT := STM32H7A3ZITXQ_FLASH.ld
+else ifeq ($(IMAGE_LAYOUT),slot-a)
+LINKER_SCRIPT := linker/STM32H7A3ZITXQ_SLOT_A.ld
+else ifeq ($(IMAGE_LAYOUT),slot-b)
+LINKER_SCRIPT := linker/STM32H7A3ZITXQ_SLOT_B.ld
+else
+$(error IMAGE_LAYOUT must be standalone, slot-a or slot-b)
+endif
 
 CORE_SOURCES := $(wildcard Core/Src/*.c)
 BSP_SOURCES := Drivers/BSP/STM32H7xx_Nucleo/stm32h7xx_nucleo.c
@@ -101,7 +110,7 @@ endif
 
 .DEFAULT_GOAL := all
 
-.PHONY: all clean debug release size static-analysis stack-report
+.PHONY: all clean debug release slot-a slot-b size static-analysis stack-report
 
 all: $(ELF) $(HEX) $(BIN) $(LIST) size
 
@@ -110,6 +119,12 @@ debug:
 
 release:
 	$(MAKE) CONFIG=release all
+
+slot-a:
+	$(MAKE) IMAGE_LAYOUT=slot-a TARGET=can_gui_slot_a all
+
+slot-b:
+	$(MAKE) IMAGE_LAYOUT=slot-b TARGET=can_gui_slot_b all
 
 $(ELF): $(OBJECTS) $(LINKER_SCRIPT)
 	$(create_output_directory)

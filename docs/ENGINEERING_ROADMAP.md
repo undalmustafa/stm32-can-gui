@@ -318,12 +318,12 @@ Uygulama sırası:
 4. A/B, imzalı ve rollback destekli CAN bootloader.
    - [x] 2 MiB dual-bank flash'i bootloader, 896 KiB A/B slotları ve redundant
      boot-control alanına sektör hizalı böl. 128-byte signed manifest ve
-     512-byte vector header sözleşmesini dondur. Slot sınırı, MSP/reset vector,
+     1 KiB vector header sözleşmesini dondur. Slot sınırı, MSP/reset vector,
      monotonic security counter, SHA-256 digest ve imza callback'lerini
      fail-closed doğrulayan HAL bağımsız çekirdeği host testinde koru.
    - [x] CRC/generation korumalı redundant boot-control record, pending boot
      attempt, application confirmation ve otomatik rollback policy'sini ekle.
-   - [ ] Boot target, A/B linker script'leri, vector relocation ve güvenli
+   - [x] Boot target, A/B linker script'leri, vector relocation ve güvenli
      application jump yolunu bağla.
    - [ ] Power-loss güvenli flash erase/program backend'ini ekle.
    - [ ] UDS firmware download/routine servisleri ile GUI Flash sekmesini ekle.
