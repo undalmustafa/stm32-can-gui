@@ -31,6 +31,18 @@ identifiers:
     direction: gui_to_mcu
     description: "Fixed identifier for all multiplexed GUI commands"
 
+  diagnostic_request:
+    id: 0x07E0
+    type: standard
+    direction: gui_to_mcu
+    description: "Physical ISO-TP diagnostic request to the MCU"
+
+  diagnostic_response:
+    id: 0x07E8
+    type: standard
+    direction: mcu_to_gui
+    description: "Physical ISO-TP diagnostic response from the MCU"
+
   rtc_status:
     id: 0x0551
     type: standard
@@ -617,12 +629,18 @@ tic12400_result_codes:
 # ---------------------------------------------------------------------------
 # DBC Signal Definitions
 #
-# Frames omitted here retain the lossless PayloadByte0..7 baseline until their
-# wire layouts are promoted to product-level signals.
+# Every frame is represented by product- or transport-level signals. Dynamic
+# ISO-TP payload semantics are decoded by the transport/UDS layers.
 # ---------------------------------------------------------------------------
 dbc_boolean_values:
   0: "False"
   1: "True"
+
+isotp_pci_types:
+  0: "SingleFrame"
+  1: "FirstFrame"
+  2: "ConsecutiveFrame"
+  3: "FlowControl"
 
 dbc_signals:
   gui_command:
@@ -927,6 +945,38 @@ dbc_signals:
       length: 32
       maximum: 0
       multiplex_value: *cmd_tic12400_set_polarity
+
+  diagnostic_request:
+    - name: PciParameter
+      start_bit: 0
+      length: 4
+      description: "Length high nibble, sequence number or flow status"
+    - name: PciType
+      start_bit: 4
+      length: 4
+      maximum: 3
+      value_source: isotp_pci_types
+      description: "ISO-TP protocol control information type"
+    - name: TransportData
+      start_bit: 8
+      length: 56
+      description: "ISO-TP frame-dependent length, control or payload data"
+
+  diagnostic_response:
+    - name: PciParameter
+      start_bit: 0
+      length: 4
+      description: "Length high nibble, sequence number or flow status"
+    - name: PciType
+      start_bit: 4
+      length: 4
+      maximum: 3
+      value_source: isotp_pci_types
+      description: "ISO-TP protocol control information type"
+    - name: TransportData
+      start_bit: 8
+      length: 56
+      description: "ISO-TP frame-dependent length, control or payload data"
 
   rtc_status:
     - name: StatusCode

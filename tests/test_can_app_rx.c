@@ -9,6 +9,7 @@
 #include "can_app.h"
 #include "can_app_init.h"
 #include "can_control_access.h"
+#include "can_isotp.h"
 #include "can_protocol.h"
 #include "can_recovery.h"
 #include "can_rx_health.h"
@@ -67,6 +68,12 @@ static uint8_t last_led_number;
 static uint8_t last_led_state;
 static uint32_t log_info_calls;
 static uint32_t timing_ack_records;
+static uint32_t isotp_init_calls;
+static uint32_t isotp_frame_calls;
+static uint32_t isotp_process_calls;
+static uint8_t isotp_last_dlc;
+static uint8_t isotp_last_data[8U];
+static uint32_t isotp_last_now_us;
 
 uint32_t HAL_GetTick(void)
 {
@@ -125,6 +132,30 @@ void CAN_RxHealth_Init(void)
 void CAN_RxHealth_GetStats(CAN_RxHealth_Stats_t *stats)
 {
     *stats = health_stats;
+}
+
+void CAN_IsoTp_Init(void)
+{
+    isotp_init_calls++;
+}
+
+CAN_IsoTp_Result_t CAN_IsoTp_OnCanFrame(
+    const uint8_t *data,
+    uint8_t dlc,
+    uint32_t now_us)
+{
+    isotp_frame_calls++;
+    isotp_last_dlc = dlc;
+    isotp_last_now_us = now_us;
+    (void)memcpy(isotp_last_data, data, dlc);
+    return CAN_ISOTP_RESULT_OK;
+}
+
+CAN_IsoTp_Result_t CAN_IsoTp_Process(uint32_t now_us)
+{
+    isotp_process_calls++;
+    isotp_last_now_us = now_us;
+    return CAN_ISOTP_RESULT_NO_WORK;
 }
 
 void CAN_Recovery_Init(void)
@@ -308,6 +339,20 @@ static void enqueue_frame(const uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
     frame_count++;
 }
 
+static void enqueue_diagnostic_frame(const uint8_t *payload, uint8_t dlc)
+{
+    Test_RxFrame_t *frame = &frames[frame_count];
+    uint8_t copy_length = (dlc > 8U) ? 8U : dlc;
+
+    frame->header.Identifier = CAN_PROTOCOL_DIAGNOSTIC_REQUEST_RX_ID;
+    frame->header.IdType = FDCAN_STANDARD_ID;
+    frame->header.RxFrameType = FDCAN_DATA_FRAME;
+    frame->header.DataLength = dlc;
+    frame->header.FDFormat = FDCAN_CLASSIC_CAN;
+    (void)memcpy(frame->payload, payload, copy_length);
+    frame_count++;
+}
+
 static void reset_captures(void)
 {
     frame_count = 0U;
@@ -323,9 +368,15 @@ static void reset_captures(void)
     last_led_state = 0U;
     log_info_calls = 0U;
     timing_ack_records = 0U;
+    isotp_init_calls = 0U;
+    isotp_frame_calls = 0U;
+    isotp_process_calls = 0U;
+    isotp_last_dlc = 0U;
+    isotp_last_now_us = 0U;
     (void)memset(frames, 0, sizeof(frames));
     (void)memset(acks, 0, sizeof(acks));
     (void)memset(logs, 0, sizeof(logs));
+    (void)memset(isotp_last_data, 0, sizeof(isotp_last_data));
 }
 
 void setUp(void)
@@ -336,6 +387,7 @@ void setUp(void)
     hfdcan1.ErrorCode = 0x1234U;
     reset_captures();
     TEST_ASSERT_EQUAL(CAN_APP_INIT_OK, CAN_App_Init(1U));
+    TEST_ASSERT_EQUAL_UINT32(1U, isotp_init_calls);
     reset_captures();
 }
 
@@ -387,6 +439,42 @@ void test_frame_format_and_dlc_gates_are_counted_without_ack(void)
     TEST_ASSERT_EQUAL_UINT32(2U, stats.rejected_frame_format);
     TEST_ASSERT_EQUAL_UINT32(1U, stats.rejected_dlc);
     TEST_ASSERT_EQUAL_UINT32(0U, ack_count);
+}
+
+void test_diagnostic_frames_are_routed_with_actual_classic_dlc(void)
+{
+    const uint8_t request[4U] = {3U, 0x22U, 0xF1U, 0x90U};
+    CAN_App_RxStats_t stats;
+
+    enqueue_diagnostic_frame(request, sizeof(request));
+    CAN_Process_Rx_Command();
+    stats = get_stats();
+
+    TEST_ASSERT_EQUAL_UINT32(1U, stats.frames_received);
+    TEST_ASSERT_EQUAL_UINT32(1U, isotp_frame_calls);
+    TEST_ASSERT_EQUAL_UINT8(sizeof(request), isotp_last_dlc);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(
+        request,
+        isotp_last_data,
+        sizeof(request));
+    TEST_ASSERT_EQUAL_UINT32(fake_tick * 1000U, isotp_last_now_us);
+    TEST_ASSERT_EQUAL_UINT32(0U, ack_count);
+    TEST_ASSERT_EQUAL_UINT32(0U, log_count);
+}
+
+void test_diagnostic_zero_or_fd_dlc_is_rejected_before_isotp(void)
+{
+    const uint8_t request[8U] = {0U};
+    CAN_App_RxStats_t stats;
+
+    enqueue_diagnostic_frame(request, 0U);
+    enqueue_diagnostic_frame(request, 9U);
+    CAN_Process_Rx_Command();
+    stats = get_stats();
+
+    TEST_ASSERT_EQUAL_UINT32(2U, stats.frames_received);
+    TEST_ASSERT_EQUAL_UINT32(2U, stats.rejected_dlc);
+    TEST_ASSERT_EQUAL_UINT32(0U, isotp_frame_calls);
 }
 
 void test_unknown_and_invalid_commands_return_reasoned_acks(void)
@@ -554,6 +642,8 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_wrong_id_is_rejected_without_ack);
     RUN_TEST(test_frame_format_and_dlc_gates_are_counted_without_ack);
+    RUN_TEST(test_diagnostic_frames_are_routed_with_actual_classic_dlc);
+    RUN_TEST(test_diagnostic_zero_or_fd_dlc_is_rejected_before_isotp);
     RUN_TEST(test_unknown_and_invalid_commands_return_reasoned_acks);
     RUN_TEST(
         test_privileged_command_is_denied_while_safe_command_executes);

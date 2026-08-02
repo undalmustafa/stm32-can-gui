@@ -298,9 +298,13 @@ Uygulama sırası:
      12-bit uzunluk, sequence wrap, block size, WAIT limiti, microsecond
      `STmin`, `N_Bs`/`N_Cr` timeout ve tick wrap davranışlarını host testinde
      koru.
-   - [ ] ISO-TP kanalını ayrılmış request/response CAN ID'leri ve
-     high-priority transport kuyruğu üzerinden firmware main-loop'una bağla;
-     RX bütçesi, backpressure ve transport hata sayaçlarını görünür yap.
+   - [x] ISO-TP kanalını YAML/DBC kaynaklı fiziksel `0x7E0` request ve `0x7E8`
+     response ID'leriyle firmware main-loop'una bağla. Standard/extended
+     donanım filtrelerini birlikte kur; diagnostic frame'lerini ortak sekiz
+     frame RX bütçesinde işle; flow-control/response frame'lerini
+     high-priority transport kuyruğuna ver. Queue backpressure durumunda
+     oturumu fail-closed kapat ve protocol/timeout/overflow/transport
+     sayaçlarını accessor üzerinden görünür tut.
    - [ ] UDS dispatcher ile önce salt-okuma `0x10`, `0x22` ve `0x3E`
      servislerini ekle; session timeout ve negative-response davranışını ayrı
      host testleriyle koru.
@@ -309,6 +313,6 @@ Uygulama sırası:
 6. Freshness counter ve CMAC tabanlı komut doğrulama.
 7. Self-hosted runner ile nightly HIL regresyonu.
 
-DBC sinyal semantiği ve donanımdan bağımsız ISO-TP çekirdeği tamamlandı. Yakın
-hedef ISO-TP kanalını gerçek CAN RX/TX yoluna bağlamak, ardından salt-okuma UDS
-diagnostic servislerini bu taşıma katmanının üzerine kurmaktır.
+DBC sinyal semantiği, ISO-TP çekirdeği ve gerçek CAN RX/TX entegrasyonu
+tamamlandı. Yakın hedef salt-okuma UDS diagnostic dispatcher'ını bu taşıma
+katmanının üzerine kurmaktır.

@@ -7,6 +7,7 @@
 #include "can_command_guard.h"
 #include "can_command_validation.h"
 #include "can_control_access.h"
+#include "can_isotp.h"
 #include "can_transport.h"
 #include "can_recovery.h"
 #include "can_rx_health.h"
@@ -71,6 +72,18 @@ static void CAN_Send_Command_Ack(
     uint32_t frame_start_cycles);
 static void CAN_Send_Rx_Health(void);
 static void CAN_Timing_Telemetry_Process(void);
+
+static uint8_t CAN_DecodeClassicDlc(uint32_t encoded_dlc, uint8_t *dlc)
+{
+    if ((dlc == NULL) || (encoded_dlc == 0U) ||
+        (encoded_dlc > FDCAN_DLC_BYTES_8))
+    {
+        return 0U;
+    }
+
+    *dlc = (uint8_t)encoded_dlc;
+    return 1U;
+}
 
 static uint16_t CAN_SaturateU16(uint32_t value)
 {
@@ -343,6 +356,7 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
 {
     can_rx_stats = (CAN_App_RxStats_t){0};
     CAN_RxHealth_Init();
+    CAN_IsoTp_Init();
     CAN_ControlAccess_Init(&control_access);
     control_policy_update_applied = UINT32_MAX;
     control_output_update_applied = UINT32_MAX;
@@ -433,6 +447,7 @@ void CAN_App_Process(void)
 
     /* Uygulama servisleri yeni mesajlar üretebilir. */
     CAN_Process_Rx_Command();
+    (void)CAN_IsoTp_Process(HAL_GetTick() * 1000U);
     CAN_Apply_SlotPolicy();
     CAN_Send_Pwm_Self_Test_Result();
     System_Status_Process();
@@ -451,6 +466,7 @@ void CAN_Process_Rx_Command(void)
     CAN_CommandValidationResult_t validation_result;
     uint8_t command;
     uint8_t ack_flags;
+    uint8_t diagnostic_dlc;
     uint32_t processed_count = 0U;
     uint32_t frame_start_cycles;
 
@@ -475,18 +491,36 @@ void CAN_Process_Rx_Command(void)
         can_rx_stats.frames_received++;
         frame_start_cycles = App_Timing_Begin();
 
-        if ((RxHeader.IdType != FDCAN_EXTENDED_ID) ||
-            (RxHeader.Identifier != CAN_PROTOCOL_GUI_COMMAND_ID_EXT))
-        {
-            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_WRONG_ID, 0U);
-            continue;
-        }
-
-        /* Komut protokolü yalnızca Classic CAN data frame kabul eder. */
+        /* Uygulama ve diagnostic protokolleri yalnızca Classic CAN data
+         * frame kabul eder. */
         if ((RxHeader.RxFrameType != FDCAN_DATA_FRAME) ||
             (RxHeader.FDFormat != FDCAN_CLASSIC_CAN))
         {
             CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_FRAME_FORMAT, 0U);
+            continue;
+        }
+
+        if ((RxHeader.IdType == FDCAN_STANDARD_ID) &&
+            (RxHeader.Identifier == CAN_PROTOCOL_DIAGNOSTIC_REQUEST_RX_ID))
+        {
+            if (CAN_DecodeClassicDlc(
+                    RxHeader.DataLength, &diagnostic_dlc) == 0U)
+            {
+                CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_DLC, 0U);
+                continue;
+            }
+
+            (void)CAN_IsoTp_OnCanFrame(
+                RxData,
+                diagnostic_dlc,
+                HAL_GetTick() * 1000U);
+            continue;
+        }
+
+        if ((RxHeader.IdType != FDCAN_EXTENDED_ID) ||
+            (RxHeader.Identifier != CAN_PROTOCOL_GUI_COMMAND_ID_EXT))
+        {
+            CAN_Record_Rx_Reject(CAN_APP_RX_REJECT_WRONG_ID, 0U);
             continue;
         }
 

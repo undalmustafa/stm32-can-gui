@@ -23,7 +23,12 @@ def generate_python_module(yaml_path, out_path):
             if val["type"] == "extended":
                 out.write(f"{name}_ID_EXT = 0x{id_val:08X}\n")
             else:
-                out.write(f"{name}_TX_ID = 0x{id_val:03X}\n")
+                direction_suffix = (
+                    "RX" if val["direction"] == "gui_to_mcu" else "TX"
+                )
+                out.write(
+                    f"{name}_{direction_suffix}_ID = 0x{id_val:03X}\n"
+                )
         out.write("\n")
 
         log_transport = data.get("log_transport", {})

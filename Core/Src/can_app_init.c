@@ -47,13 +47,29 @@ CAN_App_InitResult_t CAN_App_InitHardware(FDCAN_HandleTypeDef *hfdcan,
 
     CAN_Transport_Init(hfdcan);
 
-    /* Accept only the fixed extended GUI command identifier. */
+    /* Accept the fixed extended GUI command identifier. */
     filter.IdType = FDCAN_EXTENDED_ID;
     filter.FilterIndex = 0U;
     filter.FilterType = FDCAN_FILTER_MASK;
     filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
     filter.FilterID1 = CAN_PROTOCOL_GUI_COMMAND_ID_EXT;
     filter.FilterID2 = 0x1FFFFFFFUL;
+
+    if (HAL_FDCAN_ConfigFilter(hfdcan, &filter) != HAL_OK)
+    {
+        return CAN_App_RecordInitFailure(
+            hfdcan,
+            CAN_APP_INIT_FILTER_ERROR);
+    }
+
+    /* Accept the physical ISO-TP request identifier on the standard bus. */
+    filter = (FDCAN_FilterTypeDef){0};
+    filter.IdType = FDCAN_STANDARD_ID;
+    filter.FilterIndex = 0U;
+    filter.FilterType = FDCAN_FILTER_MASK;
+    filter.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
+    filter.FilterID1 = CAN_PROTOCOL_DIAGNOSTIC_REQUEST_RX_ID;
+    filter.FilterID2 = 0x7FFU;
 
     if (HAL_FDCAN_ConfigFilter(hfdcan, &filter) != HAL_OK)
     {

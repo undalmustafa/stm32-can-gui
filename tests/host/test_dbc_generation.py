@@ -141,6 +141,12 @@ def main() -> None:
                 f"missing DBC comment for {message_name}")
 
     product_signals = {
+        "diagnostic_request": {
+            "PciParameter", "PciType", "TransportData",
+        },
+        "diagnostic_response": {
+            "PciParameter", "PciType", "TransportData",
+        },
         "rtc_status": {
             "StatusCode", "HalStatus", "HalError", "Reserved",
         },
@@ -227,7 +233,7 @@ def main() -> None:
     }
     require(
         set(product_signals) == set(identifiers) - {"gui_command"},
-        "every MCU telemetry frame must have product-level DBC signals",
+        "every non-command frame must have explicit DBC signals",
     )
     for key, expected_signals in product_signals.items():
         frame_id = encoded_frame_id(identifiers[key])

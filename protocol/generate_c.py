@@ -35,8 +35,11 @@ def generate_c_header(yaml_path, out_path):
                     f"0x{id_val:08X}UL\n"
                 )
             else:
+                direction_suffix = (
+                    "RX" if val["direction"] == "gui_to_mcu" else "TX"
+                )
                 out.write(
-                    f"#define CAN_PROTOCOL_{name}_TX_ID "
+                    f"#define CAN_PROTOCOL_{name}_{direction_suffix}_ID "
                     f"0x{id_val:03X}U\n"
                 )
         out.write("\n")

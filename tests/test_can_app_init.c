@@ -35,7 +35,7 @@ FDCAN_GlobalTypeDef test_fdcan1_instance;
 static FDCAN_HandleTypeDef test_handle;
 static Test_InitStage_t failing_stage;
 static Test_CallCounts_t calls;
-static FDCAN_FilterTypeDef captured_filter;
+static FDCAN_FilterTypeDef captured_filters[2U];
 static uint32_t captured_global_args[4];
 static uint32_t captured_fifo_args[2];
 static uint32_t captured_watermark_args[2];
@@ -48,6 +48,7 @@ static uint32_t logged_data_0;
 static uint32_t logged_data_1;
 static uint32_t log_calls;
 static uint32_t recovery_init_calls;
+static uint32_t filter_failure_call;
 
 static HAL_StatusTypeDef status_for(Test_InitStage_t stage)
 {
@@ -82,10 +83,16 @@ HAL_StatusTypeDef HAL_FDCAN_ConfigFilter(
     FDCAN_HandleTypeDef *hfdcan,
     FDCAN_FilterTypeDef *filter)
 {
+    uint32_t call_index = calls.filter;
+
     TEST_ASSERT_EQUAL_PTR(&test_handle, hfdcan);
+    if (calls.filter < 2U)
+    {
+        captured_filters[calls.filter] = *filter;
+    }
     calls.filter++;
-    captured_filter = *filter;
-    return status_for(TEST_INIT_STAGE_FILTER);
+    return ((failing_stage == TEST_INIT_STAGE_FILTER) &&
+            (call_index == filter_failure_call)) ? HAL_ERROR : HAL_OK;
 }
 
 HAL_StatusTypeDef HAL_FDCAN_ConfigGlobalFilter(
@@ -165,7 +172,8 @@ static void reset_fakes(void)
     test_handle.ErrorCode = 0xA5A55A5AUL;
     failing_stage = TEST_INIT_STAGE_NONE;
     calls = (Test_CallCounts_t){0};
-    captured_filter = (FDCAN_FilterTypeDef){0};
+    captured_filters[0] = (FDCAN_FilterTypeDef){0};
+    captured_filters[1] = (FDCAN_FilterTypeDef){0};
     for (index = 0U; index < 4U; index++)
     {
         captured_global_args[index] = 0U;
@@ -183,6 +191,7 @@ static void reset_fakes(void)
     logged_data_1 = 0U;
     log_calls = 0U;
     recovery_init_calls = 0U;
+    filter_failure_call = 0U;
 }
 
 void setUp(void)
@@ -240,15 +249,23 @@ void test_success_configures_filters_fifo_and_enables_transport(void)
     TEST_ASSERT_EQUAL_PTR(&test_handle, transport_bindings[1]);
     TEST_ASSERT_EQUAL_UINT32(0U, log_calls);
 
-    TEST_ASSERT_EQUAL_UINT32(1U, calls.filter);
-    TEST_ASSERT_EQUAL_UINT32(FDCAN_EXTENDED_ID, captured_filter.IdType);
+    TEST_ASSERT_EQUAL_UINT32(2U, calls.filter);
+    TEST_ASSERT_EQUAL_UINT32(FDCAN_EXTENDED_ID, captured_filters[0].IdType);
     TEST_ASSERT_EQUAL_UINT32(FDCAN_FILTER_MASK,
-                             captured_filter.FilterType);
+                             captured_filters[0].FilterType);
     TEST_ASSERT_EQUAL_UINT32(FDCAN_FILTER_TO_RXFIFO0,
-                             captured_filter.FilterConfig);
+                             captured_filters[0].FilterConfig);
     TEST_ASSERT_EQUAL_HEX32(CAN_PROTOCOL_GUI_COMMAND_ID_EXT,
-                            captured_filter.FilterID1);
-    TEST_ASSERT_EQUAL_HEX32(0x1FFFFFFFUL, captured_filter.FilterID2);
+                            captured_filters[0].FilterID1);
+    TEST_ASSERT_EQUAL_HEX32(0x1FFFFFFFUL, captured_filters[0].FilterID2);
+    TEST_ASSERT_EQUAL_UINT32(FDCAN_STANDARD_ID, captured_filters[1].IdType);
+    TEST_ASSERT_EQUAL_UINT32(FDCAN_FILTER_MASK,
+                             captured_filters[1].FilterType);
+    TEST_ASSERT_EQUAL_UINT32(FDCAN_FILTER_TO_RXFIFO0,
+                             captured_filters[1].FilterConfig);
+    TEST_ASSERT_EQUAL_HEX32(CAN_PROTOCOL_DIAGNOSTIC_REQUEST_RX_ID,
+                            captured_filters[1].FilterID1);
+    TEST_ASSERT_EQUAL_HEX32(0x7FFU, captured_filters[1].FilterID2);
     TEST_ASSERT_EQUAL_UINT32(FDCAN_REJECT, captured_global_args[0]);
     TEST_ASSERT_EQUAL_UINT32(FDCAN_REJECT, captured_global_args[1]);
     TEST_ASSERT_EQUAL_UINT32(FDCAN_REJECT_REMOTE,
@@ -298,11 +315,20 @@ void test_filter_failure_disables_transport_and_stops_sequence(void)
     TEST_ASSERT_EQUAL_UINT32(0U, calls.global_filter);
 }
 
+void test_diagnostic_filter_failure_disables_transport(void)
+{
+    filter_failure_call = 1U;
+    assert_failed_init(CAN_APP_INIT_FILTER_ERROR,
+                       TEST_INIT_STAGE_FILTER);
+    TEST_ASSERT_EQUAL_UINT32(2U, calls.filter);
+    TEST_ASSERT_EQUAL_UINT32(0U, calls.global_filter);
+}
+
 void test_global_filter_failure_stops_before_fifo_configuration(void)
 {
     assert_failed_init(CAN_APP_INIT_GLOBAL_FILTER_ERROR,
                        TEST_INIT_STAGE_GLOBAL_FILTER);
-    TEST_ASSERT_EQUAL_UINT32(1U, calls.filter);
+    TEST_ASSERT_EQUAL_UINT32(2U, calls.filter);
     TEST_ASSERT_EQUAL_UINT32(1U, calls.global_filter);
     TEST_ASSERT_EQUAL_UINT32(0U, calls.fifo_mode);
 }
@@ -346,6 +372,7 @@ int main(void)
     RUN_TEST(test_success_configures_filters_fifo_and_enables_transport);
     RUN_TEST(test_unavailable_or_null_peripheral_never_touches_hal);
     RUN_TEST(test_filter_failure_disables_transport_and_stops_sequence);
+    RUN_TEST(test_diagnostic_filter_failure_disables_transport);
     RUN_TEST(test_global_filter_failure_stops_before_fifo_configuration);
     RUN_TEST(test_fifo_mode_failure_stops_before_watermark);
     RUN_TEST(test_watermark_failure_stops_before_start);

@@ -67,6 +67,16 @@ BO_ 2559879867 GUI_COMMAND: 8 GUI
  SG_ Tic12400BatterySwitchBitmap m80 : 8|24@1+ (1,0) [0|1023] "" MCU
  SG_ Tic12400PolarityReserved m80 : 32|32@1+ (1,0) [0|0] "" MCU
 
+BO_ 2016 DIAGNOSTIC_REQUEST: 8 GUI
+ SG_ PciParameter : 0|4@1+ (1,0) [0|15] "" MCU
+ SG_ PciType : 4|4@1+ (1,0) [0|3] "" MCU
+ SG_ TransportData : 8|56@1+ (1,0) [0|72057594037927935] "" MCU
+
+BO_ 2024 DIAGNOSTIC_RESPONSE: 8 MCU
+ SG_ PciParameter : 0|4@1+ (1,0) [0|15] "" GUI
+ SG_ PciType : 4|4@1+ (1,0) [0|3] "" GUI
+ SG_ TransportData : 8|56@1+ (1,0) [0|72057594037927935] "" GUI
+
 BO_ 1361 RTC_STATUS: 8 MCU
  SG_ StatusCode : 0|8@1+ (1,0) [0|255] "" GUI
  SG_ HalStatus : 8|8@1+ (1,0) [0|255] "" GUI
@@ -251,6 +261,14 @@ BO_ 1378 TIMING_ACK_LATENCY: 8 MCU
 CM_ BO_ 2559879867 "Fixed identifier for all multiplexed GUI commands";
 CM_ SG_ 2559879867 CommandCode "Selects the command-specific payload layout";
 CM_ SG_ 2559879867 RtcDateTimeYear "Year offset from 2000";
+CM_ BO_ 2016 "Physical ISO-TP diagnostic request to the MCU";
+CM_ SG_ 2016 PciParameter "Length high nibble, sequence number or flow status";
+CM_ SG_ 2016 PciType "ISO-TP protocol control information type";
+CM_ SG_ 2016 TransportData "ISO-TP frame-dependent length, control or payload data";
+CM_ BO_ 2024 "Physical ISO-TP diagnostic response from the MCU";
+CM_ SG_ 2024 PciParameter "Length high nibble, sequence number or flow status";
+CM_ SG_ 2024 PciType "ISO-TP protocol control information type";
+CM_ SG_ 2024 TransportData "ISO-TP frame-dependent length, control or payload data";
 CM_ BO_ 1361 "RTC operation status";
 CM_ SG_ 1361 StatusCode "RTC operation result";
 CM_ SG_ 1361 HalStatus "STM32 HAL operation status";
@@ -364,6 +382,8 @@ VAL_ 2559879867 AlarmHourEnabled 0 "False" 1 "True" ;
 VAL_ 2559879867 AlarmDayEnabled 0 "False" 1 "True" ;
 VAL_ 2559879867 AlarmWeekdayEnabled 0 "False" 1 "True" ;
 VAL_ 2559879867 PwmSelfTestStart 0 "False" 1 "True" ;
+VAL_ 2016 PciType 0 "SingleFrame" 1 "FirstFrame" 2 "ConsecutiveFrame" 3 "FlowControl" ;
+VAL_ 2024 PciType 0 "SingleFrame" 1 "FirstFrame" 2 "ConsecutiveFrame" 3 "FlowControl" ;
 VAL_ 1361 StatusCode 161 "INIT_OK" 162 "WRITE_VERIFY_OK" 163 "LINK_RECOVERED" 164 "ALARM_WRITE_VERIFY_OK" 225 "INIT_FAILED" 226 "READ_FAILED" 228 "INVALID_DATETIME" 229 "CONTROL_READ_FAILED" 230 "STOP_ASSERT_FAILED" 231 "PRESCALER_RESET_FAILED" 232 "CALENDAR_WRITE_FAILED" 233 "STOP_RELEASE_FAILED" 234 "RECOVERY_FAILED" 235 "BUSY" 236 "ALARM_NOT_READY" 237 "INVALID_ALARM_CONFIG" 238 "ALARM_WRITE_FAILED" 239 "ALARM_READBACK_FAILED" 240 "ALARM_VERIFY_MISMATCH" 241 "ALARM_FLAG_CLEAR_FAILED" 242 "WRITE_VERIFY_MISMATCH" ;
 VAL_ 1366 CalendarValid 0 "False" 1 "True" ;
 VAL_ 1366 Ready 0 "False" 1 "True" ;
