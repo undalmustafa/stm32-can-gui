@@ -44,6 +44,36 @@ def generate_c_header(yaml_path, out_path):
                 )
         out.write("\n")
 
+        uds = data.get("uds", {})
+        out.write("/* UDS Diagnostic Contract */\n")
+        out.write(
+            f"#define CAN_PROTOCOL_UDS_VERSION {uds['version']}U\n"
+        )
+        for key in (
+            "p2_server_max_ms", "p2_star_server_max_ms",
+            "s3_server_timeout_ms",
+        ):
+            out.write(
+                f"#define CAN_PROTOCOL_UDS_{key.upper()} "
+                f"{uds[key]}U\n"
+            )
+        for key, value in uds.get("sessions", {}).items():
+            out.write(
+                f"#define CAN_PROTOCOL_UDS_SESSION_{key.upper()} "
+                f"0x{value:02X}U\n"
+            )
+        for key, value in uds.get("services", {}).items():
+            out.write(
+                f"#define CAN_PROTOCOL_UDS_SERVICE_{key.upper()} "
+                f"0x{value:02X}U\n"
+            )
+        for key, value in uds.get("dids", {}).items():
+            out.write(
+                f"#define CAN_PROTOCOL_UDS_DID_{key.upper()} "
+                f"0x{value:04X}U\n"
+            )
+        out.write("\n")
+
         log_transport = data.get("log_transport", {})
         out.write("/* Event Log Transport */\n")
         for key in (

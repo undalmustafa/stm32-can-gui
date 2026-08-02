@@ -8,6 +8,7 @@
 #include "can_command_validation.h"
 #include "can_control_access.h"
 #include "can_isotp.h"
+#include "can_uds.h"
 #include "can_transport.h"
 #include "can_recovery.h"
 #include "can_rx_health.h"
@@ -357,6 +358,7 @@ CAN_App_InitResult_t CAN_App_Init(uint8_t peripheral_ready)
     can_rx_stats = (CAN_App_RxStats_t){0};
     CAN_RxHealth_Init();
     CAN_IsoTp_Init();
+    CAN_Uds_Init();
     CAN_ControlAccess_Init(&control_access);
     control_policy_update_applied = UINT32_MAX;
     control_output_update_applied = UINT32_MAX;
@@ -447,6 +449,7 @@ void CAN_App_Process(void)
 
     /* Uygulama servisleri yeni mesajlar üretebilir. */
     CAN_Process_Rx_Command();
+    (void)CAN_Uds_Process(HAL_GetTick());
     (void)CAN_IsoTp_Process(HAL_GetTick() * 1000U);
     CAN_Apply_SlotPolicy();
     CAN_Send_Pwm_Self_Test_Result();

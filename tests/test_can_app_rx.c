@@ -10,6 +10,7 @@
 #include "can_app_init.h"
 #include "can_control_access.h"
 #include "can_isotp.h"
+#include "can_uds.h"
 #include "can_protocol.h"
 #include "can_recovery.h"
 #include "can_rx_health.h"
@@ -74,6 +75,7 @@ static uint32_t isotp_process_calls;
 static uint8_t isotp_last_dlc;
 static uint8_t isotp_last_data[8U];
 static uint32_t isotp_last_now_us;
+static uint32_t uds_init_calls;
 
 uint32_t HAL_GetTick(void)
 {
@@ -156,6 +158,17 @@ CAN_IsoTp_Result_t CAN_IsoTp_Process(uint32_t now_us)
     isotp_process_calls++;
     isotp_last_now_us = now_us;
     return CAN_ISOTP_RESULT_NO_WORK;
+}
+
+void CAN_Uds_Init(void)
+{
+    uds_init_calls++;
+}
+
+CAN_Uds_Result_t CAN_Uds_Process(uint32_t now_ms)
+{
+    (void)now_ms;
+    return CAN_UDS_RESULT_NO_WORK;
 }
 
 void CAN_Recovery_Init(void)
@@ -373,6 +386,7 @@ static void reset_captures(void)
     isotp_process_calls = 0U;
     isotp_last_dlc = 0U;
     isotp_last_now_us = 0U;
+    uds_init_calls = 0U;
     (void)memset(frames, 0, sizeof(frames));
     (void)memset(acks, 0, sizeof(acks));
     (void)memset(logs, 0, sizeof(logs));
@@ -388,6 +402,7 @@ void setUp(void)
     reset_captures();
     TEST_ASSERT_EQUAL(CAN_APP_INIT_OK, CAN_App_Init(1U));
     TEST_ASSERT_EQUAL_UINT32(1U, isotp_init_calls);
+    TEST_ASSERT_EQUAL_UINT32(1U, uds_init_calls);
     reset_captures();
 }
 

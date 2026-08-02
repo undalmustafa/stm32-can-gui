@@ -31,6 +31,22 @@ def generate_python_module(yaml_path, out_path):
                 )
         out.write("\n")
 
+        uds = data.get("uds", {})
+        out.write("# UDS Diagnostic Contract\n")
+        out.write(f"UDS_VERSION = {uds['version']}\n")
+        for key in (
+            "p2_server_max_ms", "p2_star_server_max_ms",
+            "s3_server_timeout_ms",
+        ):
+            out.write(f"UDS_{key.upper()} = {uds[key]}\n")
+        for key, value in uds.get("sessions", {}).items():
+            out.write(f"UDS_SESSION_{key.upper()} = 0x{value:02X}\n")
+        for key, value in uds.get("services", {}).items():
+            out.write(f"UDS_SERVICE_{key.upper()} = 0x{value:02X}\n")
+        for key, value in uds.get("dids", {}).items():
+            out.write(f"UDS_DID_{key.upper()} = 0x{value:04X}\n")
+        out.write("\n")
+
         log_transport = data.get("log_transport", {})
         out.write("# Event Log Transport\n")
         for key in (

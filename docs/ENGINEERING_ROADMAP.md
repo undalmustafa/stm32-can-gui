@@ -305,14 +305,17 @@ Uygulama sırası:
      high-priority transport kuyruğuna ver. Queue backpressure durumunda
      oturumu fail-closed kapat ve protocol/timeout/overflow/transport
      sayaçlarını accessor üzerinden görünür tut.
-   - [ ] UDS dispatcher ile önce salt-okuma `0x10`, `0x22` ve `0x3E`
-     servislerini ekle; session timeout ve negative-response davranışını ayrı
-     host testleriyle koru.
+   - [x] UDS dispatcher ile aktüatörlere dokunmayan `0x10`, `0x22` ve `0x3E`
+     servislerini ekle. Default/extended session, suppress-positive-response,
+     S3 timeout, standard NRC üretimi ve çoklu DID okumasını host testleriyle
+     koru. `0xF100..0xF103` üzerinden protocol, startup, runtime ve reset
+     kanıtlarını big-endian olarak sun; wire sözleşmesini
+     `docs/UDS_DIAGNOSTICS.md` içinde tut.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.
 6. Freshness counter ve CMAC tabanlı komut doğrulama.
 7. Self-hosted runner ile nightly HIL regresyonu.
 
-DBC sinyal semantiği, ISO-TP çekirdeği ve gerçek CAN RX/TX entegrasyonu
-tamamlandı. Yakın hedef salt-okuma UDS diagnostic dispatcher'ını bu taşıma
-katmanının üzerine kurmaktır.
+DBC sinyal semantiği, ISO-TP taşıması ve ilk aktüatörsüz UDS diagnostic
+servisleri tamamlandı. Yakın hedef UDS DID'lerini Python diagnostic istemcisine
+taşımak ve gerçek bus üzerinde P2/P2*/S3 zaman kabul testlerini tamamlamaktır.

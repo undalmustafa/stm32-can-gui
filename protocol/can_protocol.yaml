@@ -195,6 +195,24 @@ command_transport:
     algorithm: crc8_sae_j1850
     description: "CRC-8 token over all eight request payload bytes"
 
+uds:
+  version: 1
+  p2_server_max_ms: 50
+  p2_star_server_max_ms: 5000
+  s3_server_timeout_ms: 5000
+  sessions:
+    default: 0x01
+    extended_diagnostic: 0x03
+  services:
+    diagnostic_session_control: 0x10
+    read_data_by_identifier: 0x22
+    tester_present: 0x3E
+  dids:
+    protocol_info: 0xF100
+    startup_health: 0xF101
+    runtime_health: 0xF102
+    reset_reason: 0xF103
+
 # ---------------------------------------------------------------------------
 # Command Codes (byte 0 of GUI→MCU payload)
 # ---------------------------------------------------------------------------
