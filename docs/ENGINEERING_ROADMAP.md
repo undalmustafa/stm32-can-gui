@@ -237,8 +237,9 @@ kapıları tamamlandı; diğer statik kalite adımları bekliyor.
 - [x] 34 proje modül header'ına makine-kontrollü `MAIN_LOOP_ONLY`, `ISR_SAFE`
   ve `INTERNAL` sözleşmesi ekle; ISR seam'lerinde `FromIsr`/`RecordIsr`
   isimlendirmesini ve header kapsamını CI'da gate et.
-- [ ] İki Python workflow'unu tek sürüm ve tek bağımlılık kurulumuyla
-  birleştir.
+- [x] Yinelenen Python test workflow'unu ana CI GUI job'unda birleştir;
+  Python 3.13, tek GUI bağımlılık kurulumu ve Make tabanlı syntax/regresyon
+  hedefi kullan; bu sözleşmeyi host testinde koru.
 - [ ] Python bağımlılıklarını kilitle ve kök lisans/third-party notices
   dosyalarını ekle.
 
