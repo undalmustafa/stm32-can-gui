@@ -207,7 +207,7 @@ void TIC12400_CAN_Process(void)
         TIC12400_CAN_SendProfile();
     }
 
-    if ((g_tic12400_probe.comparator_sample_batches == 0U) ||
+    if ((g_tic12400_probe.switch_state_valid == 0U) ||
         (((now - tic12400_can_last_switch_tick) <
           TIC12400_CAN_SWITCH_PERIOD_MS) &&
          (g_tic12400_probe.switch_state_generation ==

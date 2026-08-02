@@ -308,12 +308,10 @@ void test_null_spi_never_reaches_driver_or_runtime_reinitialization(void)
     TEST_ASSERT_EQUAL_UINT32(0U, driver_init_calls);
     TEST_ASSERT_EQUAL_UINT32(0U, hardware_reset_calls);
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.online);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.reinitialization_pending);
 
     fake_tick = TIC12400_RECOVERY_INITIAL_DELAY_MS;
     TIC12400_Probe_Process();
     TEST_ASSERT_EQUAL_UINT32(0U, hardware_reset_calls);
-    TEST_ASSERT_EQUAL_UINT32(0U, g_tic12400_probe.reinitialization_attempts);
 }
 
 void test_successful_init_validates_configures_crc_and_baseline(void)
@@ -326,12 +324,9 @@ void test_successful_init_validates_configures_crc_and_baseline(void)
     TEST_ASSERT_EQUAL_UINT32(1U, hardware_reset_calls);
     TEST_ASSERT_EQUAL_UINT32(1U, device_id_calls);
     TEST_ASSERT_EQUAL_UINT32(TEST_EXPECTED_CONFIG_WRITES,
-                             g_tic12400_probe.configuration_write_count);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.crc_trigger_self_cleared);
+                             write_register_calls);
+    TEST_ASSERT_EQUAL_UINT32(1U, read_crc_calls);
     TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.crc_completed);
-    TEST_ASSERT_EQUAL_HEX32(0xA55AU, g_tic12400_probe.crc_value);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.baseline_established);
-    TEST_ASSERT_EQUAL_UINT32(1U, g_tic12400_probe.comparator_sample_batches);
     TEST_ASSERT_EQUAL_UINT32(2U, delayed_ms);
     TEST_ASSERT_EQUAL_UINT8(1U, TIC12400_Probe_GetSwitchState(&state));
     TEST_ASSERT_EQUAL_HEX32(TIC12400_PROFILE_CARRIER_FITTED_MASK,
@@ -348,22 +343,15 @@ void test_device_identity_failure_schedules_retry_then_recovers(void)
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.online);
     TEST_ASSERT_EQUAL(TIC12400_RESULT_HAL_ERROR,
                       g_tic12400_probe.result);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.reinitialization_pending);
-    TEST_ASSERT_EQUAL_UINT32(TIC12400_RECOVERY_INITIAL_DELAY_MS,
-                             g_tic12400_probe.reinitialization_delay_ms);
 
     fake_tick = TIC12400_RECOVERY_INITIAL_DELAY_MS - 1U;
     TIC12400_Probe_Process();
-    TEST_ASSERT_EQUAL_UINT32(1U, g_tic12400_probe.attempts);
+    TEST_ASSERT_EQUAL_UINT32(1U, hardware_reset_calls);
 
     fake_tick = TIC12400_RECOVERY_INITIAL_DELAY_MS;
     TIC12400_Probe_Process();
     TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.online);
-    TEST_ASSERT_EQUAL_UINT32(2U, g_tic12400_probe.attempts);
-    TEST_ASSERT_EQUAL_UINT32(1U,
-                             g_tic12400_probe.reinitialization_attempts);
-    TEST_ASSERT_EQUAL_UINT32(1U,
-                             g_tic12400_probe.reinitialization_successes);
+    TEST_ASSERT_EQUAL_UINT32(2U, hardware_reset_calls);
 }
 
 void test_configuration_readback_mismatch_fails_closed(void)
@@ -375,11 +363,8 @@ void test_configuration_readback_mismatch_fails_closed(void)
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.online);
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.monitoring_started);
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.configuration_passed);
-    TEST_ASSERT_EQUAL_UINT32(TIC12400_REGISTER_MODE,
-                             g_tic12400_probe.configuration_failure_address);
     TEST_ASSERT_EQUAL(TIC12400_RESULT_REGISTER_VERIFY_MISMATCH,
                       g_tic12400_probe.configuration_result);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.reinitialization_pending);
 }
 
 void test_fallback_poll_and_interrupt_service_update_switch_state(void)
@@ -406,9 +391,7 @@ void test_fallback_poll_and_interrupt_service_update_switch_state(void)
     TIC12400_Probe_NotifyInterruptFromIsr();
     TIC12400_Probe_Process();
 
-    TEST_ASSERT_EQUAL_UINT32(1U, g_tic12400_probe.interrupt_count);
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.interrupt_pending);
-    TEST_ASSERT_EQUAL_UINT32(1U, g_tic12400_probe.switch_change_events);
     TEST_ASSERT_EQUAL_UINT8(1U, TIC12400_Probe_GetSwitchState(&state));
     TEST_ASSERT_BITS(1UL, 0U, state.closed_bitmap);
     TEST_ASSERT_BITS(1UL, 1UL, state.last_change_mask);
@@ -416,11 +399,9 @@ void test_fallback_poll_and_interrupt_service_update_switch_state(void)
 
 void test_failed_status_data_is_ignored_and_threshold_recovers(void)
 {
-    uint32_t baseline_ssc_events;
     uint8_t failure_index;
 
     initialize_successfully();
-    baseline_ssc_events = g_tic12400_probe.ssc_events;
     reset_activity();
     fail_read_address = TIC12400_REGISTER_INT_STAT;
     fail_read_persistent = 1U;
@@ -433,20 +414,16 @@ void test_failed_status_data_is_ignored_and_threshold_recovers(void)
         TIC12400_Probe_Process();
     }
 
-    TEST_ASSERT_EQUAL_UINT32(baseline_ssc_events,
-                             g_tic12400_probe.ssc_events);
     TEST_ASSERT_EQUAL_UINT32(3U, g_tic12400_probe.service_failures);
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.online);
     TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.monitoring_started);
-    TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.reinitialization_pending);
 
     fail_read_address = -1;
     fake_tick = 12U + TIC12400_RECOVERY_INITIAL_DELAY_MS;
     TIC12400_Probe_Process();
     TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.online);
     TEST_ASSERT_EQUAL_UINT32(3U, g_tic12400_probe.service_failures);
-    TEST_ASSERT_EQUAL_UINT32(1U,
-                             g_tic12400_probe.reinitialization_successes);
+    TEST_ASSERT_EQUAL_UINT32(1U, hardware_reset_calls);
 }
 
 void test_battery_profile_reconfiguration_is_validated_and_idempotent(void)
@@ -487,9 +464,8 @@ void test_exti_callback_filters_pin_and_switch_query_rejects_null(void)
     reset_activity();
 
     HAL_GPIO_EXTI_Callback((uint16_t)(TIC12400_INT_Pin << 1U));
-    TEST_ASSERT_EQUAL_UINT32(0U, g_tic12400_probe.interrupt_count);
+    TEST_ASSERT_EQUAL_UINT8(0U, g_tic12400_probe.interrupt_pending);
     HAL_GPIO_EXTI_Callback(TIC12400_INT_Pin);
-    TEST_ASSERT_EQUAL_UINT32(1U, g_tic12400_probe.interrupt_count);
     TEST_ASSERT_EQUAL_UINT8(1U, g_tic12400_probe.interrupt_pending);
     TEST_ASSERT_EQUAL_UINT8(0U, TIC12400_Probe_GetSwitchState(NULL));
 }
