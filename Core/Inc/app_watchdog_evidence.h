@@ -52,7 +52,7 @@ void App_Watchdog_Evidence_Record(
     uint32_t refresh_tick);
 void App_Watchdog_Evidence_Get(App_Watchdog_ResetEvidence_t *evidence);
 
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
 void App_Watchdog_Evidence_TestResetStorage(void);
 void App_Watchdog_Evidence_TestCorruptChecksum(void);
 #endif

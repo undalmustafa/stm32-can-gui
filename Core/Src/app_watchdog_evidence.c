@@ -231,7 +231,7 @@ void App_Watchdog_Evidence_Get(App_Watchdog_ResetEvidence_t *evidence)
     }
 }
 
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
 void App_Watchdog_Evidence_TestResetStorage(void)
 {
     app_watchdog_retained_record = (App_Watchdog_RetainedRecord_t){0};

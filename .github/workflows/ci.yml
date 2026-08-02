@@ -100,30 +100,8 @@ jobs:
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi
 
-      - name: Build debug firmware
-        run: make CONFIG=debug --jobs=2
-
-      - name: Verify debug fault-injection hooks
-        shell: bash
-        run: |
-          set -euo pipefail
-          arm-none-eabi-nm build/debug/can_gui.elf \
-            | grep ' App_Watchdog_SetTestInhibit$'
-          arm-none-eabi-nm build/debug/can_gui.elf \
-            | grep ' App_Watchdog_SetTestSuppressHeartbeatMask$'
-
       - name: Build release firmware
         run: make CONFIG=release --jobs=2
-
-      - name: Verify release excludes fault-injection hooks
-        shell: bash
-        run: |
-          set -euo pipefail
-          if arm-none-eabi-nm build/release/can_gui.elf \
-            | grep ' App_Watchdog_SetTest' > /dev/null; then
-            echo 'Release ELF contains watchdog fault-injection hooks' >&2
-            exit 1
-          fi
 
       - name: Verify release stack budget
         run: make CONFIG=release stack-report

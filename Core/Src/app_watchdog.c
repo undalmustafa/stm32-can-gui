@@ -5,14 +5,6 @@ static IWDG_HandleTypeDef *app_iwdg;
 
 volatile App_Watchdog_Diagnostics_t g_appWatchdogDiagnostics;
 
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED && defined(__GNUC__)
-/* These hooks are called from GDB, so retain them without a firmware caller. */
-#define APP_WATCHDOG_DEBUGGER_HOOK \
-    __attribute__((used, section(".watchdog_debug_hooks")))
-#else
-#define APP_WATCHDOG_DEBUGGER_HOOK
-#endif
-
 static void App_Watchdog_RecordHeartbeat(
     uint32_t now,
     volatile uint32_t *count,
@@ -48,7 +40,7 @@ HAL_StatusTypeDef App_Watchdog_Init(IWDG_HandleTypeDef *watchdog)
     app_iwdg = watchdog;
 
     g_appWatchdogDiagnostics.initialized = 1U;
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
     g_appWatchdogDiagnostics.test_inhibit_refresh = 0U;
     g_appWatchdogDiagnostics.test_suppress_heartbeat_mask = 0U;
 #endif
@@ -113,7 +105,7 @@ void App_Watchdog_CheckIn(App_Watchdog_Heartbeat_t heartbeat)
             &g_appWatchdogDiagnostics.rtc_service_max_heartbeat_interval_ms);
     }
 
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
     heartbeat_mask &=
         ~g_appWatchdogDiagnostics.test_suppress_heartbeat_mask;
 #endif
@@ -131,7 +123,7 @@ void App_Watchdog_Process(void)
         return;
     }
 
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
     if (g_appWatchdogDiagnostics.test_inhibit_refresh != 0U)
     {
         return;
@@ -193,15 +185,13 @@ void App_Watchdog_Process(void)
     }
 }
 
-#if APP_WATCHDOG_TEST_HOOKS_ENABLED
-APP_WATCHDOG_DEBUGGER_HOOK
+#if APP_WATCHDOG_TEST_SUPPORT_ENABLED
 void App_Watchdog_SetTestInhibit(uint8_t inhibit)
 {
     g_appWatchdogDiagnostics.test_inhibit_refresh =
         (inhibit != 0U) ? 1U : 0U;
 }
 
-APP_WATCHDOG_DEBUGGER_HOOK
 void App_Watchdog_SetTestSuppressHeartbeatMask(uint32_t heartbeat_mask)
 {
     g_appWatchdogDiagnostics.test_suppress_heartbeat_mask =
