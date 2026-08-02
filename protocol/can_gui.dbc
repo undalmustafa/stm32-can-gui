@@ -122,44 +122,51 @@ BO_ 1371 LOG_HEARTBEAT: 8 MCU
  SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
 
 BO_ 1360 COMMAND_ACK: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ ProtocolVersion : 0|8@1+ (1,0) [0|255] "" GUI
+ SG_ CommandCode : 8|8@1+ (1,0) [0|255] "" GUI
+ SG_ RequestToken : 16|8@1+ (1,0) [0|255] "" GUI
+ SG_ AckStatus : 24|8@1+ (1,0) [0|255] "" GUI
+ SG_ Executed : 32|1@1+ (1,0) [0|1] "" GUI
+ SG_ AccessOpen : 33|1@1+ (1,0) [0|1] "" GUI
+ SG_ AckFlagsReserved : 34|6@1+ (1,0) [0|63] "" GUI
+ SG_ AccessWindowRemaining : 40|8@1+ (1,0) [0|255] "s" GUI
+ SG_ Reserved : 48|16@1+ (1,0) [0|65535] "" GUI
 
 BO_ 1362 TIC12400_STATUS: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ Online : 0|1@1+ (1,0) [0|1] "" GUI
+ SG_ ConfigurationValid : 1|1@1+ (1,0) [0|1] "" GUI
+ SG_ CrcComplete : 2|1@1+ (1,0) [0|1] "" GUI
+ SG_ Monitoring : 3|1@1+ (1,0) [0|1] "" GUI
+ SG_ StatusReserved4 : 4|1@1+ (1,0) [0|1] "" GUI
+ SG_ PorObserved : 5|1@1+ (1,0) [0|1] "" GUI
+ SG_ ServiceFault : 6|1@1+ (1,0) [0|1] "" GUI
+ SG_ StatusReserved7 : 7|1@1+ (1,0) [0|1] "" GUI
+ SG_ DeviceId : 8|8@1+ (1,0) [0|255] "" GUI
+ SG_ ServiceResult : 16|8@1+ (1,0) [0|255] "" GUI
+ SG_ SpiFail : 24|1@1+ (1,0) [0|1] "" GUI
+ SG_ ParityFail : 25|1@1+ (1,0) [0|1] "" GUI
+ SG_ SwitchStateChange : 26|1@1+ (1,0) [0|1] "" GUI
+ SG_ SupplyThreshold : 27|1@1+ (1,0) [0|1] "" GUI
+ SG_ Temperature : 28|1@1+ (1,0) [0|1] "" GUI
+ SG_ OtherInterrupt : 29|1@1+ (1,0) [0|1] "" GUI
+ SG_ PowerOnReset : 30|1@1+ (1,0) [0|1] "" GUI
+ SG_ TransactionReserved : 31|1@1+ (1,0) [0|1] "" GUI
+ SG_ ServiceFailureCount : 32|16@1+ (1,0) [0|65535] "" GUI
+ SG_ LastInterruptStatus : 48|16@1+ (1,0) [0|65535] "" GUI
 
 BO_ 1364 TIC12400_SWITCH_STATE: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ ClosedBitmap : 0|24@1+ (1,0) [0|16777215] "" GUI
+ SG_ ValidBitmap : 24|24@1+ (1,0) [0|16777215] "" GUI
+ SG_ Generation : 48|8@1+ (1,0) [0|255] "" GUI
+ SG_ DataValid : 56|1@1+ (1,0) [0|1] "" GUI
+ SG_ Reserved : 57|7@1+ (1,0) [0|127] "" GUI
 
 BO_ 1365 TIC12400_PROFILE: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
+ SG_ BatterySwitchBitmap : 0|24@1+ (1,0) [0|16777215] "" GUI
+ SG_ BatteryCapableBitmap : 24|24@1+ (1,0) [0|16777215] "" GUI
+ SG_ Generation : 48|8@1+ (1,0) [0|255] "" GUI
+ SG_ ConfigurationValid : 56|1@1+ (1,0) [0|1] "" GUI
+ SG_ Reserved : 57|7@1+ (1,0) [0|127] "" GUI
 
 BO_ 1376 CAN_RX_HEALTH: 8 MCU
  SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
@@ -203,9 +210,48 @@ CM_ BO_ 1375 "PWM built-in self-test point result";
 CM_ BO_ 1370 "STM32 event-log response fragments";
 CM_ BO_ 1371 "STM32 event-log heartbeat";
 CM_ BO_ 1360 "Command execution acknowledgement";
+CM_ SG_ 1360 ProtocolVersion "Protocol version used to encode this acknowledgement";
+CM_ SG_ 1360 CommandCode "Acknowledged GUI command";
+CM_ SG_ 1360 RequestToken "CRC-8/SAE-J1850 token of the request payload";
+CM_ SG_ 1360 AckStatus "Command validation and execution result";
+CM_ SG_ 1360 Executed "Command handler completed successfully";
+CM_ SG_ 1360 AccessOpen "Control-access window is open";
+CM_ SG_ 1360 AckFlagsReserved "Reserved acknowledgement flag bits; transmit zero";
+CM_ SG_ 1360 AccessWindowRemaining "Ceiling of remaining control-access time";
+CM_ SG_ 1360 Reserved "Reserved; transmit zero";
 CM_ BO_ 1362 "TIC12400 device and service status";
+CM_ SG_ 1362 Online "TIC12400 communication is online";
+CM_ SG_ 1362 ConfigurationValid "Startup register configuration passed readback";
+CM_ SG_ 1362 CrcComplete "TIC12400 configuration CRC completed";
+CM_ SG_ 1362 Monitoring "Switch monitoring is active";
+CM_ SG_ 1362 StatusReserved4 "Reserved status bit; transmit zero";
+CM_ SG_ 1362 PorObserved "Power-on-reset indication was observed";
+CM_ SG_ 1362 ServiceFault "Latest TIC12400 service operation failed";
+CM_ SG_ 1362 StatusReserved7 "Reserved status bit; transmit zero";
+CM_ SG_ 1362 DeviceId "TIC12400 device identifier register value";
+CM_ SG_ 1362 ServiceResult "Latest TIC12400 service result";
+CM_ SG_ 1362 SpiFail "Device reported an SPI error";
+CM_ SG_ 1362 ParityFail "Device reported a parity error";
+CM_ SG_ 1362 SwitchStateChange "Switch-state-change interrupt was observed";
+CM_ SG_ 1362 SupplyThreshold "Supply-threshold interrupt was observed";
+CM_ SG_ 1362 Temperature "Temperature interrupt was observed";
+CM_ SG_ 1362 OtherInterrupt "Other device interrupt was observed";
+CM_ SG_ 1362 PowerOnReset "Transaction reported power-on reset";
+CM_ SG_ 1362 TransactionReserved "Reserved transaction bit; transmit zero";
+CM_ SG_ 1362 ServiceFailureCount "Saturating TIC12400 service failure count";
+CM_ SG_ 1362 LastInterruptStatus "Last nonzero TIC12400 interrupt status";
 CM_ BO_ 1364 "Debounced TIC12400 open/closed switch state";
+CM_ SG_ 1364 ClosedBitmap "One bit per channel; one denotes a closed switch";
+CM_ SG_ 1364 ValidBitmap "One bit per channel; one denotes valid switch data";
+CM_ SG_ 1364 Generation "Switch-state generation counter";
+CM_ SG_ 1364 DataValid "The switch-state frame is valid";
+CM_ SG_ 1364 Reserved "Reserved; transmit zero";
 CM_ BO_ 1365 "Applied TIC12400 switch-polarity profile";
+CM_ SG_ 1365 BatterySwitchBitmap "One bit per channel; one selects battery switching";
+CM_ SG_ 1365 BatteryCapableBitmap "One bit per channel; one denotes battery capability";
+CM_ SG_ 1365 Generation "Applied profile generation counter";
+CM_ SG_ 1365 ConfigurationValid "The applied polarity profile is valid";
+CM_ SG_ 1365 Reserved "Reserved; transmit zero";
 CM_ BO_ 1376 "MCU FDCAN RX FIFO pressure and loss telemetry";
 CM_ BO_ 1377 "DWT service execution timing telemetry";
 CM_ BO_ 1378 "Command RX-to-ACK enqueue latency percentiles";
@@ -215,3 +261,24 @@ BA_DEF_DEF_ "VFrameFormat" "StandardCAN";
 BA_ "VFrameFormat" BO_ 2559879867 1;
 
 VAL_ 2559879867 CommandCode 1 "SET_SLOT_1" 2 "SET_SLOT_2" 16 "LED_CONTROL" 17 "START_SLOT_1_COUNTER" 18 "START_SLOT_2_COUNTER" 32 "RTC_SET_TIME" 33 "RTC_SET_DATETIME" 34 "RTC_SET_ALARM" 64 "PWM_SET" 65 "PWM_SELF_TEST" 48 "LOG_GET_INFO" 49 "LOG_READ_SEQUENCE" 80 "TIC12400_SET_POLARITY" ;
+
+VAL_ 1360 CommandCode 1 "SET_SLOT_1" 2 "SET_SLOT_2" 16 "LED_CONTROL" 17 "START_SLOT_1_COUNTER" 18 "START_SLOT_2_COUNTER" 32 "RTC_SET_TIME" 33 "RTC_SET_DATETIME" 34 "RTC_SET_ALARM" 64 "PWM_SET" 65 "PWM_SELF_TEST" 48 "LOG_GET_INFO" 49 "LOG_READ_SEQUENCE" 80 "TIC12400_SET_POLARITY" ;
+VAL_ 1360 AckStatus 0 "ACCEPTED" 2 "INVALID_PAYLOAD" 3 "UNKNOWN_COMMAND" 4 "ACCESS_DENIED" ;
+VAL_ 1360 Executed 0 "False" 1 "True" ;
+VAL_ 1360 AccessOpen 0 "False" 1 "True" ;
+VAL_ 1362 Online 0 "False" 1 "True" ;
+VAL_ 1362 ConfigurationValid 0 "False" 1 "True" ;
+VAL_ 1362 CrcComplete 0 "False" 1 "True" ;
+VAL_ 1362 Monitoring 0 "False" 1 "True" ;
+VAL_ 1362 PorObserved 0 "False" 1 "True" ;
+VAL_ 1362 ServiceFault 0 "False" 1 "True" ;
+VAL_ 1362 ServiceResult 0 "OK" 1 "INVALID_ARGUMENT" 2 "INVALID_ADDRESS" 3 "HAL_ERROR" 4 "RESPONSE_PARITY_ERROR" 5 "DEVICE_SPI_ERROR" 6 "DEVICE_PARITY_ERROR" 7 "DEVICE_ID_MISMATCH" 8 "INVALID_DATA" 9 "REGISTER_VERIFY_MISMATCH" 10 "CRC_TIMEOUT" 11 "CRC_COMPLETION_MISSING" 255 "UNKNOWN" ;
+VAL_ 1362 SpiFail 0 "False" 1 "True" ;
+VAL_ 1362 ParityFail 0 "False" 1 "True" ;
+VAL_ 1362 SwitchStateChange 0 "False" 1 "True" ;
+VAL_ 1362 SupplyThreshold 0 "False" 1 "True" ;
+VAL_ 1362 Temperature 0 "False" 1 "True" ;
+VAL_ 1362 OtherInterrupt 0 "False" 1 "True" ;
+VAL_ 1362 PowerOnReset 0 "False" 1 "True" ;
+VAL_ 1364 DataValid 0 "False" 1 "True" ;
+VAL_ 1365 ConfigurationValid 0 "False" 1 "True" ;

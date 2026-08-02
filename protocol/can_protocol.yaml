@@ -556,3 +556,199 @@ tic12400_result_codes:
     code: 0x0B
   unknown:
     code: 0xFF
+
+# ---------------------------------------------------------------------------
+# DBC Signal Definitions
+#
+# Frames omitted here retain the lossless PayloadByte0..7 baseline until their
+# wire layouts are promoted to product-level signals.
+# ---------------------------------------------------------------------------
+dbc_boolean_values:
+  0: "False"
+  1: "True"
+
+dbc_signals:
+  command_ack:
+    - name: ProtocolVersion
+      start_bit: 0
+      length: 8
+      description: "Protocol version used to encode this acknowledgement"
+    - name: CommandCode
+      start_bit: 8
+      length: 8
+      value_source: commands
+      description: "Acknowledged GUI command"
+    - name: RequestToken
+      start_bit: 16
+      length: 8
+      description: "CRC-8/SAE-J1850 token of the request payload"
+    - name: AckStatus
+      start_bit: 24
+      length: 8
+      value_source: command_ack_status_codes
+      description: "Command validation and execution result"
+    - name: Executed
+      start_bit: 32
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Command handler completed successfully"
+    - name: AccessOpen
+      start_bit: 33
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Control-access window is open"
+    - name: AckFlagsReserved
+      start_bit: 34
+      length: 6
+      description: "Reserved acknowledgement flag bits; transmit zero"
+    - name: AccessWindowRemaining
+      start_bit: 40
+      length: 8
+      unit: "s"
+      description: "Ceiling of remaining control-access time"
+    - name: Reserved
+      start_bit: 48
+      length: 16
+      description: "Reserved; transmit zero"
+
+  tic12400_status:
+    - name: Online
+      start_bit: 0
+      length: 1
+      value_source: dbc_boolean_values
+      description: "TIC12400 communication is online"
+    - name: ConfigurationValid
+      start_bit: 1
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Startup register configuration passed readback"
+    - name: CrcComplete
+      start_bit: 2
+      length: 1
+      value_source: dbc_boolean_values
+      description: "TIC12400 configuration CRC completed"
+    - name: Monitoring
+      start_bit: 3
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Switch monitoring is active"
+    - name: StatusReserved4
+      start_bit: 4
+      length: 1
+      description: "Reserved status bit; transmit zero"
+    - name: PorObserved
+      start_bit: 5
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Power-on-reset indication was observed"
+    - name: ServiceFault
+      start_bit: 6
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Latest TIC12400 service operation failed"
+    - name: StatusReserved7
+      start_bit: 7
+      length: 1
+      description: "Reserved status bit; transmit zero"
+    - name: DeviceId
+      start_bit: 8
+      length: 8
+      description: "TIC12400 device identifier register value"
+    - name: ServiceResult
+      start_bit: 16
+      length: 8
+      value_source: tic12400_result_codes
+      description: "Latest TIC12400 service result"
+    - name: SpiFail
+      start_bit: 24
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Device reported an SPI error"
+    - name: ParityFail
+      start_bit: 25
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Device reported a parity error"
+    - name: SwitchStateChange
+      start_bit: 26
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Switch-state-change interrupt was observed"
+    - name: SupplyThreshold
+      start_bit: 27
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Supply-threshold interrupt was observed"
+    - name: Temperature
+      start_bit: 28
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Temperature interrupt was observed"
+    - name: OtherInterrupt
+      start_bit: 29
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Other device interrupt was observed"
+    - name: PowerOnReset
+      start_bit: 30
+      length: 1
+      value_source: dbc_boolean_values
+      description: "Transaction reported power-on reset"
+    - name: TransactionReserved
+      start_bit: 31
+      length: 1
+      description: "Reserved transaction bit; transmit zero"
+    - name: ServiceFailureCount
+      start_bit: 32
+      length: 16
+      description: "Saturating TIC12400 service failure count"
+    - name: LastInterruptStatus
+      start_bit: 48
+      length: 16
+      description: "Last nonzero TIC12400 interrupt status"
+
+  tic12400_switch_state:
+    - name: ClosedBitmap
+      start_bit: 0
+      length: 24
+      description: "One bit per channel; one denotes a closed switch"
+    - name: ValidBitmap
+      start_bit: 24
+      length: 24
+      description: "One bit per channel; one denotes valid switch data"
+    - name: Generation
+      start_bit: 48
+      length: 8
+      description: "Switch-state generation counter"
+    - name: DataValid
+      start_bit: 56
+      length: 1
+      value_source: dbc_boolean_values
+      description: "The switch-state frame is valid"
+    - name: Reserved
+      start_bit: 57
+      length: 7
+      description: "Reserved; transmit zero"
+
+  tic12400_profile:
+    - name: BatterySwitchBitmap
+      start_bit: 0
+      length: 24
+      description: "One bit per channel; one selects battery switching"
+    - name: BatteryCapableBitmap
+      start_bit: 24
+      length: 24
+      description: "One bit per channel; one denotes battery capability"
+    - name: Generation
+      start_bit: 48
+      length: 8
+      description: "Applied profile generation counter"
+    - name: ConfigurationValid
+      start_bit: 56
+      length: 1
+      value_source: dbc_boolean_values
+      description: "The applied polarity profile is valid"
+    - name: Reserved
+      start_bit: 57
+      length: 7
+      description: "Reserved; transmit zero"

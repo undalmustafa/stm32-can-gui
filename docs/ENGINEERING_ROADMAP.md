@@ -281,8 +281,11 @@ Uygulama sırası:
    - [x] Tüm frame ID/yön/DLC/açıklamalarını, extended-ID işaretini ve komut
      value table'ını deterministik `can_gui.dbc` artifact'ine üret; Make, CI ve
      release zincirine bağla.
-   - [ ] Byte seviyesindeki kayıpsız baseline'ı gerçek sinyal adları,
-     mühendislik birimleri ve multiplexed komut alanlarıyla zenginleştir.
+   - [x] Command ACK ile TIC12400 durum/switch/profil frame'lerini gerçek bit
+     alanları, enum/boolean value table'ları ve mühendislik birimleriyle
+     tanımla; eksik/çakışan/frame dışı şemaları jeneratörde reddet.
+   - [ ] Kalan RTC, PWM, sistem, log, RX-health ve timing frame'lerini gerçek
+     sinyallere; GUI komutlarını multiplexed payload alanlarına taşı.
 3. ISO-TP ve UDS diagnostic servisleri.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.
