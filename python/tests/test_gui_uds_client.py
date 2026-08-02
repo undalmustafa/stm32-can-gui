@@ -61,6 +61,55 @@ def main():
     expect(not result.ok and result.error_code == "INVALID_FRAME",
            "CAN FD-sized diagnostic responses fail closed")
 
+    long_request = bytes(range(1, 25))
+    expect(transport.start(long_request),
+           "a multi-frame diagnostic request starts")
+    expect(frames[-1] == bytes([0x10, 24]) + long_request[:6],
+           "the request first frame carries its 12-bit payload length")
+    transport.handle_frame(bytes([0x30, 2, 0, 0, 0, 0, 0, 0]))
+    expect(frames[-2][0] == 0x21 and frames[-1][0] == 0x22,
+           "receiver block size bounds consecutive-frame bursts")
+    transport.handle_frame(bytes([0x30, 0, 0, 0, 0, 0, 0, 0]))
+    expect(frames[-1][0] == 0x23,
+           "a subsequent CTS completes the request")
+    transport.handle_frame(bytes([2, 0x76, 1, 0, 0, 0, 0, 0]))
+    result = transport.take_result()
+    expect(result.ok and result.payload == bytes([0x76, 1]),
+           "the response is accepted after multi-frame transmission")
+
+    timed_frames = []
+    timed_transport = IsoTpClient(
+        lambda frame: timed_frames.append(bytes(frame)) or True,
+        clock=lambda: clock[0],
+    )
+    expect(timed_transport.start(bytes(range(20))),
+           "STmin timing test starts")
+    timed_transport.handle_frame(bytes([0x30, 0, 5, 0, 0, 0, 0, 0]))
+    expect(len(timed_frames) == 2,
+           "only one consecutive frame is sent before STmin elapses")
+    timed_transport.process()
+    expect(len(timed_frames) == 2,
+           "polling early does not violate receiver STmin")
+    clock[0] += 0.005
+    timed_transport.process()
+    expect(len(timed_frames) == 3,
+           "polling at the deadline sends the next frame")
+    timed_transport.handle_frame(bytes([1, 0x76, 0, 0, 0, 0, 0, 0]))
+    timed_transport.take_result()
+
+    wait_transport = IsoTpClient(
+        lambda _frame: True,
+        clock=lambda: clock[0],
+        max_flow_control_wait=1,
+    )
+    expect(wait_transport.start(bytes(range(8))),
+           "flow-control WAIT limit test starts")
+    wait_transport.handle_frame(bytes([0x31, 0, 0, 0, 0, 0, 0, 0]))
+    wait_transport.handle_frame(bytes([0x31, 0, 0, 0, 0, 0, 0, 0]))
+    result = wait_transport.take_result()
+    expect(not result.ok and result.error_code == "WAIT_LIMIT_EXCEEDED",
+           "unbounded flow-control WAIT is rejected")
+
     uds_frames = []
     callbacks = []
     client = UdsClient(

@@ -7,6 +7,7 @@ ISOTP_FRAME_SIZE = 8
 ISOTP_SINGLE_FRAME_CAPACITY = 7
 ISOTP_DEFAULT_MAX_PAYLOAD = 512
 ISOTP_DEFAULT_TIMEOUT_S = 1.0
+ISOTP_DEFAULT_MAX_FLOW_CONTROL_WAIT = 3
 
 
 class IsoTpResult:
@@ -18,30 +19,33 @@ class IsoTpResult:
 
 
 class IsoTpClient:
-    """Receive ISO-TP responses while the application's CAN poll keeps running.
-
-    Current UDS requests fit a Classic CAN single frame. Responses may use
-    either single-frame or first/consecutive-frame transport.
-    """
+    """Non-blocking Classic CAN ISO-TP request/response transport."""
 
     def __init__(self, frame_sender, clock=None,
                  timeout_s=ISOTP_DEFAULT_TIMEOUT_S,
-                 max_payload=ISOTP_DEFAULT_MAX_PAYLOAD):
+                 max_payload=ISOTP_DEFAULT_MAX_PAYLOAD,
+                 max_flow_control_wait=ISOTP_DEFAULT_MAX_FLOW_CONTROL_WAIT):
         if float(timeout_s) <= 0.0:
             raise ValueError("ISO-TP timeout must be positive")
         if int(max_payload) < ISOTP_SINGLE_FRAME_CAPACITY:
             raise ValueError("ISO-TP payload capacity is too small")
+        if int(max_payload) > 0xFFF:
+            raise ValueError("ISO-TP payload exceeds 12-bit addressing")
+        if int(max_flow_control_wait) < 0:
+            raise ValueError("ISO-TP flow-control WAIT limit is invalid")
 
         self._frame_sender = frame_sender
         self._clock = clock or time.monotonic
         self.timeout_s = float(timeout_s)
         self.max_payload = int(max_payload)
+        self.max_flow_control_wait = int(max_flow_control_wait)
         self.stats = {
             "requests_started": 0,
             "responses_completed": 0,
             "timeouts": 0,
             "protocol_errors": 0,
             "transport_errors": 0,
+            "flow_control_waits": 0,
         }
         self.reset()
 
@@ -55,17 +59,39 @@ class IsoTpClient:
         self._expected_length = 0
         self._expected_sequence = 1
         self._buffer = bytearray()
+        self._tx_payload = b""
+        self._tx_offset = 0
+        self._tx_sequence = 1
+        self._tx_block_size = 0
+        self._tx_block_remaining = 0
+        self._tx_stmin_s = 0.0
+        self._tx_next_frame_at = None
+        self._flow_control_wait_count = 0
         self._result = None
 
     def start(self, payload):
         payload = bytes(payload)
         if self.busy:
             return False
-        if not 1 <= len(payload) <= ISOTP_SINGLE_FRAME_CAPACITY:
-            raise ValueError("ISO-TP request must contain 1..7 bytes")
+        if not 1 <= len(payload) <= self.max_payload:
+            raise ValueError(
+                f"ISO-TP request must contain 1..{self.max_payload} bytes"
+            )
 
-        frame = bytes([len(payload)]) + payload
-        frame += bytes(ISOTP_FRAME_SIZE - len(frame))
+        if len(payload) <= ISOTP_SINGLE_FRAME_CAPACITY:
+            frame = bytes([len(payload)]) + payload
+            frame += bytes(ISOTP_FRAME_SIZE - len(frame))
+            next_state = "WAIT_RESPONSE"
+        else:
+            frame = bytes([
+                0x10 | ((len(payload) >> 8) & 0x0F),
+                len(payload) & 0xFF,
+            ]) + payload[:6]
+            self._tx_payload = payload
+            self._tx_offset = 6
+            self._tx_sequence = 1
+            self._flow_control_wait_count = 0
+            next_state = "WAIT_FLOW_CONTROL"
         if not self._frame_sender(frame):
             self._result = IsoTpResult(
                 False, error_code="TX_FAILED",
@@ -74,7 +100,7 @@ class IsoTpClient:
             self.stats["transport_errors"] += 1
             return False
 
-        self._state = "WAIT_RESPONSE"
+        self._state = next_state
         self._deadline = self._clock() + self.timeout_s
         self.stats["requests_started"] += 1
         return True
@@ -100,6 +126,8 @@ class IsoTpClient:
             self._handle_first_frame(data)
         elif frame_type == 0x2:
             self._handle_consecutive_frame(data)
+        elif frame_type == 0x3:
+            self._handle_flow_control(data)
         else:
             self._fail(
                 "UNEXPECTED_FRAME",
@@ -167,6 +195,106 @@ class IsoTpClient:
         if len(self._buffer) >= self._expected_length:
             self._complete(self._buffer[:self._expected_length])
 
+    def _handle_flow_control(self, data):
+        if self._state != "WAIT_FLOW_CONTROL" or len(data) < 3:
+            self._fail("UNEXPECTED_FRAME", "flow control without request")
+            return
+
+        flow_status = data[0] & 0x0F
+        if flow_status == 0x1:
+            self._flow_control_wait_count += 1
+            self.stats["flow_control_waits"] += 1
+            if self._flow_control_wait_count > self.max_flow_control_wait:
+                self._fail(
+                    "WAIT_LIMIT_EXCEEDED",
+                    "ISO-TP receiver exceeded flow-control WAIT limit",
+                )
+                return
+            self._deadline = self._clock() + self.timeout_s
+            return
+        if flow_status == 0x2:
+            self._fail(
+                "RECEIVER_OVERFLOW",
+                "ISO-TP receiver rejected the request payload",
+            )
+            return
+        if flow_status != 0x0:
+            self._fail(
+                "INVALID_FLOW_STATUS",
+                f"invalid flow-control status 0x{flow_status:X}",
+            )
+            return
+
+        stmin_s = self._decode_stmin(data[2])
+        if stmin_s is None:
+            self._fail(
+                "INVALID_STMIN",
+                f"reserved flow-control STmin 0x{data[2]:02X}",
+            )
+            return
+
+        self._tx_block_size = data[1]
+        self._tx_block_remaining = data[1]
+        self._tx_stmin_s = stmin_s
+        self._tx_next_frame_at = self._clock()
+        self._state = "TRANSMITTING"
+        self._deadline = self._clock() + self.timeout_s
+        self._pump_tx()
+
+    @staticmethod
+    def _decode_stmin(value):
+        if 0x00 <= value <= 0x7F:
+            return value / 1000.0
+        if 0xF1 <= value <= 0xF9:
+            return (value - 0xF0) / 10000.0
+        return None
+
+    def _pump_tx(self):
+        while self._state == "TRANSMITTING":
+            now = self._clock()
+            if now < self._tx_next_frame_at:
+                return
+
+            remaining = len(self._tx_payload) - self._tx_offset
+            if remaining <= 0:
+                self._state = "WAIT_RESPONSE"
+                self._deadline = now + self.timeout_s
+                return
+
+            chunk_length = min(7, remaining)
+            frame = bytes([0x20 | self._tx_sequence])
+            frame += self._tx_payload[
+                self._tx_offset:self._tx_offset + chunk_length
+            ]
+            frame += bytes(ISOTP_FRAME_SIZE - len(frame))
+            if not self._frame_sender(frame):
+                self.stats["transport_errors"] += 1
+                self._fail(
+                    "TX_FAILED",
+                    "CAN transport rejected an ISO-TP consecutive frame",
+                    count_protocol_error=False,
+                )
+                return
+
+            self._tx_offset += chunk_length
+            self._tx_sequence = (self._tx_sequence + 1) & 0x0F
+            self._deadline = now + self.timeout_s
+            if self._tx_offset >= len(self._tx_payload):
+                self._state = "WAIT_RESPONSE"
+                self._deadline = now + self.timeout_s
+                return
+
+            if self._tx_block_size != 0:
+                self._tx_block_remaining -= 1
+                if self._tx_block_remaining == 0:
+                    self._state = "WAIT_FLOW_CONTROL"
+                    self._deadline = now + self.timeout_s
+                    return
+
+            self._tx_next_frame_at = now + self._tx_stmin_s
+            if self._tx_stmin_s > 0.0:
+                return
+
     def _complete(self, payload):
         self._result = IsoTpResult(True, payload=payload)
         self.stats["responses_completed"] += 1
@@ -184,6 +312,8 @@ class IsoTpClient:
         self._buffer.clear()
 
     def process(self):
+        if self._state == "TRANSMITTING":
+            self._pump_tx()
         if (self.busy and self._deadline is not None and
                 self._clock() >= self._deadline):
             self.stats["timeouts"] += 1
