@@ -283,6 +283,34 @@ def main():
     expect(session.shutdown() is None, "PCAN shutdown succeeds")
     expect(bus.shutdown_count == 1, "PCAN shutdown is called once")
 
+    uds_bus = FakeBus()
+    uds_session, _, uds_frames, _, _, _ = create_session(
+        session_type, uds_bus, clock
+    )
+    uds_session.connect("pcan", "PCAN_USBBUS1", 500000)
+    uds_results = []
+    expect(uds_session.read_dids(
+        [protocol.UDS_DID_PROTOCOL_INFO], uds_results.append
+    ), "connected CAN session accepts a UDS DID request")
+    expect(uds_bus.sent[-1].arbitration_id ==
+           protocol.DIAGNOSTIC_REQUEST_TX_ID and
+           not uds_bus.sent[-1].is_extended_id,
+           "UDS requests use the generated standard CAN identifier")
+    expect(bytes(uds_bus.sent[-1].data[:4]) ==
+           bytes([3, 0x22, 0xF1, 0x00]),
+           "CAN session transmits the ISO-TP single-frame request")
+    uds_bus.rx_items.append(FakeMessage(
+        protocol.DIAGNOSTIC_RESPONSE_RX_ID,
+        data=[4, 0x62, 0xF1, 0x00, 0x01, 0, 0, 0],
+    ))
+    uds_session.poll()
+    expect(uds_results[-1].ok,
+           "diagnostic responses are routed to the UDS client")
+    expect(not uds_frames,
+           "ISO-TP transport frames do not leak into app telemetry routing")
+    expect(uds_session.get_health_metrics()["stm32_rx_count"] == 1,
+           "UDS responses count as known STM32 traffic")
+
     disconnected_bus = FakeBus()
     disconnected_session, disconnected_events, _, _, _, _ = create_session(
         session_type, disconnected_bus, clock

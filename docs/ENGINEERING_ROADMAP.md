@@ -311,11 +311,16 @@ Uygulama sırası:
      koru. `0xF100..0xF103` üzerinden protocol, startup, runtime ve reset
      kanıtlarını big-endian olarak sun; wire sözleşmesini
      `docs/UDS_DIAGNOSTICS.md` içinde tut.
+   - [x] Python tarafına ikinci bus reader açmadan mevcut RX poll'a bağlı,
+     timeout/sequence kontrolü yapan ISO-TP/UDS istemcisini ekle. F100–F103
+     değerlerini iki bounded request ile canlı Diagnostics sekmesine taşı;
+     timeout ve recovery durumlarını tekrar bastırmalı event log ile göster.
 4. A/B, imzalı ve rollback destekli CAN bootloader.
 5. Classic CAN'den CAN FD'ye geçiş.
 6. Freshness counter ve CMAC tabanlı komut doğrulama.
 7. Self-hosted runner ile nightly HIL regresyonu.
 
-DBC sinyal semantiği, ISO-TP taşıması ve ilk aktüatörsüz UDS diagnostic
-servisleri tamamlandı. Yakın hedef UDS DID'lerini Python diagnostic istemcisine
-taşımak ve gerçek bus üzerinde P2/P2*/S3 zaman kabul testlerini tamamlamaktır.
+DBC sinyal semantiği, ISO-TP taşıması, ilk aktüatörsüz UDS servisleri ve Python
+diagnostic görünümü tamamlandı. Yakın hedef gerçek bus üzerinde P2/P2*/S3 zaman
+kabul testlerini tamamlamak; ardından imzalı A/B bootloader tasarımına
+geçmektir.

@@ -35,3 +35,18 @@ Sunucu desteklenmeyen servis için `0x11`, subfunction için `0x12`, hatalı
 uzunluk için `0x13`, uzun response için `0x14`, sağlanamayan koşul için `0x22`
 ve bilinmeyen DID için `0x31` döndürür. Negative response formatı
 `7F <request SID> <NRC>` şeklindedir.
+
+## Python istemci ve GUI davranışı
+
+Masaüstü uygulaması diagnostic request ve flow-control frame'lerini standard
+`0x7E0` ID'sinden gönderir; `0x7E8` yanıtlarını mevcut 50 ms CAN RX döngüsünde
+işler. Bus için ikinci bir reader thread açılmaz. ISO-TP response timeout'u 1
+saniyedir; sequence hatası, geçersiz PCI/uzunluk ve taşıma hatası mevcut işlemi
+fail-closed sonlandırır.
+
+Diagnostics sekmesi dört DID'i Classic CAN single-frame request sınırını
+aşmamak için iki grupta okur: `F100+F101`, ardından `F102+F103`. Her saniye bir
+grup sorgulanır. Uzun ECU yanıtları first/consecutive frame olarak birleştirilir
+ve tester flow-control CTS (`BS=0`, `STmin=0`) gönderir. Aynı haberleşme hatası
+event log'a yalnızca durum değişiminde yazılır; başarılı cevap geldiğinde
+recovery olayı üretilir.

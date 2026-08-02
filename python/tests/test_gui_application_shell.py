@@ -271,11 +271,32 @@ def main():
         "timing_history",
     ], "Timing page contains service and ACK latency graphs")
 
+    diagnostics = Panel()
+    diagnostics.summary_group = widget("diagnostic_summary")
+    diagnostics.protocol_group = widget("diagnostic_protocol")
+    diagnostics.startup_group = widget("diagnostic_startup")
+    diagnostics.runtime_group = widget("diagnostic_runtime")
+    diagnostics.reset_group = widget("diagnostic_reset")
+    view_with_diagnostics = MainWindowView(
+        connection,
+        event_log,
+        can_app,
+        rtc,
+        diagnostics_panel=diagnostics,
+    )
+    expect(
+        [title for _page, title in view_with_diagnostics.tabs.tabs] == [
+            "Control", "Live Data", "Diagnostics", "Logs & Errors"
+        ],
+        "live UDS values have a dedicated optional page",
+    )
+
     timer_calls = []
     timers = ApplicationTimers(
         can_rx_poll=lambda: timer_calls.append("rx"),
         can_health_poll=lambda: timer_calls.append("health"),
         stm32_log_sync=lambda: timer_calls.append("log"),
+        diagnostic_poll=lambda: timer_calls.append("diagnostic"),
     )
     expect(timers.can_rx_timer.period_ms == 50,
            "CAN RX polling remains 50 ms")
@@ -283,11 +304,14 @@ def main():
            "STM32 log sync remains 50 ms")
     expect(timers.can_health_timer.period_ms == 250,
            "CAN health polling remains 250 ms")
+    expect(timers.diagnostic_timer.period_ms == 1000,
+           "UDS diagnostics use a low-rate product polling timer")
 
     timers.can_rx_timer.timeout.emit()
     timers.can_health_timer.timeout.emit()
     timers.stm32_log_sync_timer.timeout.emit()
-    expect(timer_calls == ["rx", "health", "log"],
+    timers.diagnostic_timer.timeout.emit()
+    expect(timer_calls == ["rx", "health", "log", "diagnostic"],
            "each timer retains its original callback")
 
     print("PASS: GUI main-window composition and timer periods")

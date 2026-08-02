@@ -4,9 +4,9 @@ STM32H7 tabanlı CAN/RTC uygulamasını SocketCAN veya PCAN üzerinden yapıland
 izleyen ve olay kayıtlarını bilgisayara aktaran PySide6 masaüstü
 uygulamasıdır.
 
-Bu final sürümde başlangıçta yaklaşık 2000 satır olan tek Python
-dosyası sorumluluklarına ayrılmıştır. Giriş dosyası `can_gui.py` 260
-satırdır ve yalnızca servis, controller ve panelleri birbirine bağlar.
+Başlangıçta yaklaşık 2000 satır olan tek Python dosyası sorumluluklarına
+ayrılmıştır. Giriş dosyası `can_gui.py` yalnızca servis, controller ve
+panelleri birbirine bağlayan composition root olarak tutulur.
 
 ## Kurulum
 
@@ -63,6 +63,10 @@ stm32_can_gui_final/
 | `can_gui.py` | Uygulama composition root'u, hata mesajları ve controller bağlantıları |
 | `protocol.py` | CAN ID, komut, durum ve payload sabitleri |
 | `can_session.py` | SocketCAN/PCAN bağlantısı, TX/RX ve taşıma sayaçları |
+| `isotp_client.py` | UI'yi bloklamayan Classic CAN ISO-TP request/response taşıması |
+| `uds_client.py` | Sıralı `0x10`, `0x22`, `0x3E` istekleri ve UDS response doğrulaması |
+| `diagnostics_controller.py` | F100–F103 DID polling, big-endian decode ve hata tekrar bastırma |
+| `diagnostics_panel.py` | Protocol, startup, runtime ve reset kanıtlarının canlı görünümü |
 | `can_health.py` | CAN health durum makinesi, BUS_HEAVY/BUS_OFF izleme ve log tekrar bastırma |
 | `timing_controller.py` | DWT servis/ACK telemetry decode state'i ve 120 örnekli sınırlı grafik geçmişi |
 | `timing_panel.py` | Servis current/min/max/overrun tablosu ve sparkline grafik görünümü |
@@ -83,8 +87,9 @@ stm32_can_gui_final/
 | İşlem | Periyot |
 |---|---:|
 | CAN RX polling | 50 ms |
-| STM32 log senkronizasyonu | 100 ms |
+| STM32 log senkronizasyonu | 50 ms |
 | CAN Health kontrolü | 250 ms |
+| UDS diagnostic polling | 1000 ms |
 
 ## Log dosyaları
 
@@ -109,9 +114,10 @@ Tüm host testlerini Windows Komut İstemi'nde çalıştırmak için:
 for %f in (tests\test_gui_*.py) do py "%f"
 ```
 
-Test paketi protokol sabitlerini, CAN taşımasını, CAN Health durum
-makinesini, RTC/alarm controller'ını, slot/LED controller'ını, iki CSV
-log katmanını, panelleri, pencere yerleşimini ve timer periyotlarını kapsar.
+Test paketi protokol sabitlerini, CAN ve ISO-TP taşımasını, UDS response/DID
+doğrulamasını, CAN Health durum makinesini, RTC/alarm controller'ını,
+slot/LED controller'ını, iki CSV log katmanını, panelleri, pencere yerleşimini
+ve timer periyotlarını kapsar.
 
 ## Donanım kabul kontrolü
 
@@ -123,3 +129,5 @@ log katmanını, panelleri, pencere yerleşimini ve timer periyotlarını kapsar
 6. CAN hattını kısa devre ederek `BUS_HEAVY` durumunu gözlemleyin.
 7. Hattı düzelttikten sonra PCAN USB'yi sökmeden `OK/ACTIVE` durumuna
    dönüldüğünü ve RX sayacının ilerlediğini doğrulayın.
+8. Diagnostics sekmesinde F100–F103 değerlerinin iki polling çevrimi içinde
+   dolduğunu ve ECU bağlantısı kesildiğinde timeout gösterildiğini doğrulayın.

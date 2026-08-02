@@ -11,6 +11,8 @@ from can_gui_app.can_app_panel import CanAppPanel
 from can_gui_app.can_connection_panel import CanConnectionPanel
 from can_gui_app.can_health import CanHealthMonitor
 from can_gui_app.can_session import CanSession
+from can_gui_app.diagnostics_controller import DiagnosticsController
+from can_gui_app.diagnostics_panel import DiagnosticsPanel
 from can_gui_app.event_log_panel import EventLogPanel
 from can_gui_app.main_window_view import MainWindowView
 from can_gui_app.protocol import (
@@ -60,6 +62,9 @@ class CanGui(QWidget):
         self.timing_controller = TimingController(
             renderer=self.timing_panel.render
         )
+        self.diagnostics_panel = DiagnosticsPanel(
+            refresh_requested=self.refresh_diagnostics
+        )
 
         self.can_connection_panel = CanConnectionPanel(
             connect_requested=self.connect_can,
@@ -96,6 +101,13 @@ class CanGui(QWidget):
             dialog_parent=self,
         )
 
+        self.diagnostics_controller = DiagnosticsController(
+            read_dids=self.can_session.read_dids,
+            connected_provider=lambda: self.can_session.bus is not None,
+            renderer=self.diagnostics_panel.render,
+            event_writer=self.write_event_log,
+        )
+
         self.can_health = CanHealthMonitor(
             bus_provider=lambda: self.can_session.bus,
             metrics_provider=self.can_session.get_health_metrics,
@@ -113,6 +125,7 @@ class CanGui(QWidget):
             pwm_panel=self.pwm_panel,
             tic12400_panel=self.tic12400_panel,
             timing_panel=self.timing_panel,
+            diagnostics_panel=self.diagnostics_panel,
         )
         self.setLayout(self.window_view.root_layout)
 
@@ -126,6 +139,7 @@ class CanGui(QWidget):
             can_rx_poll=self.can_session.poll,
             can_health_poll=self.can_health.monitor,
             stm32_log_sync=self.event_log_panel.process,
+            diagnostic_poll=self.diagnostics_controller.poll,
         )
 
         self.write_event_log(
@@ -164,6 +178,8 @@ class CanGui(QWidget):
             self.timing_controller.reset()
             self.timing_controller.render()
             self.event_log_panel.reset_sync()
+            self.diagnostics_controller.reset()
+            self.diagnostics_controller.poll()
 
             self.set_can_health(
                 "WARN",
@@ -241,6 +257,9 @@ class CanGui(QWidget):
                 self, "Invalid switch polarity", str(error)
             )
             return False
+
+    def refresh_diagnostics(self):
+        return self.diagnostics_controller.refresh()
 
     def handle_application_message(self, msg):
         if self.timing_controller.handle_message(msg):

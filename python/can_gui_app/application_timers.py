@@ -6,12 +6,14 @@ from PySide6.QtCore import Qt, QTimer
 CAN_RX_POLL_PERIOD_MS = 50
 CAN_HEALTH_POLL_PERIOD_MS = 250
 STM32_LOG_SYNC_PERIOD_MS = 50
+DIAGNOSTIC_POLL_PERIOD_MS = 1000
 
 
 class ApplicationTimers:
     """Create and retain the application's periodic timer objects."""
 
-    def __init__(self, can_rx_poll, can_health_poll, stm32_log_sync):
+    def __init__(self, can_rx_poll, can_health_poll, stm32_log_sync,
+                 diagnostic_poll=None):
         self.can_rx_timer = self._start_timer(
             CAN_RX_POLL_PERIOD_MS,
             can_rx_poll,
@@ -24,6 +26,12 @@ class ApplicationTimers:
             STM32_LOG_SYNC_PERIOD_MS,
             stm32_log_sync,
         )
+        self.diagnostic_timer = None
+        if diagnostic_poll is not None:
+            self.diagnostic_timer = self._start_timer(
+                DIAGNOSTIC_POLL_PERIOD_MS,
+                diagnostic_poll,
+            )
 
     @staticmethod
     def _start_timer(period_ms, callback):

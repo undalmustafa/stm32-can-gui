@@ -13,6 +13,8 @@ from .protocol import (
     COMMAND_ACK_RX_ID,
     COMMAND_ACK_STATUS_NAMES,
     COMMAND_NAMES,
+    DIAGNOSTIC_REQUEST_TX_ID,
+    DIAGNOSTIC_RESPONSE_RX_ID,
     GUI_COMMAND_ID_EXT,
     PROTOCOL_VERSION,
     STM32_APPLICATION_RX_IDS,
@@ -20,6 +22,7 @@ from .protocol import (
     command_token,
     decode_can_rx_health,
 )
+from .uds_client import UdsClient
 
 
 CAN_RX_MAX_FRAMES_PER_POLL = 256
@@ -54,6 +57,10 @@ class CanSession:
         self._message_factory = message_factory or can.Message
         self._clock = clock or time.monotonic
         self.max_frames_per_poll = max_frames_per_poll
+        self.uds_client = UdsClient(
+            self._send_diagnostic_frame,
+            clock=self._clock,
+        )
 
         self.bus = None
         self.connected_at = None
@@ -105,6 +112,7 @@ class CanSession:
         self.command_retry_count = 0
         self.command_reject_count = 0
         self.mcu_can_rx_health = None
+        self.uds_client.reset()
 
         self._event_writer(
             source="CAN",
@@ -133,7 +141,51 @@ class CanSession:
             "command_reject_count": self.command_reject_count,
             "command_queue_depth": len(self.command_queue),
             "mcu_can_rx_health": self.mcu_can_rx_health,
+            "uds": self.uds_client.stats,
         }
+
+    def read_dids(self, dids, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.read_dids(dids, callback)
+
+    def change_diagnostic_session(self, session, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.change_session(session, callback)
+
+    def send_tester_present(self, callback=None):
+        if self.bus is None:
+            return False
+        return self.uds_client.tester_present(callback)
+
+    def _send_diagnostic_frame(self, data):
+        if self.bus is None or len(data) != 8:
+            return False
+
+        message = self._message_factory(
+            arbitration_id=DIAGNOSTIC_REQUEST_TX_ID,
+            is_extended_id=False,
+            data=bytearray(data),
+            is_fd=False,
+        )
+        try:
+            self.bus.send(message)
+        except Exception as error:
+            self._event_writer(
+                source="UDS",
+                severity="FAULT",
+                event_code="TX_FAILED",
+                detail=f"{type(error).__name__}: {error}",
+                direction="TX",
+                can_id=DIAGNOSTIC_REQUEST_TX_ID,
+                payload=data,
+            )
+            self._health_reporter(
+                "FAULT", "UDS_TX_EXCEPTION", type(error).__name__, str(error)
+            )
+            return False
+        return True
 
     def send_command(self, data):
         if self.bus is None:
@@ -452,6 +504,10 @@ class CanSession:
                     self._handle_command_ack(msg)
                     continue
 
+                if msg.arbitration_id == DIAGNOSTIC_RESPONSE_RX_ID:
+                    self.uds_client.handle_frame(msg.data)
+                    continue
+
                 if msg.arbitration_id == STM32_LOG_RESPONSE_RX_ID:
                     self.last_log_response_rx_time = now
 
@@ -474,6 +530,7 @@ class CanSession:
             self.rx_budget_hit_count += 1
 
         self._process_command_timeout()
+        self.uds_client.process()
 
     def shutdown(self):
         if self.bus is None:
@@ -486,4 +543,5 @@ class CanSession:
 
         self.pending_command = None
         self.command_queue.clear()
+        self.uds_client.reset()
         return None
