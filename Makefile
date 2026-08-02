@@ -34,7 +34,6 @@ HAL_SOURCES := \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash.c \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_flash_ex.c \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_gpio.c \
-	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_hsem.c \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c.c \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_i2c_ex.c \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_iwdg.c \
@@ -52,10 +51,12 @@ HAL_SOURCES := \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_usart.c \
 	Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_usart_ex.c
 
-C_SOURCES := $(CORE_SOURCES) $(BSP_SOURCES) $(HAL_SOURCES)
 ASM_SOURCES := $(wildcard Core/Startup/*.s)
 
-OBJECTS := $(addprefix $(BUILD_DIR)/,$(C_SOURCES:.c=.o))
+VENDOR_SOURCES := $(BSP_SOURCES) $(HAL_SOURCES)
+VENDOR_OBJECTS := $(addprefix $(BUILD_DIR)/,$(VENDOR_SOURCES:.c=.o))
+OBJECTS := $(addprefix $(BUILD_DIR)/,$(CORE_SOURCES:.c=.o))
+OBJECTS += $(VENDOR_OBJECTS)
 OBJECTS += $(addprefix $(BUILD_DIR)/,$(ASM_SOURCES:.s=.o))
 DEPENDENCIES := $(OBJECTS:.o=.d)
 
@@ -95,6 +96,9 @@ ASFLAGS := $(ARCH_FLAGS) $(OPT_FLAGS) $(DEFINES) -x assembler-with-cpp -MMD -MP
 LDFLAGS := $(ARCH_FLAGS) -T$(LINKER_SCRIPT) --specs=nosys.specs \
 	--specs=nano.specs -Wl,-Map=$(MAP) -Wl,--gc-sections -static
 LDLIBS := -Wl,--start-group -lc -lm -Wl,--end-group
+
+$(VENDOR_OBJECTS): CFLAGS := $(filter-out $(WARNING_FLAGS),$(CFLAGS)) \
+	-Wall -Wextra
 
 ifeq ($(OS),Windows_NT)
 define create_output_directory
