@@ -1,32 +1,33 @@
-# Statik Analiz Sözleşmesi
+# Static Analysis Contract
 
-Firmware uygulama kaynakları Cppcheck ile iki seviyede analiz edilir:
+Firmware application sources are analyzed with Cppcheck at two levels:
 
-1. Rapor taraması `warning`, `style`, `performance` ve `portability`
-   bulgularını `build/static-analysis/cppcheck.txt` dosyasına yazar.
-2. Kalite kapısı `error`, `warning`, `performance` ve `portability`
-   bulgularını `build/static-analysis/cppcheck.xml` dosyasına yazar ve herhangi
-   bir bulguda başarısız olur. Stil önerileri görünür kalır ancak CI'ı durdurmaz.
+1. The report pass writes `warning`, `style`, `performance`, and `portability`
+   findings to `build/static-analysis/cppcheck.txt`.
+2. The quality gate writes `error`, `warning`, `performance`, and
+   `portability` findings to `build/static-analysis/cppcheck.xml` and fails on
+   any finding. Style suggestions remain visible but do not stop CI.
 
-Analiz STM32H7'nin 32-bit ARM ABI'sini ve firmware derleme tanımlarını kullanır.
-`Core/Src` proje kapsamındadır. `Drivers/` altındaki HAL/CMSIS üçüncü taraf kodu
-rapor ve kapı dışında tutulur; derleyicinin firmware job'undaki strict warning
-kapısı bu kaynakları ayrıca doğrular.
+The analysis uses the STM32H7 32-bit ARM ABI and the firmware build defines.
+`Core/Src` is project scope. Third-party HAL/CMSIS code under `Drivers/` is
+excluded from the report and gate. Firmware compilation still builds those
+dependencies with `-Wall -Wextra`, while project-owned `Core` sources retain
+the strict `-Wconversion -Wshadow -Wundef -Werror` policy.
 
-Yerel çalıştırma:
+Run locally with:
 
 ```sh
 make static-analysis
 ```
 
-Farklı bir Cppcheck ikilisi veya çıktı dizini gerektiğinde:
+To select another Cppcheck binary or output directory:
 
 ```sh
 make static-analysis CPPCHECK=/path/to/cppcheck \
   STATIC_ANALYSIS_DIR=/tmp/can-gui-analysis
 ```
 
-CI, metin ve XML raporlarını job başarılı veya başarısız olsa da artifact olarak
-saklar. Suppression yalnızca doğrulanmış araç yanılgıları veya dış ABI
-sözleşmeleri için, dar kapsamlı ve gerekçesi kod yanında açıklanmış şekilde
-eklenmelidir.
+CI retains both text and XML reports as artifacts whether the job succeeds or
+fails. Suppressions are allowed only for verified tool false positives or
+external ABI contracts. Every suppression must be narrow and justified next
+to the affected code.

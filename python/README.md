@@ -1,16 +1,16 @@
 # STM32 CAN GUI
 
-STM32H7 tabanlı CAN/RTC uygulamasını SocketCAN veya PCAN üzerinden yapılandıran,
-izleyen ve olay kayıtlarını bilgisayara aktaran PySide6 masaüstü
-uygulamasıdır.
+A PySide6 desktop application for configuring and monitoring the STM32H7
+controller over SocketCAN or PCAN, running UDS diagnostics and signed firmware
+updates, and exporting host and retained MCU event logs.
 
-Başlangıçta yaklaşık 2000 satır olan tek Python dosyası sorumluluklarına
-ayrılmıştır. Giriş dosyası `can_gui.py` yalnızca servis, controller ve
-panelleri birbirine bağlayan composition root olarak tutulur.
+The original monolithic application was split into focused services,
+controllers, and panels. `can_gui.py` is now only the composition root that
+wires those components together.
 
-## Kurulum
+## Installation
 
-Windows Komut İstemi veya PowerShell'i bu klasörde açın:
+From this directory on Windows Command Prompt or PowerShell:
 
 ```powershell
 py -m venv .venv
@@ -19,22 +19,20 @@ py -m pip install -r requirements.txt
 py can_gui.py
 ```
 
-`requirements.txt`, Python 3.13 için doğrudan ve transitif paketlerin tam
-sürüm kilididir. Kontrollü bir yükseltmede önce doğrudan sürümleri
-`requirements.in` içinde değiştirin, çözülen transitif sürümleri
-`requirements.txt` içine aktarın ve kök dizinden şu kontrolü çalıştırın:
+`requirements.txt` is a complete direct and transitive dependency lock for
+Python 3.13. For a controlled upgrade, change direct requirements in
+`requirements.in`, update the resolved versions in `requirements.txt`, and
+run from the repository root:
 
 ```powershell
 make -C tests test-python-dependencies
 ```
 
-Sonraki çalıştırmalarda `run_gui.bat` dosyası da kullanılabilir.
+`run_gui.bat` may be used after the first installation. Windows requires the
+PEAK driver and PCAN-Basic runtime for a PCAN adapter. Defaults are
+`pcan/PCAN_USBBUS1` on Windows, `socketcan/can0` on Linux, and 500,000 bit/s.
 
-Windows'ta PCAN adaptörünün sürücüsü/PCAN-Basic bileşeni kurulu olmalıdır.
-Varsayılan backend Windows'ta `pcan/PCAN_USBBUS1`, Linux'ta
-`socketcan/can0`'dır. Varsayılan bitrate `500000 bit/s`'dir.
-
-Linux'ta GUI'yi açmadan önce SocketCAN arabirimini yapılandırın:
+Before opening the GUI on Linux, configure SocketCAN:
 
 ```bash
 sudo ip link set can0 down
@@ -42,92 +40,92 @@ sudo ip link set can0 type can bitrate 500000 restart-ms 100
 sudo ip link set can0 up
 ```
 
-> `can_gui.py` tek başına kopyalanmamalıdır. `can_gui_app` klasörü aynı
-> dizinde tutulmalıdır.
+Do not copy `can_gui.py` by itself; keep the `can_gui_app` package beside it.
 
-## Dizin yapısı
+## Layout
 
 ```text
-stm32_can_gui_final/
+python/
 ├── can_gui.py
 ├── run_gui.bat
+├── requirements.in
 ├── requirements.txt
 ├── can_gui_app/
 └── tests/
 ```
 
-## Modül sorumlulukları
+## Module responsibilities
 
-| Modül | Sorumluluk |
+| Module | Responsibility |
 |---|---|
-| `can_gui.py` | Uygulama composition root'u, hata mesajları ve controller bağlantıları |
-| `protocol.py` | CAN ID, komut, durum ve payload sabitleri |
-| `can_session.py` | SocketCAN/PCAN bağlantısı, TX/RX ve taşıma sayaçları |
-| `isotp_client.py` | UI'yi bloklamayan Classic CAN ISO-TP request/response taşıması |
-| `uds_client.py` | Sıralı `0x10`, `0x22`, `0x3E` istekleri ve UDS response doğrulaması |
-| `diagnostics_controller.py` | F100–F103 DID polling, big-endian decode ve hata tekrar bastırma |
-| `diagnostics_panel.py` | Protocol, startup, runtime ve reset kanıtlarının canlı görünümü |
-| `can_health.py` | CAN health durum makinesi, BUS_HEAVY/BUS_OFF izleme ve log tekrar bastırma |
-| `timing_controller.py` | DWT servis/ACK telemetry decode state'i ve 120 örnekli sınırlı grafik geçmişi |
-| `timing_panel.py` | Servis current/min/max/overrun tablosu ve sparkline grafik görünümü |
-| `can_connection_panel.py` | Kanal/bitrate formu ve CAN Health görünümü |
-| `can_app_controller.py` | Slot/LED komutları ve STM32 uygulama durum mesajları |
-| `can_app_panel.py` | Slot/LED formu ve Values durum görünümü |
-| `slot_widget.py` | Tekrar kullanılabilir slot yapılandırma widget'ı |
-| `rtc_controller.py` | RTC/alarm CAN protokolü, diagnostics ve durum yönetimi |
-| `rtc_panel.py` | RTC takvim/alarm formu ve Values görünümü |
-| `csv_event_logger.py` | Bilgisayar tarafındaki günlük GUI olay CSV dosyası |
-| `stm32_log_sync.py` | STM32 RAM olay kayıtlarının CAN üzerinden alınması ve doğrulanması |
-| `event_log_panel.py` | Log ayarları ile GUI/STM32 log durum göstergeleri |
-| `main_window_view.py` | Config/Values sekmeleri ve ana pencere yerleşimi |
-| `application_timers.py` | RX, CAN Health ve STM32 log senkronizasyon timer'ları |
+| `can_gui.py` | Application composition root and top-level error handling |
+| `protocol.py` | Generated CAN IDs, commands, status, and payload constants |
+| `can_session.py` | SocketCAN/PCAN connection, TX/RX, ISO-TP, and transport metrics |
+| `isotp_client.py` | Non-blocking Classic CAN ISO-TP request/response transport |
+| `uds_client.py` | Ordered UDS requests and response validation |
+| `diagnostics_controller.py` | F100-F103 DID polling, big-endian decode, and error deduplication |
+| `diagnostics_panel.py` | Live protocol, startup, runtime, and reset evidence |
+| `flash_controller.py` | Sequential fail-closed inactive-slot firmware update workflow |
+| `flash_panel.py` | Signed artifact selection and firmware update progress |
+| `can_health.py` | CAN health state machine and BUS_HEAVY/BUS_OFF recovery reporting |
+| `timing_controller.py` | DWT service/ACK telemetry and bounded history |
+| `timing_panel.py` | Service timing table, overrun state, and sparklines |
+| `can_connection_panel.py` | Interface, channel, bitrate, and CAN health controls |
+| `can_app_controller.py` | Slot/LED commands and application status decode |
+| `can_app_panel.py` | Slot/LED controls and effective-state display |
+| `slot_widget.py` | Reusable transmit-slot configuration widget |
+| `rtc_controller.py` | RTC/alarm protocol, diagnostics, and state management |
+| `rtc_panel.py` | RTC calendar/alarm controls and live values |
+| `tic12400_controller.py` | Confirmed switch state and polarity orchestration |
+| `tic12400_panel.py` | End-user switch state and supported polarity controls |
+| `pwm_panel.py` | PWM, capture, and built-in-test controls and results |
+| `csv_event_logger.py` | Daily host event CSV storage |
+| `stm32_log_sync.py` | Validation and transfer of retained MCU event records |
+| `event_log_panel.py` | Host/MCU log controls and synchronization status |
+| `main_window_view.py` | Main window and task-oriented page layout |
+| `application_timers.py` | RX, health, log synchronization, and diagnostic timers |
 
-## Periyodik işlemler
+## Periodic work
 
-| İşlem | Periyot |
+| Operation | Period |
 |---|---:|
 | CAN RX polling | 50 ms |
-| STM32 log senkronizasyonu | 50 ms |
-| CAN Health kontrolü | 250 ms |
-| UDS diagnostic polling | 1000 ms |
+| MCU log synchronization | 50 ms |
+| CAN health evaluation | 250 ms |
+| UDS diagnostic polling | 1,000 ms |
 
-## Log dosyaları
+## Log files
 
-- `events_YYYYMMDD.csv`: GUI, CAN Health, RTC ve uygulama olayları.
-- `stm32_events_YYYYMMDD_HHMMSS_ffffff.csv`: STM32 RAM logundan CRC ve
-  commit marker doğrulamasıyla aktarılan kayıtlar.
+- `events_YYYYMMDD.csv`: GUI, CAN health, RTC, flash, and application events.
+- `stm32_events_YYYYMMDD_HHMMSS_ffffff.csv`: retained MCU records transferred
+  after CRC and commit-marker validation.
 
-Varsayılan konum `logs` klasörüdür. GUI'deki **Log Klasörü Seç**
-düğmesiyle değiştirilebilir.
+The default location is `python/logs`; it can be changed from the Logs page.
 
-## Testler
+## Hardware-free tests
 
-Sözdizimi kontrolü:
+From the repository root, use the locked virtual environment:
 
-```powershell
-py -m compileall -q can_gui.py can_gui_app tests
+```bash
+QT_QPA_PLATFORM=offscreen make -C tests \
+  PYTHON="$PWD/python/.venv/bin/python" test-python
 ```
 
-Tüm host testlerini Windows Komut İstemi'nde çalıştırmak için:
+The suite covers application composition, CAN/ISO-TP/UDS transport, signed
+artifact validation, sequential firmware update and retry behavior, health
+state machines, RTC, TIC12400 and PWM presentation, timing graphs, both CSV
+layers, and panel interactions. These tests do not prove electrical behavior,
+real flash programming, CAN timing, or reset-to-boot behavior.
 
-```cmd
-for %f in (tests\test_gui_*.py) do py "%f"
-```
+## Hardware acceptance checklist
 
-Test paketi protokol sabitlerini, CAN ve ISO-TP taşımasını, UDS response/DID
-doğrulamasını, CAN Health durum makinesini, RTC/alarm controller'ını,
-slot/LED controller'ını, iki CSV log katmanını, panelleri, pencere yerleşimini
-ve timer periyotlarını kapsar.
-
-## Donanım kabul kontrolü
-
-1. PCAN bağlantısında `WAIT_RX -> ACTIVE` geçişini doğrulayın.
-2. Slot 1/2 sayaçlı mesajlarını ve cycle time değerlerini kontrol edin.
-3. LED1/LED2 ON/OFF komutlarını kontrol edin.
-4. RTC okuma/yazma, otomatik hafta günü ve alarm akışını deneyin.
-5. GUI ve STM32 CSV loglarının oluştuğunu doğrulayın.
-6. CAN hattını kısa devre ederek `BUS_HEAVY` durumunu gözlemleyin.
-7. Hattı düzelttikten sonra PCAN USB'yi sökmeden `OK/ACTIVE` durumuna
-   dönüldüğünü ve RX sayacının ilerlediğini doğrulayın.
-8. Diagnostics sekmesinde F100–F103 değerlerinin iki polling çevrimi içinde
-   dolduğunu ve ECU bağlantısı kesildiğinde timeout gösterildiğini doğrulayın.
+1. Verify `WAIT_RX -> ACTIVE` after connecting through PCAN or SocketCAN.
+2. Verify slot 1/2 counter traffic and configured cycle times.
+3. Exercise LED1/LED2 commands and physical override behavior.
+4. Exercise RTC read/write, weekday calculation, and alarms.
+5. Verify creation of GUI and MCU CSV logs.
+6. Inject CAN faults and observe BUS_HEAVY/BUS_OFF and recovery.
+7. Verify F100-F103 values populate within two diagnostic poll cycles and
+   time out visibly when the ECU is disconnected.
+8. Use a signed slot artifact to validate erase, transfer, acceptance, reset,
+   boot confirmation, and rollback on the target.

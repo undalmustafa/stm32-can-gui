@@ -1,7 +1,7 @@
 # STM32H7 Automotive I/O and CAN Console
 
-Firmware and a desktop GUI for demonstrating automotive-style local inputs, CAN
-control, PWM generation, input capture, RTC functions, diagnostics, and
+Firmware and a desktop GUI for automotive-style local inputs, CAN control,
+PWM generation, input capture, RTC functions, ISO-TP/UDS diagnostics, and
 fail-safe behavior.
 
 The target is an **STM32 NUCLEO-H7A3ZI-Q**. A **TIC12400-Q1** monitors 23
@@ -12,13 +12,21 @@ them even if CAN is unavailable.
 ## What the system does
 
 - Controls two CAN transmit slots and the Nucleo user LEDs.
-- Generates PWM from `16 Hz` to `500 kHz` with configurable duty cycle.
+- Generates PWM from `1 Hz` to `1 MHz` with configurable duty cycle and
+  measures signals over a practical range of approximately `16 Hz` to
+  `500 kHz`.
 - Measures an external PWM signal using timer input capture.
 - Runs an automatic PWM-to-capture built-in test.
 - Reads 23 switches through the TIC12400-Q1 over SPI.
 - Applies local safety overrides for PWM, LEDs, and CAN transmit slots.
 - Manages time and alarms with a PCA2131 RTC.
 - Reports telemetry, faults, and retained event logs over CAN.
+- Generates firmware constants, Python definitions, and a DBC from one YAML
+  protocol schema.
+- Provides ISO-TP transport and UDS sessions, health DIDs, and a fail-closed
+  firmware-download state machine.
+- Provides a signed A/B image-validation and rollback architecture plus a GUI
+  Flash workflow for the remaining update integration work.
 - Supports SocketCAN on Linux and PCAN-Basic on Windows.
 - Recovers from CAN and TIC12400 communication faults without stopping local
   safety behavior.
@@ -35,6 +43,8 @@ Desktop GUI
     v
 STM32H7 application
     +-- FDCAN1 ---- CAN transceiver ---- CAN bus
+    |                 +-- application protocol
+    |                 +-- ISO-TP / UDS diagnostics
     +-- SPI3 ------ TIC12400-Q1 -------- 23 switches
     +-- I2C1 ------ PCA2131 RTC
     +-- TIM2 ------ PWM output
@@ -131,6 +141,11 @@ make CONFIG=debug --jobs=2
 
 Build output is written under `build/`.
 
+The slot build targets and GUI Flash page are development interfaces, not a
+production release pipeline. The STM32 download finalizer, embedded public
+key, and offline artifact-signing step are not connected yet. Do not treat an
+unsigned `slot-a` or `slot-b` image as a flashable release artifact.
+
 ### 2. Prepare the CAN interface
 
 The firmware uses **Classic CAN at 500 kbit/s**. The physical bus must have a
@@ -177,16 +192,18 @@ Select `SocketCAN (Linux)` or `PCAN (Windows)`, choose the interface, set
 
 ## Using the application
 
-The GUI is divided into six task-oriented pages:
+The GUI is divided into eight task-oriented pages:
 
 | Page | Purpose |
 |---|---|
 | Control | LEDs, CAN transmit slots, RTC, and alarms |
 | Live Data | Board telemetry and communication state |
-| PWM / Capture | PWM generation, measurement, and built-in test |
+| PWM & Capture | PWM generation, measurement, and built-in test |
 | TIC12400 | Switch state and supported input-polarity configuration |
 | Timing | DWT service current/min/max/overrun and ACK latency graphs |
-| Logs / Errors | Retained events, faults, and synchronization status |
+| Diagnostics | Live ISO-TP/UDS sessions, health DIDs, and reset evidence |
+| Flash | Sequential erase/download/finalize workflow for signed artifacts |
+| Logs & Errors | Retained events, faults, and synchronization status |
 
 ### Remote control and physical overrides
 
@@ -338,6 +355,22 @@ The complete byte-level definition is
 [protocol/can_protocol.yaml](protocol/can_protocol.yaml). Treat that schema,
 not this summary, as the protocol source of truth.
 
+### ISO-TP and UDS diagnostics
+
+Physical UDS requests use standard CAN ID `0x7E0`; responses use `0x7E8`.
+The ISO-TP transport supports payloads up to 512 bytes. The server implements
+Diagnostic Session Control (`0x10`), Read Data by Identifier (`0x22`), Routine
+Control (`0x31`), Request Download (`0x34`), Transfer Data (`0x36`), Request
+Transfer Exit (`0x37`), and Tester Present (`0x3E`).
+
+The Diagnostics page reads protocol information, startup health, runtime
+health, and reset evidence through DIDs `0xF100` to `0xF103`. The download
+services require programming session `0x02`, select only the inactive slot,
+and fail closed because the real STM32 finalizer and signature-verification
+callback are not yet bound. See
+[the UDS diagnostic contract](docs/UDS_DIAGNOSTICS.md) for the complete
+sequence and negative-response behavior.
+
 ## Fault handling and diagnostics
 
 - **CAN:** uses a 32-element blocking RX FIFO with a 24-element watermark,
@@ -370,20 +403,28 @@ state.
 
 ## Tests
 
-Run the host-side C tests:
+The complete software-only test checkpoint can run without a board, CAN
+adapter, or other external hardware.
+
+Run the host-side C tests in a temporary build directory:
 
 ```bash
-make -C tests test
+make -C tests BUILD_DIR=/tmp/can_gui-hardwareless test
 ```
 
-Run the Python GUI regression scripts through the test Makefile:
+Run the Python GUI regression scripts with Qt's offscreen platform:
 
 ```bash
-make -C tests test-python
+QT_QPA_PLATFORM=offscreen make -C tests \
+  PYTHON="$PWD/python/.venv/bin/python" test-python
 ```
 
-Hardware validation still requires the target board, CAN transceiver,
-TIC12400 switch board, RTC board, and the PWM loopback connection.
+These tests cover protocol generation, firmware state machines, ISO-TP/UDS,
+boot selection and rollback, flash power-loss behavior, and GUI workflows.
+They do not prove target clock accuracy, peripheral electrical behavior, CAN
+signal integrity, interrupt timing, flash erase/program behavior, or safe
+output latency. Hardware acceptance still requires the target board, CAN
+transceiver, TIC12400 switch board, RTC board, and PWM loopback connection.
 
 ## Repository layout
 
@@ -412,9 +453,14 @@ unknown or multiplexed data.
 
 ## Detailed documentation
 
+- [Application call-context contract](docs/CALL_CONTEXT.md)
 - [Interrupt priority and ISR contract](docs/INTERRUPT_POLICY.md)
-- [Firmware reliability roadmap](docs/ENGINEERING_ROADMAP.md)
+- [Firmware engineering roadmap](docs/ENGINEERING_ROADMAP.md)
 - [Signed A/B bootloader architecture](docs/BOOTLOADER_ARCHITECTURE.md)
+- [UDS diagnostic contract](docs/UDS_DIAGNOSTICS.md)
+- [Static-analysis policy](docs/STATIC_ANALYSIS.md)
+- [Stack-usage budget](docs/STACK_USAGE.md)
+- [Python GUI guide](python/README.md)
 
 ## Practical limitations
 
@@ -426,5 +472,9 @@ unknown or multiplexed data.
   1 MHz timer timebase.
 - B1 service authorization protects against accidental remote changes; it is
   not a security boundary.
+- The GUI Flash workflow and UDS download state machine are present, but the
+  STM32 finalizer, embedded public key, and signed release packaging are not
+  yet integrated. Production images cannot be safely installed through this
+  path yet.
 - Production use requires application-specific electrical protection, EMC,
   timing, fault-injection, and environmental validation.

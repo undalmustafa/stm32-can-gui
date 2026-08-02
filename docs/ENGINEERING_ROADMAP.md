@@ -1,345 +1,262 @@
-# Firmware Güvenilirlik Roadmap'i
+# Firmware Engineering Roadmap
 
-Tarih: 2026-07-31
+Updated: 2026-08-02
 
-Bu roadmap, `/home/musti/Documents/plan.txt` içindeki bulguların mevcut kodla
-yeniden doğrulanmış halidir. Öncelik yeni özellik değil; ölçülebilir,
-tekrarlanabilir ve arıza halinde güvenli davranan bir firmware tabanı
-oluşturmaktır.
+This roadmap is the verified form of the findings originally collected in
+`/home/musti/Documents/plan.txt`. It separates software completion from
+hardware acceptance and keeps product development ahead of lower-priority
+maintenance work.
 
-## Öncelik ilkesi
+## Prioritization rule
 
-Sıralama şu risk çarpanına göre yapılır:
+Risk is ordered by:
 
-`öncelik = güvenlik etkisi × oluşma olasılığı × teşhis zorluğu`
+`priority = safety impact x likelihood x diagnostic difficulty`
 
-Bir fazın "tamamlandı" sayılması için kodun yazılması yetmez. Host testi,
-hedef derlemesi ve ilgili donanım kabul testi de geçmelidir.
+A phase is not considered fully accepted merely because code exists. Host
+tests, target compilation, and relevant hardware acceptance tests answer
+different questions and are tracked separately.
 
-## Faz 0 — Saat doğruluğu ve crash kanıtı
+## Phase 0 — Clock accuracy and crash evidence
 
-Durum: Kod tamamlandı, hedef donanım kabul testi bekliyor.
+Status: software complete; target acceptance pending.
 
-### 0.1 Harici referanslı CAN saati
+### 0.1 Externally referenced CAN clock
 
-- PLL kaynağı HSI yerine Nucleo ST-LINK'in `PH0/OSC_IN` üzerindeki 8 MHz
-  MCO'suna taşındı.
-- PLL giriş frekansı yaklaşık 2.667 MHz, VCO 256 MHz, SYSCLK 64 MHz ve PLL1Q
-  32 MHz'tir.
-- Classic CAN nominal zamanlaması 500 kbit/s ve örnekleme noktası %81.25
-  olarak korunmuştur.
-- Saat ve bitrate ilişkileri `_Static_assert` ile derleme zamanında
-  korunmaktadır.
-- `can_gui.ioc` aynı PLL topolojisini ifade edecek şekilde güncellendi.
+- [x] Move the PLL source from HSI to the Nucleo ST-LINK 8 MHz MCO on
+  `PH0/OSC_IN` using HSE bypass.
+- [x] Keep PLL input near 2.667 MHz, VCO at 256 MHz, SYSCLK at 64 MHz, and
+  PLL1Q/FDCAN at 32 MHz.
+- [x] Preserve Classic CAN at 500 kbit/s and an 81.25% sample point.
+- [x] Protect clock and bit-timing relationships with `_Static_assert`.
+- [x] Keep `can_gui.ioc` aligned with the source configuration.
+- [ ] Measure the 8 MHz MCO and 2 us CAN bit time on target.
+- [ ] Complete cold/hot startup and long-bus error-counter testing.
 
-Kabul testi:
+### 0.2 Retained CPU fault record
 
-1. PH0 üzerinde 8 MHz MCO'yu osiloskop/frekans sayacı ile doğrula.
-2. FDCAN TX bit süresini en az 1.000 frame boyunca ölç; hedef 2 us.
-3. Soğuk/sıcak başlangıçta en az 30'ar power-cycle uygula.
-4. 500 kbit/s, iki uçta 120 ohm ve uzun kablo ile error counter artışı
-   olmadığını doğrula.
+- [x] Capture NMI, HardFault, MemManage, BusFault, and UsageFault with correct
+  MSP/PSP frame selection.
+- [x] Persist R0-R3, R12, LR, PC, xPSR, CFSR, HFSR, DFSR, AFSR, MMFAR, BFAR,
+  SHCSR, and ICSR in CRC-protected retained RAM.
+- [x] Handle floating-point extended frames and stacking faults separately.
+- [x] Make `Error_Handler()` persist the call site and reset the MCU.
+- [x] Consume the record once after reboot and copy essential evidence to the
+  retained event log.
+- [x] Cover valid, corrupt, single-consumption, and invalid-fault records in
+  host tests.
+- [ ] Inject controlled UsageFault/BusFault cases and resolve the recorded PC
+  against the ELF/map on target.
 
-### 0.2 Retained CPU fault kaydı
+## Phase 1 — Fail-safe startup and output safety
 
-- NMI, HardFault, MemManage, BusFault ve UsageFault MSP/PSP exception
-  frame'ini ayırarak kaydeder.
-- Temel frame'deki R0-R3, R12, LR, PC ve xPSR ile CFSR, HFSR, DFSR, AFSR,
-  MMFAR, BFAR, SHCSR ve ICSR BKPSRAM'de CRC ve commit marker ile tutulur.
-- Floating-point extended frame ve stacking fault durumları ayrı ele alınır.
-- `Error_Handler()` çağrı adresini kaydedip `NVIC_SystemReset()` üretir.
-- Sonraki boot kaydı bir kez tüketir; PC/fault türü ve CFSR/HFSR retained
-  event log'a aktarılır.
-- Host testleri geçerli kayıt, tek-seferlik tüketim, CRC bozulması ve geçersiz
-  fault türünü kapsar.
+Status: software slice complete; target fault injection pending. A TIM1/TIM8
+hardware-break migration remains a hardware change.
 
-Kabul testi:
+### 1.1 Startup state machine
 
-1. Debug build'de kontrollü UsageFault ve kesin olmayan adres BusFault'u
-   tetikle.
-2. Reset sonrası event log'daki PC'yi ELF/map ile kaynak satırına çöz.
-3. Bozuk stack senaryosunda ikinci bir fault döngüsü oluşmadığını doğrula.
-4. Art arda üç fault sonrası en yeni kaydın deterministik olduğunu doğrula.
+- [x] Establish safe GPIO levels and start IWDG immediately after clock setup.
+- [x] Convert FDCAN, I2C, SPI, TIM2, and TIM3 initialization to detailed result
+  interfaces.
+- [x] Track attempted, ready, failed, and degraded resource masks and the first
+  failed stage.
+- [x] Do not start PWM/capture or driver transactions when dependencies are
+  unavailable.
+- [x] Treat optional COM and peripheral failures as degraded rather than
+  fatal; expose them through the yellow LED and retained event log.
+- [x] Keep IWDG mandatory; an IWDG initialization failure remains fatal.
+- [ ] Disconnect each peripheral independently and verify no reset loop, no
+  unsafe output, and correct CAN health/status evidence.
 
-## Faz 1 — Fail-safe başlangıç ve çıkış güvenliği
+### 1.2 PWM safe state
 
-Durum: Yazılım dilimi tamamlandı, hedef donanım fault-injection testi
-bekliyor. TIM1/TIM8 donanımsal break geçişi ayrıca açık.
+- [x] Make every software fault/reset path disable PWM first.
+- [x] Add a HAL-independent emergency path that stops TIM2 CH1 and drives PA0
+  low.
+- [x] Use it for CPU faults, `Error_Handler`, TIM2 init failure, and PWM stop
+  failure.
+- [x] Reject the PWM built-in test when PWM or capture is unavailable.
+- [ ] Recalculate the watchdog window from measured WCET and recovery data.
+- [ ] Measure PA0 safe-state latency during stalls, initialization faults, and
+  HardFault.
+- [ ] For production hardware, migrate to TIM1/TIM8 BRK with an external fault
+  line if required by the safety concept.
 
-### 1.1 Başlangıç state machine'i
+## Phase 2 — CAN receive robustness and timing evidence
 
-- [x] GPIO safe seviyeleri ve saat ağacından hemen sonra IWDG'yi başlat.
-- [x] FDCAN, I2C, SPI, TIM2 ve TIM3 init fonksiyonlarını ayrıntılı sonuç
-  döndüren arayüzlere çevir.
-- [x] Kaynak bazında `attempted / ready / failed / degraded` maskeleri ve ilk
-  hata aşamasını tut.
-- [x] PWM ve capture bağımlılıklarını hazır değilken başlatma.
-- [x] SPI/I2C hazır değilse TIC12400/RTC driver transaction'larını engelle.
-- [x] COM init hatasını ölümcül olmaktan çıkar.
-- [x] Degraded başlangıcı retained event log ve sarı LED ile görünür yap.
-- [x] IWDG'yi zorunlu kaynak olarak tut; IWDG init hatası hâlâ fataldir.
-
-Kabul kriteri: Her çevrebirim ayrı ayrı söküldüğünde sistem reset döngüsüne
-girmeden CAN health/status üzerinden arızayı bildirmeli; güvenli olmayan çıkış
-aktif kalmamalıdır.
-
-### 1.2 PWM safe-state
-
-- [x] Yazılım hatası/reset yolunun ilk işi PWM kanalını kapatmak olmalı.
-- [x] TIM2 CH1'i durdurup PA0'ı GPIO low yapan, HAL durumundan bağımsız acil
-  safe-state yolu ekle.
-- [x] Bu yolu CPU fault, `Error_Handler`, TIM2 init hatası ve PWM stop HAL
-  hatasında çağır.
-- [x] PWM self-test'i PWM/capture hazır değilken reddet.
-- IWDG süresi, ölçülen WCET ve recovery sürelerine göre yeniden
-  boyutlandırılmalı.
-- Üretim donanımı için TIM1/TIM8 `BRK` girişine geçiş ve harici fault hattı
-  ayrı bir donanım değişikliği olarak ele alınmalı.
-- Window watchdog kararı, önce loop timing histogramı toplandıktan sonra
-  verilmelidir.
-
-Kabul kriteri: Main-loop stall, fault ve init hatasında PWM'in güvenli seviyeye
-geçiş süresi ölçülmüş ve dokümante edilmiş olmalıdır.
-
-Hedef kabul testi:
-
-1. TIM2 init aşamalarını tek tek hata döndürecek şekilde debugger ile enjekte
-   et; reset döngüsü olmadığını ve PA0'ın low kaldığını ölç.
-2. I2C/SPI init hatalarında ana döngü, CAN ve watchdog heartbeat'lerinin
-   çalıştığını doğrula.
-3. Event log'da `APP_LOG_EVENT_STARTUP_DEGRADED` kaydındaki failed mask ve
-   stage kodunu doğrula.
-4. HardFault sırasında PA0 high ise safe-state gecikmesini osiloskopla ölç.
-
-## Faz 2 — CAN alım dayanıklılığı ve zaman kanıtı
-
-Durum: 2.1, 2.2 ve 2.3 yazılım dilimleri tamamlandı; hedef HIL kabul testleri
-bekliyor.
+Status: software complete; HIL acceptance pending.
 
 ### 2.1 CAN RX
 
-- [x] RX FIFO0 derinliğini 3'ten 32 elemana artır. Bir standard filter word,
-  iki extended-filter word, 128 RX FIFO word ve 12 TX FIFO word ile toplam
-  kullanım 2560 word SRAMCAN bütçesinin 143 word'üdür.
-- [x] FIFO0'ı blocking modda tut; kapasite üstünde en eski komutu ezmek yerine
-  yeni frame'i bilinçli olarak reddet.
-- [x] 24-eleman watermark ile `RX_FIFO0_NEW_MESSAGE`, watermark/full ve
-  `MESSAGE_LOST` bildirimlerini
-  etkinleştir.
-- [x] ISR yalnızca flag eşleme, fill-level örnekleme ve 32-bit sayaç artırma
-  yapmalı; parse/command execution main-loop
-  context'inde kalmalı.
-- [x] Lost/full/watermark sayaçlarını `0x560` health telemetry, GUI CAN health
-  durumu, live diagnostics ve 100 ms'de bir birleştirilen event log'a ekle.
-- [x] 32-frame burst ile full/lost sayaç davranışının host testlerini ekle.
-- [ ] 500 kbit/s gerçek bus burst, bus-off sırasında RX ve kapasite üstü FIFO
-  overflow HIL testlerini tamamla.
+- [x] Increase RX FIFO0 from 3 to 32 elements within the SRAMCAN budget.
+- [x] Use blocking FIFO behavior so saturation preserves older commands.
+- [x] Enable new-message, 24-element watermark, full, and message-lost
+  notifications.
+- [x] Keep ISR work bounded to flags, fill-level sampling, and counters; parse
+  and execute in the main loop.
+- [x] Expose lost/full/watermark counters through `0x560`, GUI health,
+  diagnostics, and coalesced event records.
+- [x] Cover 32-frame bursts and saturation counters in host tests.
+- [ ] Run 500 kbit/s burst, overflow, and bus-off-during-RX HIL tests.
 
-Kabul kriteri: 500 kbit/s'te tanımlanan maksimum burst boyunca frame kaybı
-olmamalı; kapasite üstü trafik bilinçli olarak düşürülmeli ve sayaçta görünür
-olmalıdır.
+### 2.2 WCET and latency measurement
 
-Hedef kabul testi:
+- [x] Use DWT CYCCNT for current/min/max/budget/overrun data for the main loop
+  and eight services, including counter wrap.
+- [x] Budget TIC12400 and PCA2131 blocking operations at 12 ms, CAN at 25 ms,
+  and the complete loop at 50 ms.
+- [x] Measure RX-to-ACK-enqueue latency with nine buckets and approximate
+  p50/p95/p99/max.
+- [x] Publish service timing on `0x561` and ACK timing on `0x562`.
+- [x] Render bounded histories, sparklines, and event decoding in the GUI.
+- [ ] Record at least ten minutes of normal and injected-fault target timing.
+- [ ] Send at least 10,000 valid/invalid commands and archive latency evidence
+  with commit, clock, bus load, and duration metadata.
 
-1. İkinci CAN node'dan sabit extended komut ID'siyle art arda 32 adet 8-byte
-   Classic CAN frame gönder; `message_lost_events == 0` ve
-   `max_fifo_fill <= 32` doğrula.
-2. Main-loop'a kontrollü gecikme enjekte ederek 33 ve üzeri frame gönder;
-   blocking FIFO'nun eski komutları koruduğunu, `full` ve `message_lost`
-   sayaçlarının arttığını doğrula.
-3. FIFO doluyken bus-off üret; recovery sonrası RX bildirimlerinin yeniden
-   etkin olduğunu ve yeni frame'lerin işlendiğini doğrula.
-4. `0x560` payload'ındaki watermark/full/lost sayaçlarını ve event log'daki
-   `0x010A..0x010C` kayıtlarını aynı trafikle karşılaştır.
+### 2.3 NVIC priority contract
 
-### 2.2 WCET ve latency ölçümü
+- [x] Define `NVIC_PRIORITYGROUP_4`: safety timer 0, SysTick 1, FDCAN 2,
+  TIC12400 EXTI 3, future application timers 4-14, and user button 15.
+- [x] Keep `app_irq_policy.h`, HAL configuration, source initialization, and
+  `can_gui.ioc` consistent.
+- [x] Document that ISRs may only perform bounded flag/counter/status copies;
+  blocking HAL, logging, transport, and state-machine work is forbidden.
+- [x] Reject invalid priority relationships in host tests.
+- [ ] Audit target NVIC registers and run simultaneous CAN/TIC12400 interrupt
+  storms.
 
-- [x] DWT CYCCNT ile main loop ve sekiz servis için current/min/max/budget ve
-  overrun count tut. Sayaç wraparound farkını unsigned çıkarımla işle.
-- [x] TIC12400 SPI ve PCA2131 I2C 10 ms HAL timeout'larını 12 ms servis
-  bütçesine bağla; CAN için 25 ms, toplam loop için 50 ms bütçe tanımla.
-- [x] CAN frame'in FIFO'dan alınmasından ACK'in transport'a teslimine kadar
-  9 kovalı latency histogramı ve yaklaşık p50/p95/p99/max üret.
-- [x] Servis timing özetini `0x561`, ACK özetini `0x562` diagnostic frame'ine
-  taşı.
-- [x] Ölçümleri GUI timing tablosuna, servis başına 120 örnekli sparkline'a,
-  ACK p95 geçmiş grafiğine ve event-log decoder'ına taşı.
+See `docs/INTERRUPT_POLICY.md` for the complete table and HIL checklist.
 
-Kabul kriteri: p50/p95/p99/max loop ve ACK gecikmesi, normal yük ve enjekte
-edilmiş çevrebirim arızası için raporlanmalıdır.
+## Phase 3 — Test and static-quality gates
 
-Hedef kabul testi:
+Status: host state-machine coverage and current CI quality gates are complete.
+License work is intentionally deferred.
 
-1. En az 10 dakika normal yükte `MAIN_LOOP`, `TIC12400_PROBE`, `RTC` ve
-   `CAN_APP` min/max değerlerini kaydet; beklenmeyen overrun olmamalı.
-2. SPI MISO ve I2C SDA arızalarını ayrı ayrı enjekte et; 10 ms HAL timeout,
-   12 ms servis bütçesi ve 50 ms loop bütçesinin ölçülen max değerleriyle
-   uyumunu doğrula.
-3. En az 10.000 geçerli ve geçersiz komut gönder; `0x562` p50/p95/p99/max
-   RX-to-ACK-enqueue değerlerini GUI CSV/event kaydıyla raporla.
-4. DWT'yi debugger üzerinden kapat; `0x561` DWT OFF durumunun görünür
-   olduğunu ve ölçüm eksikliğinin sıfır süre gibi yorumlanmadığını doğrula.
-5. Normal ve fault-injection raporlarına firmware commit'i, clock frekansı,
-   CAN yükü ve ölçüm süresini ekle.
+- [x] Test CAN bus-off recovery, rate limiting, phase resume, notification
+  restore, TX-complete verification, stale verification rejection, event
+  coalescing, and tick wrap with HAL stubs.
+- [x] Test the real FDCAN startup orchestration across peripheral, filter,
+  global-filter, FIFO, watermark, start, and notification failures.
+- [x] Separate B1 access request/update/query semantics and cover expiry and
+  tick wrap.
+- [x] Test production RX orchestration, frame gates, ACK results, and the
+  eight-frame processing budget.
+- [x] Test RTC init/reconnect, date-time/alarm write/readback, mismatch,
+  retries, reinitialization, and tick wrap.
+- [x] Test TIC12400 identity, configuration, CRC, interrupt/fallback service,
+  offline recovery, and profile reconfiguration.
+- [x] Enforce `-Wextra -Wconversion -Wshadow -Wundef -Werror` on project-owned
+  firmware and host sources. Build vendored ST sources separately with
+  `-Wall -Wextra`.
+- [x] Gate Cppcheck error/warning/performance/portability findings and retain
+  report artifacts.
+- [x] Gate nested-IRQ worst-case stack usage from `.su` plus disassembly and
+  reserve 2 KiB in linker/CubeMX contracts.
+- [x] Machine-check API call-context declarations and ISR seam naming.
+- [x] Consolidate Python CI on Python 3.13 with Make-based syntax/regression
+  execution.
+- [x] Lock direct and transitive Python dependencies.
+- [ ] Add the root project license and third-party notices after the product
+  update path is complete.
 
-### 2.3 NVIC öncelik sözleşmesi
+## Phase 4 — Maintenance backlog
 
-- [x] `NVIC_PRIORITYGROUP_4` altında safety timer `0`, SysTick `1`, FDCAN `2`,
-  TIC12400 EXTI `3`, gelecekteki application timer'lar `4..14` ve user button
-  `15` olacak şekilde yazılı öncelik tablosu oluştur.
-- [x] Sabitleri `app_irq_policy.h` içinde tek kaynak yap; HAL config, MSP/GPIO
-  init ve `can_gui.ioc` değerlerini aynı sözleşmeyle eşleştir.
-- [x] ISR içinde bloklayıcı HAL, log, transport ve state-machine çağrılarını
-  yasaklayan; yalnızca bounded flag/counter/status kopyasına izin veren çağrı
-  bağlamı sözleşmesini ekle.
-- [x] SysTick'in FDCAN, EXTI veya gelecekteki timer ile aynı/daha düşük
-  preemption priority'de olduğu kombinasyonları host testinde reddet.
-- [ ] Gerçek hedefte NVIC register audit ve eşzamanlı CAN/TIC12400 interrupt
-  storm kabul testini tamamla.
+- [x] Split the side-effecting control-access query into request, update, and
+  read-only operations.
+- [ ] Add B1 debounce.
+- [ ] Document the cache/MPU and 64 MHz operating decision using measurements.
+- [ ] Compare hardware CRC against the current software CRC using measured
+  performance and dependency cost.
 
-Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
-`docs/INTERRUPT_POLICY.md` içindedir.
+## Product roadmap
 
-## Faz 3 — Test ve statik kalite kapıları
+Product development runs before the remaining license, HIL, and maintenance
+items. Existing host quality gates remain mandatory. Files without runtime,
+build, test, release, or verifiable engineering value are removed after a
+reference audit.
 
-Durum: CAN, RTC ve TIC12400 servis host state-machine test dilimleri, strict
-compiler warning, Cppcheck, release stack-budget ve API call-context kalite
-kapıları tamamlandı; diğer statik kalite adımları bekliyor.
+### 1. Remove bring-up and debug-only paths
 
-- [x] `can_recovery.c` için açık init/reset seam'i ve HAL-stub'lı bus-off
-  recovery testleri ekle. 200 ms retry rate-limit, başarılı fazların tekrar
-  edilmemesi, notification restore, TX-complete doğrulaması, yeni bus-off ile
-  stale doğrulamanın reddi, log coalescing ve tick wrap kapsanıyor.
-- [x] `can_app.c` FDCAN init zincirini gerçek üretim yolunda ayrı seam'e
-  çıkar; success ve peripheral/filter/global-filter/FIFO mode/watermark/start/
-  notification hata aşamalarını, transport cleanup ve startup loguyla test et.
-- [x] `can_app.c` payload doğrulamasını ve B1 access-window state'ini gerçek
-  üretim seam'lerine çıkar; request/update/query ayrımı, expiry ve tick wrap
-  davranışını host testleriyle koru.
-- [x] `can_app.c` RX FIFO orchestration, frame gate, reject/ACK sonucu ve
-  sekiz-frame işlem bütçesini gerçek üretim fonksiyonu üzerinden hostta koru.
-- [x] `rtc_app.c` init/reconnect, tarih-saat ve alarm write/readback, tick wrap
-  ve alarm-event retry akışlarını gerçek üretim fonksiyonları üzerinden hostta
-  koru; re-init state resetini ve takvim readback eşleşmesini fail-closed yap.
-- [x] `tic12400_probe.c` kimlik/configuration/CRC, interrupt/fallback service,
-  offline/re-init ve profile reconfiguration akışlarını gerçek üretim
-  fonksiyonları üzerinden hostta koru; başarısız SPI verisini fail-closed tut.
-- [x] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; host ve
-  firmware Makefile'larında `-Werror` kapısını aç. Host matrisini kapı açıkken
-  çalıştır; target toolchain doğrulamasını firmware build adımında tamamla.
-- [x] Cppcheck raporunu metin/XML CI artifact'i yap; proje kaynaklarındaki
-  error/warning/performance/portability bulgularını gate et, stil bulgularını
-  rapor seviyesinde görünür tut ve üçüncü taraf HAL/CMSIS kodunu hariç bırak.
-- [x] `.su` ve disassembly call graph'tan nested-IRQ worst-case stack raporu
-  üret. 1 KiB varsayımını extended FP exception frame ve 256 bayt zorunlu
-  marjla reddet; linker/CubeMX rezervini 2 KiB yap ve TXT/JSON CI artifact gate'i
-  ekle.
-- [x] 34 proje modül header'ına makine-kontrollü `MAIN_LOOP_ONLY`, `ISR_SAFE`
-  ve `INTERNAL` sözleşmesi ekle; ISR seam'lerinde `FromIsr`/`RecordIsr`
-  isimlendirmesini ve header kapsamını CI'da gate et.
-- [x] Yinelenen Python test workflow'unu ana CI GUI job'unda birleştir;
-  Python 3.13, tek GUI bağımlılık kurulumu ve Make tabanlı syntax/regresyon
-  hedefi kullan; bu sözleşmeyi host testinde koru.
-- [ ] Python bağımlılıklarını kilitle ve kök lisans/third-party notices
-  dosyalarını ekle.
-  - [x] Python 3.13 GUI zincirini doğrudan/transitif sürümlerle kilitle;
-    protocol generator pin'ini güncelle ve Make/CI sözleşmesi ekle.
-  - [ ] Proje lisansını kökte açıkla ve gömülü/runtime üçüncü taraf
-    bileşenlerini notice dosyasında envanterle.
+- [x] Remove the 1,000-iteration TIC12400 SPI probe and counters; retain one
+  identity read, register readback, and configuration CRC.
+- [x] Remove watchdog GDB fault hooks, debug linker sections, and the HIL stress
+  utility while retaining isolated host fault-gate tests.
+- [x] Remove unused raw TIC12400 ADC telemetry, software debounce,
+  characterization state, and engineering frame `0x553` from firmware,
+  protocol, DBC, and GUI.
+- [x] Hide module-internal diagnostic state and remove obsolete sub-roadmaps
+  and characterization artifacts.
+- [x] Remove unused newlib syscall/heap templates and unused HSEM build input.
 
-## Faz 4 — Bakım borcu
+### 2. Generate DBC from `can_protocol.yaml`
 
-- [x] `CAN_Is_Control_Access_Open()` yan etkisini request, update ve salt-okuma
-  fonksiyonlarına ayır.
-- B1 için debounce uygula.
-- Cache/MPU ve 64 MHz çalışma kararını ölçüm sonucu ile dokümante et.
-- Donanım CRC kullanımını, mevcut yazılım CRC'sine göre gerçek performans ve
-  bağımlılık maliyetiyle değerlendir.
+- [x] Generate frame IDs, direction, DLC, descriptions, extended-ID flags,
+  command value tables, and deterministic artifacts.
+- [x] Define real command ACK, TIC12400, RTC, policy, PWM/capture, built-in
+  test, log, RX-health, and timing signals.
+- [x] Generate firmware, Python, and DBC constants from one schema.
+- [x] Model GUI command payloads as complete multiplexed signals and remove
+  generic payload-byte fallbacks.
 
-## Ürün geliştirme yönü
+### 3. ISO-TP and UDS diagnostics
 
-Ürün geliştirme, kalan lisans/HIL/bakım maddelerinden önce yürütülür. Mevcut
-host kalite kapıları korunur; donanım kabul eksikleri ayrı backlog olarak
-izlenir. Ürün için runtime, build, test, release veya doğrulanabilir mühendislik
-kanıtı sağlamayan dosyalar referans audit'inden sonra kaldırılır.
+- [x] Add a HAL-independent Classic CAN ISO-TP core with caller-owned static
+  buffers, multi-frame flow control, sequence wrap, WAIT limits, STmin,
+  N_Bs/N_Cr timeout, and tick-wrap tests.
+- [x] Bind physical IDs `0x7E0`/`0x7E8` to the shared RX budget and
+  high-priority transport queue; fail closed on backpressure.
+- [x] Add UDS `0x10`, `0x22`, and `0x3E`, sessions, suppression, S3 timeout,
+  NRCs, multi-DID read, and F100-F103 evidence.
+- [x] Add a non-blocking Python ISO-TP/UDS client without a second bus reader
+  and render live diagnostics.
 
-Uygulama sırası:
+### 4. Signed A/B CAN bootloader
 
-1. Ürün dışı bring-up/debug yollarını kaldır.
-   - [x] Başlangıçtaki 1000 tekrarlı TIC12400 SPI probe döngüsünü ve sayaçlarını
-     kaldır; tek kimlik okuması, register readback ve configuration CRC ile
-     fail-closed başlangıcı koru.
-   - [x] Firmware watchdog GDB fault-injection hook'larını, debug linker
-     section'larını ve HIL stress aracını kaldır; hata kapısı host testinde
-     izole test desteğiyle doğrulanmaya devam etsin.
-   - [x] Ürünün comparator tabanlı anahtar yolunda kullanılmayan ham ADC
-     telemetrisi, decoder, yazılım debounce ve GUI karakterizasyon durumunu
-     kaldır; `0x553` engineering mesajını protokol/DBC'den çıkar.
-   - [x] Modül içi tanı state'lerini public firmware API'sinden kapat ve
-     tarihsel alt-roadmap/karakterizasyon dosyalarını kaldır.
-2. `can_protocol.yaml` kaynaklı DBC üretimi.
-   - [x] Tüm frame ID/yön/DLC/açıklamalarını, extended-ID işaretini ve komut
-     value table'ını deterministik `can_gui.dbc` artifact'ine üret; Make, CI ve
-     release zincirine bağla.
-   - [x] Command ACK ile TIC12400 durum/switch/profil frame'lerini gerçek bit
-     alanları, enum/boolean value table'ları ve mühendislik birimleriyle
-     tanımla; eksik/çakışan/frame dışı şemaları jeneratörde reddet.
-   - [x] RTC durum/zaman/alarm, sistem policy, PWM, input-capture ve PWM
-     self-test frame'lerini gerçek sinyallere taşı; self-test state kodlarını
-     firmware, GUI ve DBC için tek kaynaktan üret.
-   - [x] Log transport/heartbeat, RX-health ve timing frame'lerini gerçek
-     sinyallere taşı; log wire sabitleri ile timing service ID'lerini firmware,
-     GUI ve DBC için tek kaynaktan üret.
-   - [x] GUI komutlarını command-code ile seçilen, tam kapsamalı multiplexed
-     payload alanlarına taşı; generic payload-byte fallback'ini kaldır.
-3. ISO-TP ve UDS diagnostic servisleri.
-   - [x] HAL'den bağımsız, caller-owned statik tampon kullanan Classic CAN
-     ISO-TP çekirdeğini ekle. Single/first/consecutive/flow-control frame,
-     12-bit uzunluk, sequence wrap, block size, WAIT limiti, microsecond
-     `STmin`, `N_Bs`/`N_Cr` timeout ve tick wrap davranışlarını host testinde
-     koru.
-   - [x] ISO-TP kanalını YAML/DBC kaynaklı fiziksel `0x7E0` request ve `0x7E8`
-     response ID'leriyle firmware main-loop'una bağla. Standard/extended
-     donanım filtrelerini birlikte kur; diagnostic frame'lerini ortak sekiz
-     frame RX bütçesinde işle; flow-control/response frame'lerini
-     high-priority transport kuyruğuna ver. Queue backpressure durumunda
-     oturumu fail-closed kapat ve protocol/timeout/overflow/transport
-     sayaçlarını accessor üzerinden görünür tut.
-   - [x] UDS dispatcher ile aktüatörlere dokunmayan `0x10`, `0x22` ve `0x3E`
-     servislerini ekle. Default/extended session, suppress-positive-response,
-     S3 timeout, standard NRC üretimi ve çoklu DID okumasını host testleriyle
-     koru. `0xF100..0xF103` üzerinden protocol, startup, runtime ve reset
-     kanıtlarını big-endian olarak sun; wire sözleşmesini
-     `docs/UDS_DIAGNOSTICS.md` içinde tut.
-   - [x] Python tarafına ikinci bus reader açmadan mevcut RX poll'a bağlı,
-     timeout/sequence kontrolü yapan ISO-TP/UDS istemcisini ekle. F100–F103
-     değerlerini iki bounded request ile canlı Diagnostics sekmesine taşı;
-     timeout ve recovery durumlarını tekrar bastırmalı event log ile göster.
-4. A/B, imzalı ve rollback destekli CAN bootloader.
-   - [x] 2 MiB dual-bank flash'i bootloader, 896 KiB A/B slotları ve redundant
-     boot-control alanına sektör hizalı böl. 128-byte signed manifest ve
-     1 KiB vector header sözleşmesini dondur. Slot sınırı, MSP/reset vector,
-     monotonic security counter, SHA-256 digest ve imza callback'lerini
-     fail-closed doğrulayan HAL bağımsız çekirdeği host testinde koru.
-   - [x] CRC/generation korumalı redundant boot-control record, pending boot
-     attempt, application confirmation ve otomatik rollback policy'sini ekle.
-   - [x] Boot target, A/B linker script'leri, vector relocation ve güvenli
-     application jump yolunu bağla.
-   - [x] Power-loss güvenli flash erase/program backend'ini ekle.
-   - [ ] UDS firmware download/routine servisleri ile GUI Flash sekmesini ekle.
-     - [x] Programming session, inactive-slot erase, RequestDownload,
-       TransferData ve TransferExit state machine'ini host testinde koru.
-     - [x] Multi-frame request gönderen sıralı desktop workflow ve Flash
-       sekmesini ekle; artifact/slot uyuşmazlığını CAN'e veri çıkmadan reddet.
-     - [ ] STM32 slot writer ile embedded signature verifier'ı finalize
-       callback'ine bağla; ondan sonra üst maddeyi kapat.
-   - [ ] Offline signing, gömülü public-key doğrulaması ve signed release
-     artifact zincirini tamamla.
-5. Classic CAN'den CAN FD'ye geçiş.
-6. Freshness counter ve CMAC tabanlı komut doğrulama.
-7. Self-hosted runner ile nightly HIL regresyonu.
+- [x] Partition 2 MiB flash into bootloader, 896 KiB A/B slots, and redundant
+  boot-control storage.
+- [x] Freeze the 128-byte signed manifest and 1 KiB vector header contract.
+- [x] Validate slot bounds, MSP/reset vector, monotonic security counter,
+  SHA-256 digest, and signature callbacks fail-closed.
+- [x] Add CRC/generation-protected redundant state, pending attempts,
+  confirmation, and rollback policy.
+- [x] Add boot target orchestration, A/B linker profiles, vector relocation,
+  and safe Cortex-M7 application handoff.
+- [x] Add the power-loss-safe STM32 erase/program/read backend.
+- [x] Add UDS programming session, inactive-slot erase, RequestDownload,
+  TransferData, TransferExit, sequence/retry behavior, and host tests.
+- [x] Add the desktop Flash page and sequential multi-frame workflow; reject
+  malformed, unsigned, or wrong-slot artifacts before sending data.
+- [x] Run the complete hardware-free C and offscreen GUI regression suites on
+  2026-08-02.
+- [ ] Connect the STM32 slot writer and embedded signature verifier to the UDS
+  finalizer, then persist the image as pending.
+- [ ] Add offline signing, embedded public-key verification, image packaging,
+  and signed release artifacts.
+- [ ] Complete target erase/program/reset/confirmation/rollback acceptance.
 
-DBC sinyal semantiği, ISO-TP taşıması, ilk aktüatörsüz UDS servisleri ve Python
-diagnostic görünümü tamamlandı. Yakın hedef gerçek bus üzerinde P2/P2*/S3 zaman
-kabul testlerini tamamlamak; ardından imzalı A/B bootloader tasarımına
-geçmektir.
+### 5. Classic CAN to CAN FD migration
+
+- [ ] Define compatibility/versioning policy before expanding payloads from 8
+  to 64 bytes.
+- [ ] Add nominal 500 kbit/s and data-phase timing with target measurements.
+- [ ] Regenerate firmware, Python, and DBC contracts and preserve UDS behavior.
+
+### 6. Authenticated commands
+
+- [ ] Define a persistent freshness-counter lifecycle.
+- [ ] Add CMAC-based command authentication and key provisioning.
+- [ ] Replace the B1 maintenance window as a security claim; retain physical
+  authorization where useful for service safety.
+
+### 7. Nightly HIL regression
+
+- [ ] Add a self-hosted runner with ST-LINK and a second CAN node.
+- [ ] Flash signed images and exercise bus-off, TIC12400 disconnect, watchdog
+  stall, PWM loopback, update rollback, and evidence collection nightly.
+
+## Current next step
+
+The immediate product task is the firmware-update finalizer: validate the
+downloaded inactive-slot payload with an embedded public key, write the held
+header last, verify readback, schedule the slot as pending, and persist the
+boot-control record. The signing/release toolchain follows that integration.

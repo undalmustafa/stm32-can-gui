@@ -1,134 +1,132 @@
-# CAN bootloader mimarisi
+# CAN Bootloader Architecture
 
-Bu belge imzalı A/B firmware update yolunun flash ve image sözleşmesini
-dondurur. HAL'den bağımsız image doğrulama, rollback policy, boot target
-orkestrasyonu ve Cortex-M7 application handoff yolu hazırdır. Flash programlama
-ve gerçek kripto backend'i henüz bağlı değildir.
+This document freezes the flash and image contracts for signed A/B firmware
+updates. The HAL-independent image validator, rollback policy, boot target,
+Cortex-M7 handoff path, power-loss-safe flash persistence, UDS download state
+machine, and GUI Flash workflow are implemented. The STM32 update finalizer,
+embedded public-key verifier, and offline signing pipeline remain open.
 
-STM32H7A3ZITxQ, 2 MiB dual-bank user flash sağlar. RM0455'te tanımlanan 8 KiB
-user-flash sektör sınırlarına göre yerleşim şöyledir:
+The STM32H7A3ZITxQ provides 2 MiB of dual-bank user flash. The layout follows
+the 8 KiB user-flash sector boundaries defined by RM0455:
 
-| Bölge | Başlangıç | Bitiş (exclusive) | Boyut | Bank |
+| Region | Start | End, exclusive | Size | Bank |
 |---|---:|---:|---:|---:|
 | Bootloader | `0x08000000` | `0x08020000` | 128 KiB | 1 |
 | Application A | `0x08020000` | `0x08100000` | 896 KiB | 1 |
 | Application B | `0x08100000` | `0x081E0000` | 896 KiB | 2 |
 | Boot control | `0x081E0000` | `0x08200000` | 128 KiB | 2 |
 
-Kaynak: [ST RM0455 — STM32H7A3/7B3 reference manual](https://www.st.com/resource/en/reference_manual/dm00463927-stm32h7a3-b3-and-stm32h7b0-value-line-advanced-arm-based-32-bit-mcus-stmicroelectronics.pdf).
+Source: [ST RM0455 — STM32H7A3/7B3 reference manual](https://www.st.com/resource/en/reference_manual/dm00463927-stm32h7a3-b3-and-stm32h7b0-value-line-advanced-arm-based-32-bit-mcus-stmicroelectronics.pdf).
 
-Sabitler `Core/Inc/boot_memory_map.h` içindedir. Derleme zamanı assertion'ları
-bölgeler arasında boşluk, taşma veya çakışma oluşmasını engeller.
+The source of truth is `Core/Inc/boot_memory_map.h`. Compile-time assertions
+reject gaps, overflow, and overlap between managed regions.
 
-## Image düzeni
+## Image layout
 
-Her slot kendi adresine link edilmiş bağımsız bir application image taşır:
+Each slot contains an independently linked application image:
 
 ```text
 slot base + 0x000  128-byte signed manifest
 slot base + 0x080  reserved header padding
-slot base + 0x400  Cortex-M7 vector table ve image payload
+slot base + 0x400  Cortex-M7 vector table and image payload
 ```
 
-1 KiB header, bu target'taki 171-word vector tablosunun doğal Cortex-M7
-hizasını korur. Linker vector tablosunun 1 KiB rezervi aşmasını reddeder.
-Manifest little-endian alanlardan oluşur:
+The 1 KiB header preserves the natural Cortex-M7 alignment of the 171-word
+vector table. The linker rejects a vector table that exceeds this reservation.
+Manifest fields are little-endian:
 
-| Offset | Boyut | Alan |
+| Offset | Size | Field |
 |---:|---:|---|
 | `0x00` | 4 | Magic `IMG1` (`0x31474D49`) |
 | `0x04` | 2 | Manifest format version |
-| `0x06` | 2 | Header size, ilk sürümde 1024 |
+| `0x06` | 2 | Header size, 1,024 in format version 1 |
 | `0x08` | 4 | Image payload size |
 | `0x0C` | 4 | Vector table address |
 | `0x10` | 4 | Thumb reset-handler address |
 | `0x14` | 4 | Monotonic security counter |
 | `0x18` | 4 | Product build version |
-| `0x1C` | 4 | Flags; ilk sürümde sıfır olmak zorunda |
-| `0x20` | 32 | Image payload SHA-256 digest |
-| `0x40` | 64 | İlk 64 manifest byte'ının imzası |
+| `0x1C` | 4 | Flags; must be zero in format version 1 |
+| `0x20` | 32 | SHA-256 digest of the image payload |
+| `0x40` | 64 | Signature over the first 64 manifest bytes |
 
-İmza, digest dahil `0x00..0x3F` canonical bölgesini kapsar. Böylece image
-boyutu, yerleşim adresleri, security counter, build version ve digest birlikte
-yetkilendirilir. İmza algoritması ve public-key saklama backend'i ayrı dilimde
-bağlanacaktır; doğrulayıcı callback yoksa image fail-closed reddedilir.
+The signature covers canonical bytes `0x00..0x3F`, including the digest. Image
+size, placement, security counter, build version, and digest are therefore
+authorized together. A missing signature callback is a hard validation
+failure; unsigned images are never accepted as pending.
 
-## Boot öncesi doğrulama
+## Pre-boot validation
 
-`Boot_Image_Validate()` sırasıyla şunları zorunlu tutar:
+`Boot_Image_Validate()` enforces this order:
 
-1. Slot, reader, digest, signature ve RAM-region bağımlılıkları geçerli.
-2. Magic, format, sabit header boyu ve reserved flags doğru.
-3. Image payload slot sınırları içinde ve integer overflow yok.
-4. Vector table tam olarak `slot base + 1024` adresinde.
-5. Security counter, kalıcı minimum değerden düşük değil.
-6. Initial MSP sekiz-byte hizalı ve izin verilen RAM bölgelerinden birinde.
-7. Vector reset handler ile manifest entry aynı, Thumb biti set ve entry image
-   sınırları içinde.
-8. Manifest imzası geçerli.
-9. Image payload SHA-256 digest'i manifest ile aynı.
+1. Slot, reader, digest, signature, and RAM-region dependencies are valid.
+2. Magic, format, fixed header size, and reserved flags are valid.
+3. The payload range fits the slot without integer overflow.
+4. The vector table is exactly at `slot base + 1024`.
+5. The security counter is not below the persistent minimum.
+6. Initial MSP is eight-byte aligned and inside an allowed RAM region.
+7. Vector reset handler equals the manifest entry, has the Thumb bit set, and
+   points inside the payload.
+8. Manifest signature verification succeeds.
+9. Payload SHA-256 digest verification succeeds.
 
-Başarısız doğrulama application koduna hiçbir şekilde dallanmaz. Her hata
-ayrı sonuç koduyla boot policy/recovery katmanına bildirilir.
+A failed image is never branched to. Each failure has a distinct result code
+for the boot policy and recovery layer.
 
-## Redundant boot-control ve rollback
+## Redundant boot control and rollback
 
-Boot-control bölgesinin ilk iki 8 KiB sektörü birbirinden bağımsız record
-taşır:
+The first two 8 KiB sectors in the boot-control region hold independent
+records:
 
 - Record 0: `0x081E0000`
 - Record 1: `0x081E2000`
 
-Her record 64 byte'tır ve magic/format/size, wrap-safe generation,
-confirmed/pending slot, kalan deneme sayısı, security counter, build version,
-CRC-32 ve commit marker içerir. Reserved alanların tamamı sıfır olmak
-zorundadır.
+Each 64-byte record contains magic/format/size, wrap-safe generation,
+confirmed and pending slots, attempts remaining, security counters, build
+versions, CRC-32, and a commit marker. Every reserved field must be zero.
 
-Yeni state yazılırken eski record korunur. Diğer sektör silinir ve erase
-readback ile doğrulanır. STM32H7A3'ün programlama birimi 128-bit/16 byte olduğu
-için record'un ilk üç flashword'ü (`0..47`) yazılıp doğrulanır. Reserved alan,
-CRC ve `0xC04E7A5A` commit marker içeren son 16-byte flashword tek final kabul
-noktası olarak en son programlanır ve record bütünü tekrar okunur. Dört-byte
-commit yazımı HAL/donanım tarafından desteklenmediği için kullanılmaz.
+When persisting new state, the current record remains untouched. The other
+sector is erased and verified by readback. Because the STM32H7A3 program unit
+is 128 bits (16 bytes), the first three flashwords (`0..47`) are programmed
+and verified first. The last flashword contains reserved data, CRC, and the
+`0xC04E7A5A` commit marker. It is programmed last as the single acceptance
+point, then the complete record is verified. A four-byte marker write is not
+used because the HAL and hardware require a complete flashword.
 
-Power loss final flashword'den önce oluşursa yeni record'un commit marker'ı
-erased kalır ve önceki generation seçilir. Final flashword sırasında kesinti
-olursa record ancak CRC ve marker birlikte eksiksizse kabul edilir; aksi halde
-eski record seçilir. Her hata yolunda flash tekrar kilitlenir. CRC bozuk, yarım
-yazılmış veya aynı generation ile farklı state taşıyan record'lar fail-closed
-reddedilir.
+Power loss before the final flashword leaves the new marker erased and the
+older generation remains selected. Power loss during the final flashword
+accepts the new record only when both CRC and marker are complete. Flash is
+relocked on every error path. Corrupt, partial, or conflicting equal-generation
+records are rejected fail-closed.
 
-`Boot_Flash_PersistControl()` erase, erase verify, üç body programı, body
-verify, final commit programı ve final verify sırasını zorunlu tutar. STM32 HAL
-adapter'ı yalnız bootloader dışındaki sektör hizalı managed flash adreslerini
-silebilir; 16-byte hizasız veya flash sınırı dışındaki program çağrılarını
-reddeder. Readback öncesi flash donanım CRC motoru çalıştırılır. Böylece yarım
-programlanmış flashword kaynaklı ECC double-error `CRCRDERR` olarak fail-closed
-yakalanır ve doğrudan CPU read nedeniyle HardFault üretilmez.
-[ST'nin STM32H7 flash ECC örneği](https://community.st.com/stm32-mcus-60/injecting-and-handling-ecc-errors-in-stm32h7-flash-memory-141263)
-double-error içeren doğrudan flash okumasının HardFault ürettiğini gösterir.
+`Boot_Flash_PersistControl()` enforces erase, erase verification, three body
+program operations, body verification, final commit programming, and final
+verification. The STM32 adapter erases only sector-aligned managed addresses
+outside the bootloader and rejects unaligned or out-of-range writes. Before
+CPU readback it runs the hardware flash CRC engine, turning partially
+programmed flashword ECC double errors into a fail-closed `CRCRDERR` result
+instead of a HardFault caused by a direct CPU read. ST documents the direct
+read behavior in its [STM32H7 flash ECC example](https://community.st.com/stm32-mcus-60/injecting-and-handling-ecc-errors-in-stm32h7-flash-memory-141263).
 
-Update ve rollback akışı:
+The update and rollback policy is:
 
-1. Yalnızca confirmed slottan farklı ve security counter'ı kalıcı minimumdan
-   büyük image pending yapılabilir.
-2. Pending image için üç boot hakkı verilir.
-3. Her application jump öncesinde hak azaltılır ve yeni state kalıcılaştırılır.
-4. Application kendi slot/security/build kimliğini doğrulayarak confirmation
-   verir; pending slot confirmed olur ve anti-rollback minimumu yükselir.
-5. Üç denemede confirmation gelmezse veya pending image doğrulaması başarısızsa
-   pending temizlenir ve son confirmed image seçilir.
-6. Confirmed image de geçersizse başka bir unconfirmed image otomatik
-   çalıştırılmaz; bootloader recovery modunda kalır.
+1. Only an image in the slot opposite the confirmed slot and with a security
+   counter above the persistent minimum may become pending.
+2. A pending image receives three boot attempts.
+3. Attempts are decremented and persisted before every application jump.
+4. The application confirms its own slot/security/build identity; confirmation
+   promotes pending to confirmed and advances the anti-rollback minimum.
+5. Exhausted attempts or invalid pending validation clear pending and select
+   the last confirmed image.
+6. If the confirmed image is also invalid, no arbitrary unconfirmed image is
+   started; the bootloader remains in recovery mode.
 
-Çekirdek katman HAL çağrısı yapmaz; STM32H7A3 erase/program/read adapter'ı ayrı
-dosyadadır. Application confirmation taşıması sonraki dilimde bootloader'a
-bağlanacaktır.
+The core layer makes no HAL calls. STM32H7A3 erase/program/read operations are
+isolated in the platform adapter.
 
-## Linker profilleri ve application handoff
+## Linker profiles and application handoff
 
-Tek section yerleşimi `STM32H7A3ZITXQ_FLASH.ld` içinde tutulur; hedef profiller
-yalnızca flash sınırlarını tanımlar:
+The common section layout remains in `STM32H7A3ZITXQ_FLASH.ld`; target
+profiles define only flash boundaries:
 
 - `linker/STM32H7A3ZITXQ_BOOT.ld`: `0x08000000..0x08020000`
 - `linker/STM32H7A3ZITXQ_SLOT_A.ld`: payload
@@ -136,39 +134,66 @@ yalnızca flash sınırlarını tanımlar:
 - `linker/STM32H7A3ZITXQ_SLOT_B.ld`: payload
   `0x08100400..0x081E0000`
 
-Application linker profilleri slot başındaki 1 KiB manifest/header alanını
-bilerek link dışında bırakır. `make slot-a` ve `make slot-b` ayrı adreslere
-linklenen application artifact'lerini üretir. Bu target derlemeleri imzalı
-manifest paketleyici tamamlanana kadar doğrudan flashlanmamalıdır.
+Application profiles deliberately exclude the 1 KiB manifest/header area.
+`make slot-a` and `make slot-b` produce applications linked for different
+addresses. Do not flash those raw artifacts directly; the signed image
+packager is required.
 
-Startup vector sembolü dışa açılır ve `SystemInit()` VTOR'u linker'ın seçtiği
-`g_pfnVectors` adresine kurar. Böylece standalone, Slot A ve Slot B aynı startup
-kodunu sabit offset makroları olmadan kullanır.
+The startup vector symbol is exported and `SystemInit()` sets VTOR from the
+linker-selected `g_pfnVectors` address. Standalone, Slot A, and Slot B builds
+therefore share the same startup code without fixed offset macros.
 
-`Boot_Target_Run()` şu fail-closed sıralamayı uygular:
+`Boot_Target_Run()` follows this fail-closed sequence:
 
-1. İki boot-control record'u okur ve newest valid generation'ı seçer.
-2. Yalnızca state içinde confirmed veya pending olarak kayıtlı slot kimliğini,
-   security counter'ını ve build version'ını kabul eder.
-3. Rollback policy state'i değiştirdiyse yeni state kalıcılaştırılmadan hiçbir
-   application jump çağrısı yapmaz.
-4. Seçilen image için ikinci handoff preflight kontrolünü çalıştırır.
-5. Platform jump callback'ine doğrulanmış vector/MSP/entry planını verir.
+1. Read both boot-control records and select the newest valid generation.
+2. Accept only a slot identity/security counter/build version recorded as
+   confirmed or pending.
+3. Persist any state change made by rollback policy before attempting a jump.
+4. Run a second handoff preflight for the selected image.
+5. Pass the validated vector/MSP/entry plan to the platform jump callback.
 
-Cortex-M7 backend'i önce bootloader'ın periferik/DMA quiesce callback'ini
-çalıştırır ve başarısızlığı halinde jump'ı iptal eder; ardından global interrupt
-maskesi, SysTick durdurma, tüm NVIC
-enable/pending bitlerini temizleme, cache kapatma, VTOR kurulumu ve bariyerleri
-uygular. Son adımda CONTROL/PSP/BASEPRI/FAULTMASK durumunu reset değerine getirir,
-application MSP'sini yükler ve Thumb reset handler'a dallanır. Dal geri dönerse
-backend interrupt'ları kapatıp güvenli halt durumunda kalır.
+The Cortex-M7 backend first calls the bootloader peripheral/DMA quiesce
+callback and cancels handoff if it fails. It then masks global interrupts,
+stops SysTick, clears every NVIC enable and pending bit, disables caches,
+installs VTOR, and executes barriers. Finally it restores
+CONTROL/PSP/BASEPRI/FAULTMASK reset state, loads application MSP, and branches
+to the Thumb reset handler. If the branch returns, interrupts remain disabled
+and the backend enters a safe halt.
 
-## Sıradaki dilimler
+## Firmware download path
 
-1. UDS download/routine servisleri ve GUI Flash sekmesini bağla.
-2. Release image packager, offline signing ve gömülü public-key doğrulamasını
-   CI/release zincirine ekle.
+The implemented desktop-to-core path is:
 
-Mevcut `STM32H7A3ZITXQ_FLASH.ld` standalone application geliştirme düzenini
-korur. Boot flash backend'i ve signed artifact zinciri tamamlanmadan bu
-belgedeki adreslerle hedef flashlama yapılmamalıdır.
+```text
+Flash panel
+  -> fail-closed artifact preflight
+  -> UDS programming session
+  -> inactive-slot erase routine
+  -> RequestDownload
+  -> ordered, retry-safe TransferData blocks
+  -> RequestTransferExit
+  -> finalizer callback
+```
+
+The first 1 KiB header is held back while the payload is written. The finalizer
+must validate the embedded signature and payload digest, program the header
+last, verify it, schedule the slot as pending, and persist boot control. Until
+that callback is wired to the STM32 and a real public key, the product remains
+fail-closed at transfer exit.
+
+Hardware-free tests cover manifest validation, slot bounds, rollback, power
+loss at every control-record program point, UDS ordering and duplicate blocks,
+desktop timeout retry, wrong-slot rejection, and unsigned artifact rejection.
+They do not replace target flash, reset, confirmation, or rollback tests.
+
+## Remaining slices
+
+1. Connect the STM32 slot writer and embedded signature verifier to the UDS
+   finalizer, including pending-record persistence.
+2. Add the release image packager, offline signing, embedded public key, and
+   signed release artifacts to CI/release.
+3. Validate erase/program/reset/confirmation/rollback on target hardware.
+
+`STM32H7A3ZITXQ_FLASH.ld` remains the standalone development profile. Do not
+use the managed A/B addresses for production flashing until the finalizer and
+signed artifact chain are complete.

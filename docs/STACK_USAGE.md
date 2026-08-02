@@ -1,43 +1,45 @@
 # Stack Usage Budget
 
-Release firmware stack kullanımı GCC'nin `-fstack-usage` ile ürettiği `.su`
-dosyaları ve `arm-none-eabi-objdump` disassembly çağrı grafiği birlikte
-incelenerek sınırlandırılır.
+Release firmware stack use is bounded by combining GCC `.su` files produced
+with `-fstack-usage` and the call graph extracted from
+`arm-none-eabi-objdump` disassembly.
 
 ```sh
 make CONFIG=release
 make CONFIG=release stack-report
 ```
 
-İkinci hedef firmware'i yalnızca güncel değilse Make bağımlılıkları üzerinden
-yeniler; normal durumda `build/release/stack-usage.txt` ve
-`build/release/stack-usage.json` üretir. CI bu iki dosyayı ayrı artifact olarak
-saklar ve bütçe aşımında başarısız olur.
+The second target rebuilds the firmware only when Make dependencies require
+it. It normally produces `build/release/stack-usage.txt` and
+`build/release/stack-usage.json`. CI retains both files as artifacts and fails
+when the budget is exceeded.
 
-## Bütçe modeli
+## Budget model
 
-- Gerçek rezerv linker script'teki `_Min_Stack_Size` sembolünden okunur.
-- Main-loop'un en derin doğrudan çağrı yolu hesaplanır.
-- `app_irq_policy.h` içindeki aktif IRQ öncelikleri düşük öncelikten yükseğe
-  doğru tam nesting kabul edilerek bu yola eklenir.
-- Her exception girişi için Cortex-M7 extended floating-point frame'i ve
-  alignment dahil 108 bayt ayrılır.
-- `.su` bilgisi bulunmayan runtime/library sınırında tüm dış çağrı zinciri
-  için 256 bayt, çözülemeyen dolaylı çağrıda 256 bayt rezerv kullanılır.
-- Hesaplanan envelope sonrasında en az 256 bayt güvenlik marjı kalmalıdır.
-- Dynamic veya recursive stack kullanımı fail-closed reddedilir.
+- The actual reservation is read from the linker `_Min_Stack_Size` symbol.
+- The deepest direct main-loop call path is calculated.
+- Active IRQ priorities from `app_irq_policy.h` are added under the
+  conservative assumption that every higher-priority interrupt nests over
+  every lower-priority interrupt.
+- Each exception entry reserves 108 bytes for the Cortex-M7 extended
+  floating-point frame and alignment.
+- A 256-byte reserve covers an external runtime/library chain without `.su`
+  data; each unresolved indirect call receives another 256-byte reserve.
+- At least 256 bytes of safety margin must remain after the calculated
+  envelope.
+- Dynamic or recursive stack use is rejected fail-closed.
 
-Mevcut release çıktısında konservatif envelope 1288 bayttır. Önceki 1 KiB
-rezerv, extended exception nesting ve zorunlu marjla yeterli değildir. Bu
-modelde minimum kabul edilebilir rezerv 1544 bayttır. Bu nedenle linker ve
-CubeMX sözleşmesi 2 KiB'a yükseltilmiştir; kalan ham marj 760 bayt, politika
-marjı çıkarıldıktan sonraki headroom 504 bayttır.
+The current conservative release envelope is 1,288 bytes. The former 1 KiB
+reservation could not cover extended exception nesting and the mandatory
+margin. The minimum accepted by this model is 1,544 bytes, so the linker and
+CubeMX contract reserve 2 KiB. This leaves 760 bytes of raw margin and 504
+bytes after the policy margin.
 
-## Sınırlar
+## Limits
 
-Rapor statik ve konservatiftir; runtime watermark ölçümünün yerine geçmez.
-`ignoring_inline_asm` işaretli GCC kayıtlarını ve rezerv uygulanan dış sembolleri
-raporda açıkça listeler. Yeni IRQ eklendiğinde `scripts/stack_budget.json`
-içindeki root ve `app_irq_policy.h` içindeki priority macro birlikte
-tanımlanmalıdır. Fault/NMI kabul testi ve gerçek hedef stack watermark ölçümü
-HIL kapsamında ayrıca yürütülmelidir.
+This report is static and conservative; it does not replace runtime watermark
+measurement. GCC records marked `ignoring_inline_asm` and external symbols
+covered by reserves are listed explicitly. When adding an IRQ, define its root
+in `scripts/stack_budget.json` and its priority macro in
+`app_irq_policy.h`. Fault/NMI acceptance tests and on-target stack watermark
+measurements remain part of HIL validation.
