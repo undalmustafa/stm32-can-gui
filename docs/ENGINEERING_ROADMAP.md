@@ -202,7 +202,7 @@ Detaylı tablo, yeni IRQ ekleme kontrol listesi ve HIL senaryosu
 
 ## Faz 3 — Test ve statik kalite kapıları
 
-Durum: CAN, RTC ve TIC12400 probe host state-machine test dilimleri, strict
+Durum: CAN, RTC ve TIC12400 servis host state-machine test dilimleri, strict
 compiler warning, Cppcheck, release stack-budget ve API call-context kalite
 kapıları tamamlandı; diğer statik kalite adımları bekliyor.
 
@@ -221,8 +221,8 @@ kapıları tamamlandı; diğer statik kalite adımları bekliyor.
 - [x] `rtc_app.c` init/reconnect, tarih-saat ve alarm write/readback, tick wrap
   ve alarm-event retry akışlarını gerçek üretim fonksiyonları üzerinden hostta
   koru; re-init state resetini ve takvim readback eşleşmesini fail-closed yap.
-- [x] `tic12400_probe.c` validation/configuration/CRC, interrupt/fallback
-  service, offline/re-init ve profile reconfiguration akışlarını gerçek üretim
+- [x] `tic12400_probe.c` kimlik/configuration/CRC, interrupt/fallback service,
+  offline/re-init ve profile reconfiguration akışlarını gerçek üretim
   fonksiyonları üzerinden hostta koru; başarısız SPI verisini fail-closed tut.
 - [x] `-Wextra -Wconversion -Wshadow -Wundef` uyarılarını temizle; host ve
   firmware Makefile'larında `-Werror` kapısını aç. Host matrisini kapı açıkken
@@ -265,17 +265,29 @@ kanıtı sağlamayan dosyalar referans audit'inden sonra kaldırılır.
 
 Uygulama sırası:
 
-1. `can_protocol.yaml` kaynaklı DBC üretimi.
+1. Ürün dışı bring-up/debug yollarını kaldır.
+   - [x] Başlangıçtaki 1000 tekrarlı TIC12400 SPI probe döngüsünü ve sayaçlarını
+     kaldır; tek kimlik okuması, register readback ve configuration CRC ile
+     fail-closed başlangıcı koru.
+   - [x] Firmware watchdog GDB fault-injection hook'larını, debug linker
+     section'larını ve HIL stress aracını kaldır; hata kapısı host testinde
+     izole test desteğiyle doğrulanmaya devam etsin.
+   - [x] Ürünün comparator tabanlı anahtar yolunda kullanılmayan ham ADC
+     telemetrisi, decoder, yazılım debounce ve GUI karakterizasyon durumunu
+     kaldır; `0x553` engineering mesajını protokol/DBC'den çıkar.
+   - [x] Modül içi tanı state'lerini public firmware API'sinden kapat ve
+     tarihsel alt-roadmap/karakterizasyon dosyalarını kaldır.
+2. `can_protocol.yaml` kaynaklı DBC üretimi.
    - [x] Tüm frame ID/yön/DLC/açıklamalarını, extended-ID işaretini ve komut
      value table'ını deterministik `can_gui.dbc` artifact'ine üret; Make, CI ve
      release zincirine bağla.
    - [ ] Byte seviyesindeki kayıpsız baseline'ı gerçek sinyal adları,
      mühendislik birimleri ve multiplexed komut alanlarıyla zenginleştir.
-2. ISO-TP ve UDS diagnostic servisleri.
-3. A/B, imzalı ve rollback destekli CAN bootloader.
-4. Classic CAN'den CAN FD'ye geçiş.
-5. Freshness counter ve CMAC tabanlı komut doğrulama.
-6. Self-hosted runner ile nightly HIL regresyonu.
+3. ISO-TP ve UDS diagnostic servisleri.
+4. A/B, imzalı ve rollback destekli CAN bootloader.
+5. Classic CAN'den CAN FD'ye geçiş.
+6. Freshness counter ve CMAC tabanlı komut doğrulama.
+7. Self-hosted runner ile nightly HIL regresyonu.
 
 Yakın hedef, DBC sinyal semantiğini tamamladıktan sonra ISO-TP taşımasını küçük,
 host-testli bir çekirdek olarak eklemektir. UDS servisleri bu taşıma katmanının
