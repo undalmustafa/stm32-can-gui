@@ -73,11 +73,11 @@ WARNING_FLAGS := -Wall -Wextra -Wconversion -Wshadow -Wundef -Werror
 DEFINES := -DUSE_PWR_DIRECT_SMPS_SUPPLY -DUSE_HAL_DRIVER -DSTM32H7A3xxQ
 INCLUDES := \
 	-ICore/Inc \
-	-IDrivers/STM32H7xx_HAL_Driver/Inc \
-	-IDrivers/STM32H7xx_HAL_Driver/Inc/Legacy \
-	-IDrivers/BSP/STM32H7xx_Nucleo \
-	-IDrivers/CMSIS/Device/ST/STM32H7xx/Include \
-	-IDrivers/CMSIS/Include
+	-isystem Drivers/STM32H7xx_HAL_Driver/Inc \
+	-isystem Drivers/STM32H7xx_HAL_Driver/Inc/Legacy \
+	-isystem Drivers/BSP/STM32H7xx_Nucleo \
+	-isystem Drivers/CMSIS/Device/ST/STM32H7xx/Include \
+	-isystem Drivers/CMSIS/Include
 
 ifeq ($(CONFIG),debug)
 OPT_FLAGS := -O0 -g3

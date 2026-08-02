@@ -35,6 +35,9 @@
   */
 #define HAL_MODULE_ENABLED
 
+/* Disable optional FLASH ECC reporting unless the application enables it. */
+#define USE_FLASH_ECC                 0U
+
   /* #define HAL_ADC_MODULE_ENABLED   */
 #define HAL_FDCAN_MODULE_ENABLED
 /* #define HAL_FMAC_MODULE_ENABLED   */

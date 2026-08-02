@@ -18,9 +18,10 @@ uint8_t CAN_CommandGuard_IsPrivileged(
 
         case CAN_PROTOCOL_CMD_SET_SLOT_1:
         case CAN_PROTOCOL_CMD_SET_SLOT_2:
-            return ((payload[1] & CAN_PROTOCOL_SLOT_FLAG_ENABLE) == 0U)
-                 ? 0U
-                 : 1U;
+            return (uint8_t)(
+                ((payload[1] & CAN_PROTOCOL_SLOT_FLAG_ENABLE) == 0U)
+                ? 0U
+                : 1U);
 
         case CAN_PROTOCOL_CMD_START_SLOT_1_COUNTER:
         case CAN_PROTOCOL_CMD_START_SLOT_2_COUNTER:
