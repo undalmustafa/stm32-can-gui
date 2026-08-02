@@ -262,6 +262,11 @@ Bu bölüm şimdilik uygulama kapsamı dışındadır. Faz 0-3 kabul kriterleri
 tamamlandıktan sonra önerilen sıra:
 
 1. `can_protocol.yaml` kaynaklı DBC üretimi.
+   - [x] Tüm frame ID/yön/DLC/açıklamalarını, extended-ID işaretini ve komut
+     value table'ını deterministik `can_gui.dbc` artifact'ine üret; Make, CI ve
+     release zincirine bağla.
+   - [ ] Byte seviyesindeki kayıpsız baseline'ı gerçek sinyal adları,
+     mühendislik birimleri ve multiplexed komut alanlarıyla zenginleştir.
 2. ISO-TP ve UDS diagnostic servisleri.
 3. A/B, imzalı ve rollback destekli CAN bootloader.
 4. Classic CAN'den CAN FD'ye geçiş.

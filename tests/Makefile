@@ -200,9 +200,12 @@ test-protocol-generation:
 	@cd .. && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) protocol/generate_c.py
 	@cd .. && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) \
 		protocol/generate_python.py
+	@cd .. && PYTHONDONTWRITEBYTECODE=1 $(PYTHON) protocol/generate_dbc.py
+	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_dbc_generation.py
 	@git -C .. diff --exit-code -- \
 		Core/Inc/can_protocol_generated.h \
-		python/can_protocol_generated.py
+		python/can_protocol_generated.py \
+		protocol/can_gui.dbc
 
 test-stack-usage:
 	@PYTHONDONTWRITEBYTECODE=1 $(PYTHON) host/test_stack_usage_report.py

@@ -391,7 +391,7 @@ TIC12400 switch board, RTC board, and the PWM loopback connection.
 ```text
 Core/                 STM32 application and interrupt code
 Drivers/              STM32 HAL and CMSIS
-protocol/             CAN protocol schema and code generators
+protocol/             CAN protocol schema, generators, and can_gui.dbc
 python/               Cross-platform desktop GUI and Python tests
 tests/                Host-side firmware unit tests
 docs/                 Detailed roadmaps and captured test evidence
@@ -399,15 +399,17 @@ can_gui.ioc           STM32CubeMX configuration
 Makefile              Command-line firmware build
 ```
 
-When changing the CAN schema, regenerate both protocol implementations:
+When changing the CAN schema, regenerate and verify every protocol artifact:
 
 ```bash
-python protocol/generate_c.py
-python protocol/generate_python.py
+make -C tests test-protocol-generation
 ```
 
-Generated files are committed to the repository. CI checks that generated code
-matches the schema.
+The command updates the C header, Python module, and `protocol/can_gui.dbc`.
+Generated files are committed to the repository and CI rejects stale output.
+The DBC can be loaded directly by CANalyzer, BusMaster, or SavvyCAN; this first
+product revision names every frame and exposes payload bytes without discarding
+unknown or multiplexed data.
 
 ## Detailed documentation
 
