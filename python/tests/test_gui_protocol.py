@@ -36,8 +36,6 @@ def main():
            "PWM built-in-test result ID is defined")
     expect(protocol.TIC12400_STATUS_RX_ID == 0x552,
            "TIC12400 status ID is generated")
-    expect(protocol.TIC12400_ADC_RX_ID == 0x553,
-           "TIC12400 ADC ID is generated")
     expect(protocol.TIC12400_SWITCH_STATE_RX_ID == 0x554,
            "TIC12400 switch-state ID is generated")
     expect(protocol.TIC12400_PROFILE_RX_ID == 0x555,
@@ -59,20 +57,10 @@ def main():
     expect(protocol.PWM_CONTROL_REQUESTED == 0x01
            and protocol.PWM_CONTROL_SWITCH_DATA_VALID == 0x08,
            "PWM control-policy flags are generated")
-    expect(generated.TIC12400_SWITCH_CLOSED_MAX_ADC_CODE == 512,
-           "TIC12400 binary threshold is generated")
-    expect(generated.TIC12400_SWITCH_DEBOUNCE_SAMPLES == 3,
-           "TIC12400 debounce count is generated")
-    expect(protocol.TIC12400_ADC_CHANNEL_COUNT == 24,
+    expect(protocol.TIC12400_CHANNEL_COUNT == 24,
            "TIC12400 channel count is generated")
     expect(protocol.TIC12400_BATTERY_CAPABLE_MASK == 0x3FF,
            "TIC12400 IN0-IN9 capability mask is generated")
-    expect(protocol.TIC12400_ADC_CODES_PER_FRAME == 3,
-           "TIC12400 ADC frame width is generated")
-    expect(protocol.TIC12400_ADC_GROUP_COUNT == 8,
-           "TIC12400 ADC group count is generated")
-    expect(protocol.TIC12400_ADC_CODE_MAX == 1023,
-           "TIC12400 ADC code limit is generated")
     expect(protocol.TIC12400_RESULT_NAMES[0x00] == "OK",
            "TIC12400 successful service result is named")
     expect(protocol.TIC12400_RESULT_NAMES[0x05] == "DEVICE_SPI_ERROR",

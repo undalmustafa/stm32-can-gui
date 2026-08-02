@@ -42,8 +42,6 @@ typedef struct
     uint32_t int_en_cfg0_readback;
     uint32_t mode_readback;
     uint32_t enabled_input_mask;
-    uint32_t adc_valid_mask;
-    uint32_t comparator_valid_mask;
     uint32_t battery_capable_mask;
     uint32_t battery_switch_mask;
     uint32_t comparator_readback;
@@ -92,7 +90,6 @@ typedef struct
     uint8_t configuration_passed;
     uint8_t crc_trigger_self_cleared;
     uint8_t crc_completed;
-    uint8_t adc_characterization_active;
     uint8_t monitoring_started;
     uint8_t baseline_established;
     uint8_t switch_state_generation;

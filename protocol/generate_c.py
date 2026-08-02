@@ -97,35 +97,13 @@ def generate_c_header(yaml_path, out_path):
         tic12400_transport = data.get("tic12400_transport", {})
         out.write("/* TIC12400 Telemetry */\n")
         out.write(
-            "#define CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT "
-            f"{tic12400_transport.get('adc_channel_count', 24)}U\n"
+            "#define CAN_PROTOCOL_TIC12400_CHANNEL_COUNT "
+            f"{tic12400_transport.get('channel_count', 24)}U\n"
         )
         out.write(
             "#define CAN_PROTOCOL_TIC12400_BATTERY_CAPABLE_MASK "
             f"0x{tic12400_transport.get(
                 'battery_capable_mask', 0x3FF):06X}UL\n"
-        )
-        out.write(
-            "#define CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME "
-            f"{tic12400_transport.get('adc_codes_per_frame', 3)}U\n"
-        )
-        out.write(
-            "#define CAN_PROTOCOL_TIC12400_ADC_GROUP_COUNT "
-            f"{tic12400_transport.get('adc_group_count', 8)}U\n"
-        )
-        out.write(
-            "#define CAN_PROTOCOL_TIC12400_ADC_CODE_MAX "
-            f"{tic12400_transport.get('adc_code_max', 1023)}U\n"
-        )
-        out.write(
-            "#define CAN_PROTOCOL_TIC12400_SWITCH_CLOSED_MAX_ADC_CODE "
-            f"{tic12400_transport.get(
-                'switch_closed_max_adc_code', 512)}U\n"
-        )
-        out.write(
-            "#define CAN_PROTOCOL_TIC12400_SWITCH_DEBOUNCE_SAMPLES "
-            f"{tic12400_transport.get(
-                'switch_debounce_samples', 3)}U\n"
         )
         for key, val in data.get("tic12400_switch_flags", {}).items():
             name = key.upper()

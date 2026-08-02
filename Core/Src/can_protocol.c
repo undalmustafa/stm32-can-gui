@@ -387,11 +387,6 @@ void CAN_Protocol_EncodeTic12400Status(
     {
         payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_MONITORING;
     }
-    if (status->adc_characterization != 0U)
-    {
-        payload[0] |=
-            CAN_PROTOCOL_TIC12400_STATUS_ADC_CHARACTERIZATION;
-    }
     if (status->por_observed != 0U)
     {
         payload[0] |= CAN_PROTOCOL_TIC12400_STATUS_POR_OBSERVED;
@@ -443,27 +438,6 @@ void CAN_Protocol_EncodeTic12400Status(
     CAN_Protocol_WriteU16LE(
         &payload[6],
         status->last_nonzero_int_status);
-}
-
-void CAN_Protocol_EncodeTic12400AdcGroup(
-    const CAN_Protocol_Tic12400AdcGroup_t *group,
-    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE])
-{
-    uint8_t index;
-
-    payload[0] = group->generation;
-    payload[1] = group->group_index;
-
-    for (index = 0U;
-         index < CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME;
-         index++)
-    {
-        CAN_Protocol_WriteU16LE(
-            &payload[2U + (index * 2U)],
-            (uint16_t)(
-                group->adc_code[index] &
-                CAN_PROTOCOL_TIC12400_ADC_CODE_MAX));
-    }
 }
 
 void CAN_Protocol_EncodeTic12400SwitchState(

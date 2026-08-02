@@ -151,7 +151,6 @@ typedef struct
     uint8_t configuration_valid;
     uint8_t crc_complete;
     uint8_t monitoring;
-    uint8_t adc_characterization;
     uint8_t por_observed;
     uint8_t service_fault;
     uint8_t device_id;
@@ -166,13 +165,6 @@ typedef struct
     uint16_t service_failures;
     uint16_t last_nonzero_int_status;
 } CAN_Protocol_Tic12400Status_t;
-
-typedef struct
-{
-    uint8_t generation;
-    uint8_t group_index;
-    uint16_t adc_code[CAN_PROTOCOL_TIC12400_ADC_CODES_PER_FRAME];
-} CAN_Protocol_Tic12400AdcGroup_t;
 
 typedef struct
 {
@@ -259,10 +251,6 @@ void CAN_Protocol_EncodePwmSelfTestResult(
 
 void CAN_Protocol_EncodeTic12400Status(
     const CAN_Protocol_Tic12400Status_t *status,
-    uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
-
-void CAN_Protocol_EncodeTic12400AdcGroup(
-    const CAN_Protocol_Tic12400AdcGroup_t *group,
     uint8_t payload[CAN_PROTOCOL_PAYLOAD_SIZE]);
 
 void CAN_Protocol_EncodeTic12400SwitchState(

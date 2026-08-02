@@ -19,7 +19,6 @@ void test_carrier_profile_uses_fitted_ground_comparator_inputs(void)
         TIC12400_PROFILE_CARRIER_FITTED_MASK,
         profile.enabled_mask);
     TEST_ASSERT_EQUAL_HEX32(0U, profile.battery_switch_mask);
-    TEST_ASSERT_EQUAL_HEX32(0U, profile.adc_mode_mask);
     TEST_ASSERT_EQUAL(
         TIC12400_PROFILE_OK,
         TIC12400_Profile_Validate(
@@ -55,13 +54,13 @@ void test_profile_allows_battery_switches_only_on_in0_to_in9(void)
             TIC12400_PROFILE_CARRIER_FITTED_MASK));
 }
 
-void test_profile_rejects_modes_on_disabled_inputs(void)
+void test_profile_rejects_battery_mode_on_disabled_input(void)
 {
     profile.enabled_mask &= ~(uint32_t)(1UL << 4U);
-    profile.adc_mode_mask = 1UL << 4;
+    profile.battery_switch_mask = 1UL << 4;
 
     TEST_ASSERT_EQUAL(
-        TIC12400_PROFILE_MODE_INPUT_DISABLED,
+        TIC12400_PROFILE_INPUT_DISABLED,
         TIC12400_Profile_Validate(
             &profile,
             TIC12400_PROFILE_CARRIER_FITTED_MASK));
@@ -115,12 +114,6 @@ void test_profile_builds_both_edge_comparator_interrupt_masks(void)
             &profile,
             12U));
 
-    profile.adc_mode_mask = 1UL << 1;
-    TEST_ASSERT_EQUAL_HEX32(
-        0x00FFFFF3UL,
-        TIC12400_Profile_BuildComparatorInterruptEnable(
-            &profile,
-            0U));
     TEST_ASSERT_EQUAL_HEX32(
         0U,
         TIC12400_Profile_BuildComparatorInterruptEnable(
@@ -136,7 +129,7 @@ int main(void)
     RUN_TEST(test_profile_rejects_unfitted_in12);
     RUN_TEST(
         test_profile_allows_battery_switches_only_on_in0_to_in9);
-    RUN_TEST(test_profile_rejects_modes_on_disabled_inputs);
+    RUN_TEST(test_profile_rejects_battery_mode_on_disabled_input);
     RUN_TEST(test_comparator_decode_obeys_source_and_sink_polarity);
     RUN_TEST(test_profile_helpers_reject_null);
     RUN_TEST(

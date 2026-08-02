@@ -294,7 +294,6 @@ Multi-byte values are little-endian.
 |---:|---|
 | `0x551` | RTC status |
 | `0x552` | TIC12400 status |
-| `0x553` | Reserved engineering ADC telemetry |
 | `0x554` | TIC12400 switch bitmap |
 | `0x555` | Applied TIC12400 polarity profile |
 | `0x556` | RTC date and time |

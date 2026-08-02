@@ -15,7 +15,6 @@
 #define TIC12400_REGISTER_INT_STAT        0x02U
 #define TIC12400_REGISTER_CRC             0x03U
 #define TIC12400_REGISTER_IN_STAT_COMP    0x05U
-#define TIC12400_REGISTER_ANA_STAT0       0x0AU
 #define TIC12400_REGISTER_CONFIG          0x1AU
 #define TIC12400_REGISTER_IN_EN           0x1BU
 #define TIC12400_REGISTER_CS_SELECT       0x1CU
@@ -32,10 +31,6 @@
 #define TIC12400_CONFIG_CRC_TRIGGER_MASK  (1UL << 9)
 #define TIC12400_INT_STATUS_CRC_CALC_MASK (1UL << 8)
 #define TIC12400_CRC_VALUE_MASK           0xFFFFUL
-#define TIC12400_ADC_CHANNEL_COUNT        24U
-#define TIC12400_ADC_PAIR_COUNT           12U
-#define TIC12400_ADC_CODE_MASK            0x03FFUL
-#define TIC12400_ADC_SECOND_CODE_SHIFT    10U
 #define TIC12400_SPI_TIMEOUT_MS            10U
 
 typedef enum
@@ -114,13 +109,5 @@ TIC12400_Transaction_t TIC12400_ReadDeviceId(
 
 TIC12400_Transaction_t TIC12400_ReadConfigurationCrc(
     const TIC12400_Device_t *device);
-
-TIC12400_Transaction_t TIC12400_ReadAdcPair(
-    const TIC12400_Device_t *device,
-    uint8_t pair_index);
-
-void TIC12400_DecodeAdcPair(uint32_t register_data,
-                            uint16_t *first_code,
-                            uint16_t *second_code);
 
 #endif /* TIC12400_H */

@@ -141,16 +141,6 @@ BO_ 1362 TIC12400_STATUS: 8 MCU
  SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
  SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
 
-BO_ 1363 TIC12400_ADC: 8 MCU
- SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte2 : 16|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte3 : 24|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte4 : 32|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte5 : 40|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte6 : 48|8@1+ (1,0) [0|255] "" GUI
- SG_ PayloadByte7 : 56|8@1+ (1,0) [0|255] "" GUI
-
 BO_ 1364 TIC12400_SWITCH_STATE: 8 MCU
  SG_ PayloadByte0 : 0|8@1+ (1,0) [0|255] "" GUI
  SG_ PayloadByte1 : 8|8@1+ (1,0) [0|255] "" GUI
@@ -214,7 +204,6 @@ CM_ BO_ 1370 "STM32 event-log response fragments";
 CM_ BO_ 1371 "STM32 event-log heartbeat";
 CM_ BO_ 1360 "Command execution acknowledgement";
 CM_ BO_ 1362 "TIC12400 device and service status";
-CM_ BO_ 1363 "Segmented TIC12400 raw ADC snapshot";
 CM_ BO_ 1364 "Debounced TIC12400 open/closed switch state";
 CM_ BO_ 1365 "Applied TIC12400 switch-polarity profile";
 CM_ BO_ 1376 "MCU FDCAN RX FIFO pressure and loss telemetry";

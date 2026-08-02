@@ -17,7 +17,6 @@ typedef struct
 {
     uint32_t enabled_mask;
     uint32_t battery_switch_mask;
-    uint32_t adc_mode_mask;
 } TIC12400_Profile_t;
 
 typedef enum
@@ -26,7 +25,7 @@ typedef enum
     TIC12400_PROFILE_INVALID_ARGUMENT,
     TIC12400_PROFILE_INPUT_NOT_FITTED,
     TIC12400_PROFILE_BATTERY_INPUT_UNSUPPORTED,
-    TIC12400_PROFILE_MODE_INPUT_DISABLED
+    TIC12400_PROFILE_INPUT_DISABLED
 } TIC12400_ProfileResult_t;
 
 TIC12400_Profile_t TIC12400_Profile_CarrierBinary(void);

@@ -344,48 +344,6 @@ void test_read_configuration_crc_returns_16_bit_result(void)
     TEST_ASSERT_EQUAL_UINT8(0x01U, captured_tx[3]);
 }
 
-void test_read_adc_pair_uses_ana_stat_register_offset(void)
-{
-    TIC12400_Transaction_t transaction;
-
-    /* Zero data plus parity produces a valid response. */
-    fake_rx[3] = 0x01U;
-
-    transaction = TIC12400_ReadAdcPair(&device, 3U);
-
-    TEST_ASSERT_EQUAL(TIC12400_RESULT_OK, transaction.result);
-    TEST_ASSERT_EQUAL_UINT8(0x1AU, captured_tx[0]);
-    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[1]);
-    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[2]);
-    TEST_ASSERT_EQUAL_UINT8(0x00U, captured_tx[3]);
-}
-
-void test_read_adc_pair_rejects_invalid_pair_index(void)
-{
-    TIC12400_Transaction_t transaction =
-        TIC12400_ReadAdcPair(
-            &device,
-            TIC12400_ADC_PAIR_COUNT);
-
-    TEST_ASSERT_EQUAL(TIC12400_RESULT_INVALID_ADDRESS,
-                      transaction.result);
-    TEST_ASSERT_EQUAL_UINT8(0U, captured_size);
-}
-
-void test_decode_adc_pair_returns_both_10_bit_codes(void)
-{
-    uint16_t first_code = 0U;
-    uint16_t second_code = 0U;
-
-    TIC12400_DecodeAdcPair(
-        0x000AA955UL,
-        &first_code,
-        &second_code);
-
-    TEST_ASSERT_EQUAL_UINT16(0x155U, first_code);
-    TEST_ASSERT_EQUAL_UINT16(0x2AAU, second_code);
-}
-
 void test_hardware_reset_pulses_active_high(void)
 {
     TEST_ASSERT_EQUAL(TIC12400_RESULT_OK,
@@ -418,9 +376,6 @@ int main(void)
         test_write_register_transmits_frame_and_decodes_previous_value);
     RUN_TEST(test_write_register_rejects_data_wider_than_24_bits);
     RUN_TEST(test_read_configuration_crc_returns_16_bit_result);
-    RUN_TEST(test_read_adc_pair_uses_ana_stat_register_offset);
-    RUN_TEST(test_read_adc_pair_rejects_invalid_pair_index);
-    RUN_TEST(test_decode_adc_pair_returns_both_10_bit_codes);
     RUN_TEST(test_hardware_reset_pulses_active_high);
     return UNITY_END();
 }

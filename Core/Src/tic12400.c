@@ -337,34 +337,3 @@ TIC12400_Transaction_t TIC12400_ReadConfigurationCrc(
 {
     return TIC12400_ReadRegister(device, TIC12400_REGISTER_CRC);
 }
-
-TIC12400_Transaction_t TIC12400_ReadAdcPair(
-    const TIC12400_Device_t *device,
-    uint8_t pair_index)
-{
-    if (pair_index >= TIC12400_ADC_PAIR_COUNT)
-    {
-        return TIC12400_CreateTransaction(
-            TIC12400_RESULT_INVALID_ADDRESS);
-    }
-
-    return TIC12400_ReadRegister(
-        device,
-        (uint8_t)(TIC12400_REGISTER_ANA_STAT0 + pair_index));
-}
-
-void TIC12400_DecodeAdcPair(uint32_t register_data,
-                            uint16_t *first_code,
-                            uint16_t *second_code)
-{
-    if ((first_code == NULL) || (second_code == NULL))
-    {
-        return;
-    }
-
-    *first_code =
-        (uint16_t)(register_data & TIC12400_ADC_CODE_MASK);
-    *second_code = (uint16_t)(
-        (register_data >> TIC12400_ADC_SECOND_CODE_SHIFT) &
-        TIC12400_ADC_CODE_MASK);
-}

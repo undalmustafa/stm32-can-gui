@@ -4,12 +4,11 @@ import time
 
 from .protocol import (
     CMD_TIC12400_SET_POLARITY,
-    TIC12400_ADC_CHANNEL_COUNT,
+    TIC12400_CHANNEL_COUNT,
     TIC12400_BATTERY_CAPABLE_MASK,
     TIC12400_PROFILE_CONFIGURATION_VALID,
     TIC12400_PROFILE_RX_ID,
     TIC12400_RESULT_NAMES,
-    TIC12400_STATUS_ADC_CHARACTERIZATION,
     TIC12400_STATUS_CONFIGURATION_VALID,
     TIC12400_STATUS_CRC_COMPLETE,
     TIC12400_STATUS_MONITORING,
@@ -34,7 +33,7 @@ class Tic12400Controller:
 
     NOT_FITTED_CHANNEL = 12
     FITTED_MASK = (
-        (1 << TIC12400_ADC_CHANNEL_COUNT) - 1
+        (1 << TIC12400_CHANNEL_COUNT) - 1
     ) & ~(1 << NOT_FITTED_CHANNEL)
     BATTERY_CAPABLE_MASK = TIC12400_BATTERY_CAPABLE_MASK
 
@@ -49,7 +48,6 @@ class Tic12400Controller:
             "configuration_valid": False,
             "crc_complete": False,
             "monitoring": False,
-            "adc_characterization": False,
             "por_observed": False,
             "service_fault": False,
             "device_id": None,
@@ -71,7 +69,7 @@ class Tic12400Controller:
                 ),
                 "polarity": "UNAVAILABLE",
             }
-            for channel in range(TIC12400_ADC_CHANNEL_COUNT)
+            for channel in range(TIC12400_CHANNEL_COUNT)
         ]
         self.switch_state = {
             "received": False,
@@ -175,9 +173,6 @@ class Tic12400Controller:
             "configuration_valid": configuration_valid,
             "crc_complete": crc_complete,
             "monitoring": monitoring,
-            "adc_characterization": bool(
-                flags & TIC12400_STATUS_ADC_CHARACTERIZATION
-            ),
             "por_observed": bool(flags & TIC12400_STATUS_POR_OBSERVED),
             "service_fault": service_fault,
             "device_id": data[1],

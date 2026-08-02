@@ -7,7 +7,6 @@ TIC12400_Profile_t TIC12400_Profile_CarrierBinary(void)
     TIC12400_Profile_t profile = {
         .enabled_mask = TIC12400_PROFILE_CARRIER_FITTED_MASK,
         .battery_switch_mask = 0U,
-        .adc_mode_mask = 0U,
     };
 
     return profile;
@@ -36,11 +35,10 @@ TIC12400_ProfileResult_t TIC12400_Profile_Validate(
         return TIC12400_PROFILE_BATTERY_INPUT_UNSUPPORTED;
     }
 
-    if (((profile->battery_switch_mask |
-          profile->adc_mode_mask) &
+    if ((profile->battery_switch_mask &
          ~profile->enabled_mask) != 0U)
     {
-        return TIC12400_PROFILE_MODE_INPUT_DISABLED;
+        return TIC12400_PROFILE_INPUT_DISABLED;
     }
 
     return TIC12400_PROFILE_OK;
@@ -79,7 +77,6 @@ uint32_t TIC12400_Profile_BuildComparatorInterruptEnable(
     const TIC12400_Profile_t *profile,
     uint8_t first_channel)
 {
-    uint32_t comparator_inputs;
     uint32_t value = 0U;
     uint8_t channel;
     uint8_t field;
@@ -90,12 +87,10 @@ uint32_t TIC12400_Profile_BuildComparatorInterruptEnable(
         return 0U;
     }
 
-    comparator_inputs =
-        profile->enabled_mask & ~profile->adc_mode_mask;
     for (field = 0U; field < 12U; field++)
     {
         channel = (uint8_t)(first_channel + field);
-        if ((comparator_inputs & (1UL << channel)) != 0U)
+        if ((profile->enabled_mask & (1UL << channel)) != 0U)
         {
             value |= 3UL << (field * 2U);
         }

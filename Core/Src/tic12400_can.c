@@ -9,21 +9,13 @@
 #define TIC12400_CAN_PROFILE_PERIOD_MS 500U
 
 _Static_assert(
-    CAN_PROTOCOL_TIC12400_ADC_CHANNEL_COUNT ==
+    CAN_PROTOCOL_TIC12400_CHANNEL_COUNT ==
     TIC12400_SWITCH_CHANNEL_COUNT,
     "TIC12400 protocol and driver channel counts must match");
 _Static_assert(
     CAN_PROTOCOL_TIC12400_BATTERY_CAPABLE_MASK ==
     TIC12400_PROFILE_BATTERY_CAPABLE_MASK,
     "TIC12400 battery-capable masks must match");
-_Static_assert(
-    CAN_PROTOCOL_TIC12400_SWITCH_CLOSED_MAX_ADC_CODE ==
-    TIC12400_SWITCH_CLOSED_MAX_ADC_CODE,
-    "TIC12400 closed threshold must match the CAN contract");
-_Static_assert(
-    CAN_PROTOCOL_TIC12400_SWITCH_DEBOUNCE_SAMPLES ==
-    TIC12400_SWITCH_DEBOUNCE_SAMPLES,
-    "TIC12400 debounce count must match the CAN contract");
 
 volatile TIC12400_CanSnapshot_t g_tic12400_can;
 
@@ -97,8 +89,6 @@ static void TIC12400_CAN_SendStatus(void)
         g_tic12400_probe.configuration_passed;
     status.crc_complete = g_tic12400_probe.crc_completed;
     status.monitoring = g_tic12400_probe.monitoring_started;
-    status.adc_characterization =
-        g_tic12400_probe.adc_characterization_active;
     status.por_observed = g_tic12400_probe.por_observed;
     status.device_id = g_tic12400_probe.device_id;
 

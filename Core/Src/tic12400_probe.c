@@ -513,11 +513,6 @@ static void TIC12400_ProbeConfigureInputs(void)
 
     g_tic12400_probe.enabled_input_mask =
         tic12400_active_profile.enabled_mask;
-    g_tic12400_probe.adc_valid_mask =
-        tic12400_active_profile.adc_mode_mask;
-    g_tic12400_probe.comparator_valid_mask =
-        tic12400_active_profile.enabled_mask &
-        ~tic12400_active_profile.adc_mode_mask;
     g_tic12400_probe.battery_capable_mask =
         TIC12400_PROFILE_BATTERY_CAPABLE_MASK;
     g_tic12400_probe.battery_switch_mask =
@@ -546,7 +541,7 @@ static void TIC12400_ProbeConfigureInputs(void)
     }
     if (TIC12400_ProbeWriteAndVerify(
             TIC12400_REGISTER_MODE,
-            tic12400_active_profile.adc_mode_mask,
+            0U,
             &g_tic12400_probe.mode_readback) == 0U)
     {
         return;
@@ -623,7 +618,6 @@ static void TIC12400_ProbeConfigureInputs(void)
 
     g_tic12400_probe.configuration_completed = 1U;
     g_tic12400_probe.configuration_passed = 1U;
-    g_tic12400_probe.adc_characterization_active = 0U;
     g_tic12400_probe.monitoring_started = 1U;
 
     if ((tic12400_profile_applied == 0U) ||
