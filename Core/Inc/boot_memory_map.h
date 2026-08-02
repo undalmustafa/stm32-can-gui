@@ -14,6 +14,7 @@
 #define BOOT_FLASH_END_ADDRESS        0x08200000UL
 #define BOOT_FLASH_BANK_SIZE          0x00100000UL
 #define BOOT_FLASH_SECTOR_SIZE        0x00002000UL
+#define BOOT_FLASH_PROGRAM_UNIT_SIZE  16U
 
 /* Bank 1: immutable bootloader followed by application slot A. */
 #define BOOT_LOADER_BASE_ADDRESS      0x08000000UL

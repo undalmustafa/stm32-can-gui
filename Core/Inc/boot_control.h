@@ -66,7 +66,7 @@ Boot_ControlResult_t Boot_Control_PrepareRecord(
     uint8_t record[BOOT_CONTROL_RECORD_SIZE]
 );
 
-/* Models the final flash-word write. Program this word only after 0..59. */
+/* Adds the marker to the final 16-byte STM32H7A3 flash program unit. */
 void Boot_Control_MarkRecordCommitted(
     uint8_t record[BOOT_CONTROL_RECORD_SIZE]
 );

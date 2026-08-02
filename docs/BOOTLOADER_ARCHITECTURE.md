@@ -84,11 +84,29 @@ confirmed/pending slot, kalan deneme sayısı, security counter, build version,
 CRC-32 ve commit marker içerir. Reserved alanların tamamı sıfır olmak
 zorundadır.
 
-Yeni state yazılırken eski record korunur. Diğer sektör silinir, record'un
-`0..59` byte'ı programlanır ve `0xC04E7A5A` commit word'ü en son yazılır.
-Power loss commit'ten önce oluşursa yeni record geçersiz kalır ve önceki
-generation seçilir. CRC bozuk, yarım yazılmış veya aynı generation ile farklı
-state taşıyan record'lar fail-closed reddedilir.
+Yeni state yazılırken eski record korunur. Diğer sektör silinir ve erase
+readback ile doğrulanır. STM32H7A3'ün programlama birimi 128-bit/16 byte olduğu
+için record'un ilk üç flashword'ü (`0..47`) yazılıp doğrulanır. Reserved alan,
+CRC ve `0xC04E7A5A` commit marker içeren son 16-byte flashword tek final kabul
+noktası olarak en son programlanır ve record bütünü tekrar okunur. Dört-byte
+commit yazımı HAL/donanım tarafından desteklenmediği için kullanılmaz.
+
+Power loss final flashword'den önce oluşursa yeni record'un commit marker'ı
+erased kalır ve önceki generation seçilir. Final flashword sırasında kesinti
+olursa record ancak CRC ve marker birlikte eksiksizse kabul edilir; aksi halde
+eski record seçilir. Her hata yolunda flash tekrar kilitlenir. CRC bozuk, yarım
+yazılmış veya aynı generation ile farklı state taşıyan record'lar fail-closed
+reddedilir.
+
+`Boot_Flash_PersistControl()` erase, erase verify, üç body programı, body
+verify, final commit programı ve final verify sırasını zorunlu tutar. STM32 HAL
+adapter'ı yalnız bootloader dışındaki sektör hizalı managed flash adreslerini
+silebilir; 16-byte hizasız veya flash sınırı dışındaki program çağrılarını
+reddeder. Readback öncesi flash donanım CRC motoru çalıştırılır. Böylece yarım
+programlanmış flashword kaynaklı ECC double-error `CRCRDERR` olarak fail-closed
+yakalanır ve doğrudan CPU read nedeniyle HardFault üretilmez.
+[ST'nin STM32H7 flash ECC örneği](https://community.st.com/stm32-mcus-60/injecting-and-handling-ecc-errors-in-stm32h7-flash-memory-141263)
+double-error içeren doğrudan flash okumasının HardFault ürettiğini gösterir.
 
 Update ve rollback akışı:
 
@@ -103,8 +121,9 @@ Update ve rollback akışı:
 6. Confirmed image de geçersizse başka bir unconfirmed image otomatik
    çalıştırılmaz; bootloader recovery modunda kalır.
 
-Bu katman flash HAL çağrısı yapmaz. Record erase/program ve application
-confirmation taşıması sonraki backend dilimlerinde bağlanacaktır.
+Çekirdek katman HAL çağrısı yapmaz; STM32H7A3 erase/program/read adapter'ı ayrı
+dosyadadır. Application confirmation taşıması sonraki dilimde bootloader'a
+bağlanacaktır.
 
 ## Linker profilleri ve application handoff
 
@@ -146,9 +165,8 @@ backend interrupt'ları kapatıp güvenli halt durumunda kalır.
 
 ## Sıradaki dilimler
 
-1. Flash erase/program backend'i ile power-loss kabul noktalarını ekle.
-2. UDS download/routine servisleri ve GUI Flash sekmesini bağla.
-3. Release image packager, offline signing ve gömülü public-key doğrulamasını
+1. UDS download/routine servisleri ve GUI Flash sekmesini bağla.
+2. Release image packager, offline signing ve gömülü public-key doğrulamasını
    CI/release zincirine ekle.
 
 Mevcut `STM32H7A3ZITXQ_FLASH.ld` standalone application geliştirme düzenini

@@ -37,6 +37,8 @@ TEST_BOOT_CONTROL_SRC = test_boot_control.c ../Core/Src/boot_control.c \
 TEST_BOOT_JUMP_SRC = test_boot_jump.c ../Core/Src/boot_jump.c unity/unity.c
 TEST_BOOT_TARGET_SRC = test_boot_target.c ../Core/Src/boot_target.c \
 	../Core/Src/boot_control.c ../Core/Src/boot_jump.c unity/unity.c
+TEST_BOOT_FLASH_SRC = test_boot_flash.c ../Core/Src/boot_flash.c \
+	../Core/Src/boot_control.c unity/unity.c
 TEST_PWM_SELF_TEST_SRC = test_pwm_self_test.c ../Core/Src/pwm_self_test.c unity/unity.c
 TEST_COMMAND_GUARD_SRC = test_can_command_guard.c \
 	../Core/Src/can_command_guard.c ../Core/Src/can_protocol.c unity/unity.c
@@ -81,6 +83,7 @@ TEST_BINS = \
 	$(BUILD_DIR)/test_boot_control \
 	$(BUILD_DIR)/test_boot_jump \
 	$(BUILD_DIR)/test_boot_target \
+	$(BUILD_DIR)/test_boot_flash \
 	$(BUILD_DIR)/test_pwm_self_test \
 	$(BUILD_DIR)/test_command_guard \
 	$(BUILD_DIR)/test_app_log \
@@ -162,6 +165,9 @@ $(BUILD_DIR)/test_boot_jump: $(TEST_BOOT_JUMP_SRC) | $(BUILD_DIR)
 $(BUILD_DIR)/test_boot_target: $(TEST_BOOT_TARGET_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
+$(BUILD_DIR)/test_boot_flash: $(TEST_BOOT_FLASH_SRC) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) $^ -o $@
+
 $(BUILD_DIR)/test_pwm_self_test: $(TEST_PWM_SELF_TEST_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
 
@@ -222,6 +228,7 @@ test: all test-boot-linker-contract
 	$(BUILD_DIR)/test_boot_control
 	$(BUILD_DIR)/test_boot_jump
 	$(BUILD_DIR)/test_boot_target
+	$(BUILD_DIR)/test_boot_flash
 	$(BUILD_DIR)/test_pwm_self_test
 	$(BUILD_DIR)/test_command_guard
 	$(BUILD_DIR)/test_app_log

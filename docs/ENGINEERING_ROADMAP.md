@@ -325,7 +325,7 @@ Uygulama sırası:
      attempt, application confirmation ve otomatik rollback policy'sini ekle.
    - [x] Boot target, A/B linker script'leri, vector relocation ve güvenli
      application jump yolunu bağla.
-   - [ ] Power-loss güvenli flash erase/program backend'ini ekle.
+   - [x] Power-loss güvenli flash erase/program backend'ini ekle.
    - [ ] UDS firmware download/routine servisleri ile GUI Flash sekmesini ekle.
    - [ ] Offline signing, gömülü public-key doğrulaması ve signed release
      artifact zincirini tamamla.
